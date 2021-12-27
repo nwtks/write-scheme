@@ -1,6 +1,21 @@
 module Eval
 
 open Type
+open Read
+
+let extendEnvs envs bindings = (Map.ofList bindings |> Env) :: envs
+
+let lookupEnvs envs symbol =
+    match
+        List.tryPick
+            (fun (env: Env) ->
+                match env.TryGetValue symbol with
+                | true, v -> Some v
+                | _ -> None)
+            envs
+        with
+    | Some v -> v
+    | None -> sprintf "No binding for '%s'." symbol |> failwith
 
 let sQuote eval envs cont =
     let rec unquote cont' =
@@ -30,11 +45,9 @@ let isEqv eval envs a b =
         | a, b -> a = b
 
     a
-    |> eval
-        envs
-        (fun a' ->
-            b
-            |> eval envs (fun b' -> (a', b') |> eqv |> SBool))
+    |> eval envs (fun a' ->
+        b
+        |> eval envs (fun b' -> (a', b') |> eqv |> SBool))
 
 let sBegin eval envs cont =
     let rec each res =
@@ -48,25 +61,20 @@ let sDefine eval (envs: Env list) cont var expr =
     envs.Head.TryAdd(var, ref SEmpty) |> ignore
 
     expr
-    |> eval
-        envs
-        (fun x ->
-            envs.Head.[var] := x
-            SEmpty |> cont)
+    |> eval envs (fun x ->
+        envs.Head.[var].Value <- x
+        SEmpty |> cont)
 
 let sSet eval envs cont var expr =
     expr
-    |> eval
-        envs
-        (fun x ->
-            (lookupEnvs envs var) := x
-            SEmpty |> cont)
+    |> eval envs (fun x ->
+        (lookupEnvs envs var).Value <- x
+        SEmpty |> cont)
 
 let zipArgs args =
     let zip xs args' =
         List.zip xs args'
-        |> List.map
-            (function
+        |> List.map (function
             | (SSymbol p, a) -> p, a)
 
     function
@@ -95,7 +103,7 @@ let sLambda eval envs cont parameters body =
 
     SClosure closure |> cont
 
-let sMacro eval envs cont parameters body =
+let sDefMacro eval envs cont parameters body =
     let closure envs' cont' args =
         body
         |> eval
@@ -108,18 +116,14 @@ let sMacro eval envs cont parameters body =
 
 let sIf eval envs cont test conseq alter =
     test
-    |> eval
-        envs
-        (function
+    |> eval envs (function
         | SBool false -> eval envs cont alter
         | _ -> eval envs cont conseq)
 
 let rec sCond eval envs cont =
     let loop test xs conseq =
         test
-        |> eval
-            envs
-            (function
+        |> eval envs (function
             | SBool false -> sCond eval envs cont xs
             | res -> conseq res)
 
@@ -140,16 +144,12 @@ let rec sAnd eval envs =
     | [] -> SBool true
     | [ t ] ->
         t
-        |> eval
-            envs
-            (function
+        |> eval envs (function
             | SBool false -> SBool false
             | x -> x)
     | t :: ts ->
         t
-        |> eval
-            envs
-            (function
+        |> eval envs (function
             | SBool false -> SBool false
             | _ -> sAnd eval envs ts)
 
@@ -158,9 +158,7 @@ let rec sOr eval envs =
     | [] -> SBool false
     | t :: ts ->
         t
-        |> eval
-            envs
-            (function
+        |> eval envs (function
             | SBool false -> sOr eval envs ts
             | x -> x)
 
@@ -183,8 +181,7 @@ let sLetStar eval envs cont bindings body =
 let sLetRec eval envs cont bindings body =
     let envs' =
         bindings
-        |> List.map
-            (function
+        |> List.map (function
             | SList [ SSymbol s; _ ] -> (s, ref SEmpty))
         |> extendEnvs envs
 
@@ -225,6 +222,15 @@ let sLetRecStar eval envs cont bindings body =
 
     update (bindings, List.rev refs)
 
+
+let sLoad eval envs cont file =
+    System.IO.File.ReadAllText(file)
+    |> read
+    |> eval envs id
+    |> ignore
+
+    SSymbol(sprintf "Loaded '%s'." file) |> cont
+
 let apply eval envs cont fn args =
     let rec map acc =
         function
@@ -246,6 +252,9 @@ let rec eval envs cont =
     | SQuote datum -> sQuote eval envs cont datum
     | SList [] -> SEmpty |> cont
     | SList [ SSymbol "quote"; datum ] -> SQuote datum |> eval envs cont
+    | SList [ SSymbol "quasiquote"; datum ] -> SQuasiquote datum |> eval envs cont
+    | SList [ SSymbol "unquote"; datum ] -> SUnquote datum |> eval envs cont
+    | SList [ SSymbol "unquote-splicing"; datum ] -> SUnquoteSplicing datum |> eval envs cont
     | SList [ SSymbol "eqv?"; a; b ]
     | SList [ SSymbol "eq?"; a; b ] -> isEqv eval envs a b |> cont
     | SList (SSymbol "begin" :: bodys) -> sBegin eval envs cont bodys
@@ -258,7 +267,7 @@ let rec eval envs cont =
     | SList [ SSymbol "define"; SPair ([ SSymbol var ], formal); body ] ->
         sLambda eval envs cont formal body
         |> sDefine eval envs cont var
-    | SList [ SSymbol "macro"; parameters; body ] -> sMacro eval envs cont parameters body
+    | SList [ SSymbol "defmacro"; parameters; body ] -> sDefMacro eval envs cont parameters body
     | SList [ SSymbol "if"; test; conseq; alter ] -> sIf eval envs cont test conseq alter
     | SList [ SSymbol "if"; test; conseq ] -> sIf eval envs cont test conseq SEmpty
     | SList (SSymbol "cond" :: clauses) -> sCond eval envs cont clauses
@@ -268,10 +277,9 @@ let rec eval envs cont =
     | SList [ SSymbol "let*"; SList bindings; body ] -> sLetStar eval envs cont bindings body
     | SList [ SSymbol "letrec"; SList bindings; body ] -> sLetRec eval envs cont bindings body
     | SList [ SSymbol "letrec*"; SList bindings; body ] -> sLetRecStar eval envs cont bindings body
+    | SList [ SSymbol "load"; SString file ] -> sLoad eval envs cont file
     | SList (operator :: operand) ->
         operator
-        |> eval
-            envs
-            (function
+        |> eval envs (function
             | SClosure fn -> fn envs cont operand
             | FFunction fn -> apply eval envs cont fn operand)

@@ -1,6 +1,5 @@
 module Repl
 
-open Type
 open Read
 open Print
 open Eval
@@ -8,11 +7,16 @@ open Builtin
 
 let rep envs = read >> eval envs id >> print
 
-let rec repl output =
-    let envs = extendEnvs builtin []
-    printf "%s\n> " output
+let newEnvs () = extendEnvs builtin []
 
-    try
-        System.Console.ReadLine() |> rep envs |> repl
-    with
-    | ex -> ex.Message |> repl
+let rec repl () =
+    let envs = newEnvs ()
+
+    let rec repl' output =
+        try
+            printf "%s\n> " output
+            System.Console.ReadLine() |> rep envs |> repl'
+        with
+        | ex -> ex.Message |> repl'
+
+    repl' "Welcome"

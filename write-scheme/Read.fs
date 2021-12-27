@@ -6,9 +6,39 @@ open Type
 type SState = unit
 type Parser<'t> = Parser<'t, SState>
 
-//let pIntralineWhitespace = pstring " " <|> pstring "\t"
-//let pLineEnding =  pstring "\r" <|> pstring "\n" <|> pstring "\r\n"
-//let pWhitespace = pIntralineWhitespace <|> pLineEnding
+let pIntralineWhitespace = anyOf " \t"
+let pLineEnding = newline
+
+let pWhitespace =
+    choice [ pIntralineWhitespace
+             pLineEnding ]
+
+let pLineComment = pchar ';' >>. restOfLine true
+
+let pBlockComment =
+    pstring "#|"
+    >>. charsTillString "|#" true System.Int32.MaxValue
+
+let pAtmosphere =
+    choice [ pWhitespace |>> string
+             pLineComment
+             pBlockComment ]
+
+let pIntertokenSpace = many pAtmosphere
+let pIntertokenSpace1 = many1 pAtmosphere
+
+let pLetter = asciiLetter
+let pSpecialInitial = anyOf "!$%&*/:<=>?^_~"
+let pInitial = choice [ pLetter; pSpecialInitial ]
+let pDigit = digit
+let pHexDigit = hex
+let pExplicitSign = anyOf "+-"
+let pSpecialSubsequent = choice [ pExplicitSign; anyOf ".@" ]
+
+let pSubsequent =
+    choice [ pInitial
+             digit
+             pSpecialSubsequent ]
 
 let hex2int c = (int c &&& 15) + (int c >>> 6) * 9
 
@@ -24,22 +54,11 @@ let pInlineHexEscape =
     between (pstring "\\x") (pchar ';') pHexScalarValue
 
 let pMnemonicEscape =
-    choice [ pstring "\\a" |>> (fun _ -> "\u0007")
-             pstring "\\b" |>> (fun _ -> "\u0008")
-             pstring "\\t" |>> (fun _ -> "\u0009")
-             pstring "\\n" |>> (fun _ -> "\u000a")
-             pstring "\\r" |>> (fun _ -> "\u000d") ]
-
-let pSpecialInitial = anyOf "!$%&*/:<=>?^_~"
-let pExplicitSign = anyOf "+-"
-let pSpecialSubsequent = choice [ pExplicitSign; anyOf ".@" ]
-
-let pInitial = choice [ asciiLetter; pSpecialInitial ]
-
-let pSubsequent =
-    choice [ pInitial
-             digit
-             pSpecialSubsequent ]
+    choice [ stringReturn "\\a" "\u0007"
+             stringReturn "\\b" "\u0008"
+             stringReturn "\\t" "\u0009"
+             stringReturn "\\n" "\u000a"
+             stringReturn "\\r" "\u000d" ]
 
 let pSignSubsequent =
     choice [ pInitial
@@ -50,106 +69,123 @@ let pDotSubsequent = choice [ pSignSubsequent; pchar '.' ]
 
 let pPeculiarIdentifier =
     choice [ attempt (
-                 pipe3
-                     pExplicitSign
-                     pSignSubsequent
-                     (pSubsequent |> manyChars)
-                     (fun c1 c2 s -> sprintf "%c%c%s" c1 c2 s)
+                 pipe3 pExplicitSign pSignSubsequent (pSubsequent |> manyChars) (fun c1 c2 s3 ->
+                     sprintf "%c%c%s" c1 c2 s3)
              )
              attempt (
-                 pipe4
-                     pExplicitSign
-                     (pchar '.')
-                     pDotSubsequent
-                     (pSubsequent |> manyChars)
-                     (fun c1 c2 c3 s -> sprintf "%c%c%c%s" c1 c2 c3 s)
+                 pipe4 pExplicitSign (pchar '.') pDotSubsequent (pSubsequent |> manyChars) (fun c1 c2 c3 s4 ->
+                     sprintf "%c%c%c%s" c1 c2 c3 s4)
              )
              pExplicitSign |>> string
-             pipe3 (pchar '.') pDotSubsequent (pSubsequent |> manyChars) (fun c1 c2 s -> sprintf "%c%c%s" c1 c2 s) ]
+             pipe3 (pchar '.') pDotSubsequent (pSubsequent |> manyChars) (fun c1 c2 s3 -> sprintf "%c%c%s" c1 c2 s3) ]
 
 let pSymbolElement =
     choice [ noneOf "|\\" |>> string
              pMnemonicEscape
              pInlineHexEscape
-             pstring "\\|" |>> (fun _ -> "|")
-             pstring "\\\\" |>> (fun _ -> "\\") ]
+             stringReturn "\\|" "|" ]
 
 let pIdentifier =
-    choice [ pipe2 pInitial (pSubsequent |> manyChars) (fun c s -> sprintf "%c%s" c s)
+    choice [ pipe2 pInitial (pSubsequent |> manyChars) (fun c1 s2 -> sprintf "%c%s" c1 s2)
              pPeculiarIdentifier
              between (pchar '|') (pchar '|') (pSymbolElement |> manyStrings) ]
 
-let parseSymbol = pIdentifier |>> SSymbol
-
-let parseBool =
-    choice [ stringReturn "#true" (SBool true)
-             stringReturn "#t" (SBool true)
-             stringReturn "#false" (SBool false)
-             stringReturn "#f" (SBool false) ]
+let pBool =
+    choice [ stringReturn "#true" true
+             stringReturn "#t" true
+             stringReturn "#false" false
+             stringReturn "#f" false ]
 
 let pCharacterName =
-    choice [ pstring "#\\alarm" |>> (fun _ -> "\u0007")
-             pstring "#\\backspace" |>> (fun _ -> "\u0008")
-             pstring "#\\delete" |>> (fun _ -> "\u007f")
-             pstring "#\\escape" |>> (fun _ -> "\u001b")
-             pstring "#\\newline" |>> (fun _ -> "\u000a")
-             pstring "#\\null" |>> (fun _ -> "\u0000")
-             pstring "#\\return" |>> (fun _ -> "\u000d")
-             pstring "#\\space" |>> (fun _ -> "\u0020")
-             pstring "#\\tab" |>> (fun _ -> "\u0009") ]
+    choice [ stringReturn "#\\alarm" "\u0007"
+             stringReturn "#\\backspace" "\u0008"
+             stringReturn "#\\delete" "\u007f"
+             stringReturn "#\\escape" "\u001b"
+             stringReturn "#\\newline" "\u000a"
+             stringReturn "#\\null" "\u0000"
+             stringReturn "#\\return" "\u000d"
+             stringReturn "#\\space" "\u0020"
+             stringReturn "#\\tab" "\u0009" ]
 
 let pCharacter =
-    choice [ pCharacterName
-             pstring "#\\x" >>. pHexScalarValue
+    choice [ attempt pCharacterName
+             attempt (pstring "#\\x" >>. pHexScalarValue)
              pstring "#\\" >>. anyChar |>> string ]
 
-let parseChar = pCharacter |>> SChar
-
 let pStringElement =
-    choice [ noneOf "\"\\" |>> string
-             pMnemonicEscape
+    choice [ pMnemonicEscape
              pInlineHexEscape
-             pstring "\\\"" |>> (fun _ -> "\"")
-             pstring "\\|" |>> (fun _ -> "|")
-             pstring "\\\\" |>> (fun _ -> "\\") ]
+             stringReturn "\\\"" "\""
+             stringReturn "\\\\" "\\"
+             (pchar '\\')
+             >>. pipe3
+                 (pIntralineWhitespace |> manyChars)
+                 pLineEnding
+                 (pIntralineWhitespace |> manyChars)
+                 (fun s1 c2 s3 -> sprintf "%s%c%s" s1 c2 s3)
+             noneOf "\"\\" |>> string ]
+
+let parseSymbol = pIdentifier |>> SSymbol
+
+let parseBool = pBool |>> SBool
+
+let parseChar = pCharacter |>> SChar
 
 let parseString =
     between (pchar '"') (pchar '"') (pStringElement |> manyStrings |>> SString)
 
 let parseNumber = pfloat |>> SNumber
 
-let parseExpr, parseExprRef = createParserForwardedToRef ()
+let parseDatum, parseDatumRef = createParserForwardedToRef ()
 
-let parseQuoted = pchar '\'' >>. parseExpr |>> SQuote
-let parseUnquoted = pchar ',' >>. parseExpr |>> SUnquote
+let parseQuoted = pchar '\'' >>. parseDatum |>> SQuote
+let parseQuasiquote = pchar '`' >>. parseDatum |>> SQuasiquote
+let parseUnquoted = pchar ',' >>. parseDatum |>> SUnquote
 
-let parseEmpty = stringReturn "()" SEmpty
+let parseUnquoteSplicing =
+    pstring ",@" >>. parseDatum |>> SUnquoteSplicing
 
-let parseList = sepBy parseExpr spaces1 |>> SList
+let parseList =
+    between
+        (pchar '(')
+        (pchar ')')
+        (pIntertokenSpace
+         >>. many (parseDatum .>> pIntertokenSpace)
+         |>> function
+             | [] -> SEmpty
+             | x -> SList x)
 
 let parseDotList =
-    pipe3
-        (parseExpr .>> spaces1)
-        (sepEndBy parseExpr spaces1)
-        (pchar '.' >>. spaces1 >>. parseExpr)
-        (fun s1 s2 s3 -> SPair(s1 :: s2, s3))
+    between
+        (pchar '(')
+        (pchar ')')
+        (pIntertokenSpace
+         >>. pipe2
+             (many1 (parseDatum .>> pIntertokenSpace1))
+             (pchar '.' >>. pIntertokenSpace1 >>. parseDatum
+              .>> pIntertokenSpace)
+             (fun d1 d2 -> SPair(d1, d2)))
 
-parseExprRef
-:= choice [ parseBool
-            parseChar
-            parseString
-            parseNumber
-            parseQuoted
-            parseUnquoted
-            attempt parseSymbol
-            parseEmpty
-            between
-                (pchar '(')
-                (pchar ')')
-                (choice [ attempt parseDotList
-                          parseList ]) ]
+parseDatumRef.Value <-
+    choice [ parseQuoted
+             parseQuasiquote
+             attempt parseUnquoteSplicing
+             parseUnquoted
+             attempt parseDotList
+             parseList
+             parseBool
+             parseChar
+             parseString
+             parseNumber
+             attempt parseSymbol ]
 
 let read input =
-    match run (parseExpr .>> eof) input with
+    match
+        run
+            (pIntertokenSpace >>. parseDatum
+             .>> pIntertokenSpace
+             .>> eof)
+            input
+        with
     | Failure (err, _, _) -> sprintf "No match %s" err |> failwith
     | Success (v, _, _) -> v

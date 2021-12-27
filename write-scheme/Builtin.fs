@@ -1,6 +1,7 @@
 module Builtin
 
 open Type
+open Eval
 
 let isEqual cont =
     let rec equal =

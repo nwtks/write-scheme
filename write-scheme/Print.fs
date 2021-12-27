@@ -12,7 +12,9 @@ let rec print =
     | SChar s -> "#\\" + s
     | SSymbol s -> s
     | SQuote s -> "(quote " + (print s) + ")"
+    | SQuasiquote s -> "(quasiquote " + (print s) + ")"
     | SUnquote s -> "(unquote " + (print s) + ")"
+    | SUnquoteSplicing s -> "(unquote-splicing " + (print s) + ")"
     | SList list ->
         "("
         + (list |> List.map print |> String.concat " ")

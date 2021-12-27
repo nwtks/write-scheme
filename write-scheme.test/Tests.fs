@@ -2,111 +2,110 @@ module Tests
 
 open Xunit
 open FsUnit.Xunit
-open Type
-open Repl
 open Builtin
+open Repl
 
 [<Fact>]
 let bool () =
-    "#t" |> rep builtin |> should equal "#t"
-    "#true" |> rep builtin |> should equal "#t"
-    "#f" |> rep builtin |> should equal "#f"
-    "#false" |> rep builtin |> should equal "#f"
+    "#t" |> rep [] |> should equal "#t"
+    "#true" |> rep [] |> should equal "#t"
+    "#f" |> rep [] |> should equal "#f"
+    "#false" |> rep [] |> should equal "#f"
 
 [<Fact>]
 let number () =
-    "0" |> rep builtin |> should equal "0"
-    "+12345" |> rep builtin |> should equal "12345"
-    "-12345" |> rep builtin |> should equal "-12345"
+    "0" |> rep [] |> should equal "0"
+    "+12345" |> rep [] |> should equal "12345"
+    "-12345" |> rep [] |> should equal "-12345"
 
 [<Fact>]
 let string () =
-    "\"\"" |> rep builtin |> should equal "\"\""
+    "\"\"" |> rep [] |> should equal "\"\""
 
     "\"12345\""
-    |> rep builtin
+    |> rep []
     |> should equal "\"12345\""
 
-    "\"1\\a2\\b3\\t4\\n5\\r6\\\"7\\\\8\\|90\""
-    |> rep builtin
+    "\"1\\a2\\b3\\t4\\n5\\r6\\\"7\\\\8|90\""
+    |> rep []
     |> should equal "\"1\a2\b3\t4\n5\r6\\\"7\\8|90\""
 
     "\"\\x3a;\""
-    |> rep builtin
+    |> rep []
     |> should equal "\":\""
 
     "\"\\x003A;\""
-    |> rep builtin
+    |> rep []
     |> should equal "\":\""
 
     "\"\\x3071;\""
-    |> rep builtin
+    |> rep []
     |> should equal "\"ぱ\""
 
     "\"\\x1F600;\""
-    |> rep builtin
+    |> rep []
     |> should equal "\"😀\""
 
 [<Fact>]
 let quote () =
-    "(quote a)" |> rep builtin |> should equal "a"
+    "(quote a)" |> rep [] |> should equal "a"
 
     "(quote (+ 1 2))"
-    |> rep builtin
+    |> rep []
     |> should equal "(+ 1 2)"
 
-    "'a" |> rep builtin |> should equal "a"
-    "'()" |> rep builtin |> should equal "()"
+    "'a" |> rep [] |> should equal "a"
+    "'()" |> rep [] |> should equal "()"
 
     "'(+ 1 2)"
-    |> rep builtin
+    |> rep []
     |> should equal "(+ 1 2)"
 
     "'(quote a)"
-    |> rep builtin
+    |> rep []
     |> should equal "(quote a)"
 
-    "''a" |> rep builtin |> should equal "(quote a)"
+    "''a" |> rep [] |> should equal "(quote a)"
 
     "'((a 1) (b 2) (c 3))"
-    |> rep builtin
+    |> rep []
     |> should equal "((a 1) (b 2) (c 3))"
 
 [<Fact>]
 let symbol () =
-    "'..." |> rep builtin |> should equal "..."
-    "'+" |> rep builtin |> should equal "+"
-    "'+soup+" |> rep builtin |> should equal "+soup+"
+    "'..." |> rep [] |> should equal "..."
+    "'+" |> rep [] |> should equal "+"
+    "'+soup+" |> rep [] |> should equal "+soup+"
 
     "'->string"
-    |> rep builtin
+    |> rep []
     |> should equal "->string"
 
-    "'<=?" |> rep builtin |> should equal "<=?"
+    "'<=?" |> rep [] |> should equal "<=?"
 
     "'a34kTMNs"
-    |> rep builtin
+    |> rep []
     |> should equal "a34kTMNs"
 
-    "'lambda" |> rep builtin |> should equal "lambda"
+    "'lambda" |> rep [] |> should equal "lambda"
 
     "'list->vector"
-    |> rep builtin
+    |> rep []
     |> should equal "list->vector"
 
-    "'q" |> rep builtin |> should equal "q"
-    "'V17a" |> rep builtin |> should equal "V17a"
+    "'q" |> rep [] |> should equal "q"
+    "'V17a" |> rep [] |> should equal "V17a"
 
     "'|two words|"
-    |> rep builtin
+    |> rep []
     |> should equal "two words"
 
     "'|two\\x20;words|"
-    |> rep builtin
+    |> rep []
     |> should equal "two words"
 
     "'the-word-recursion-has-many-meanings"
-    |> rep builtin
+    |> rep []
     |> should equal "the-word-recursion-has-many-meanings"
 
 [<Fact>]
@@ -123,7 +122,7 @@ let ``lambda`` () =
     |> rep builtin
     |> should equal "(5 6)"
 
-    let envs = extendEnvs builtin []
+    let envs = newEnvs ()
 
     "(define reverse-subtract (lambda (x y) (- y x)))"
     |> rep envs
@@ -165,7 +164,7 @@ let ``if`` () =
 
 [<Fact>]
 let ``set!`` () =
-    let envs = extendEnvs builtin []
+    let envs = newEnvs ()
     "(define x 2)" |> rep envs |> ignore
     "(+ x 1)" |> rep envs |> should equal "3"
     "(set! x 4)" |> rep envs |> ignore
@@ -313,7 +312,7 @@ let ``letrec*`` () =
 
 [<Fact>]
 let ``begin`` () =
-    let envs = extendEnvs builtin []
+    let envs = newEnvs ()
     "(define x 0)" |> rep envs |> ignore
 
     "(and
