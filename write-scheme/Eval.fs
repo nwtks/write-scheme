@@ -36,7 +36,8 @@ let isEqv eval envs a b =
     let rec eqv =
         function
         | SBool a, SBool b -> a = b
-        | SNumber a, SNumber b -> a = b
+        | SRational (a1, a2), SRational (b1, b2) -> a1 = b1 && a2 = b2
+        | SReal a, SReal b -> a = b
         | SString a, SString b -> a = b
         | SChar a, SChar b -> a = b
         | SSymbol a, SSymbol b -> a = b
@@ -47,7 +48,7 @@ let isEqv eval envs a b =
     a
     |> eval envs (fun a' ->
         b
-        |> eval envs (fun b' -> (a', b') |> eqv |> SBool))
+        |> eval envs (fun b' -> (a', b') |> eqv |> newSBool))
 
 let sBegin eval envs cont =
     let rec each res =
@@ -141,21 +142,21 @@ let rec sCond eval envs cont =
 
 let rec sAnd eval envs =
     function
-    | [] -> SBool true
+    | [] -> STrue
     | [ t ] ->
         t
         |> eval envs (function
-            | SBool false -> SBool false
+            | SBool false -> SFalse
             | x -> x)
     | t :: ts ->
         t
         |> eval envs (function
-            | SBool false -> SBool false
+            | SBool false -> SFalse
             | _ -> sAnd eval envs ts)
 
 let rec sOr eval envs =
     function
-    | [] -> SBool false
+    | [] -> SFalse
     | t :: ts ->
         t
         |> eval envs (function
@@ -243,7 +244,8 @@ let rec eval envs cont =
     function
     | SEmpty
     | SBool _
-    | SNumber _
+    | SRational _
+    | SReal _
     | SString _
     | SChar _
     | SClosure _

@@ -7,7 +7,12 @@ let rec print =
     | SEmpty -> "()"
     | SBool true -> "#t"
     | SBool false -> "#f"
-    | SNumber n -> n.ToString()
+    | SRational (n1, n2) ->
+        if n2 = 1I then
+            n1.ToString()
+        else
+            n1.ToString() + "/" + n2.ToString()
+    | SReal n -> n.ToString()
     | SString s -> "\"" + s.Replace("\"", "\\\"") + "\""
     | SChar s -> "#\\" + s
     | SSymbol s -> s

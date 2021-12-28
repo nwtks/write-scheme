@@ -22,29 +22,19 @@ let number () =
 let string () =
     "\"\"" |> rep [] |> should equal "\"\""
 
-    "\"12345\""
-    |> rep []
-    |> should equal "\"12345\""
+    "\"12345\"" |> rep [] |> should equal "\"12345\""
 
     "\"1\\a2\\b3\\t4\\n5\\r6\\\"7\\\\8|90\""
     |> rep []
     |> should equal "\"1\a2\b3\t4\n5\r6\\\"7\\8|90\""
 
-    "\"\\x3a;\""
-    |> rep []
-    |> should equal "\":\""
+    "\"\\x3a;\"" |> rep [] |> should equal "\":\""
 
-    "\"\\x003A;\""
-    |> rep []
-    |> should equal "\":\""
+    "\"\\x003A;\"" |> rep [] |> should equal "\":\""
 
-    "\"\\x3071;\""
-    |> rep []
-    |> should equal "\"ぱ\""
+    "\"\\x3071;\"" |> rep [] |> should equal "\"ぱ\""
 
-    "\"\\x1F600;\""
-    |> rep []
-    |> should equal "\"😀\""
+    "\"\\x1F600;\"" |> rep [] |> should equal "\"😀\""
 
 [<Fact>]
 let quote () =
@@ -57,13 +47,9 @@ let quote () =
     "'a" |> rep [] |> should equal "a"
     "'()" |> rep [] |> should equal "()"
 
-    "'(+ 1 2)"
-    |> rep []
-    |> should equal "(+ 1 2)"
+    "'(+ 1 2)" |> rep [] |> should equal "(+ 1 2)"
 
-    "'(quote a)"
-    |> rep []
-    |> should equal "(quote a)"
+    "'(quote a)" |> rep [] |> should equal "(quote a)"
 
     "''a" |> rep [] |> should equal "(quote a)"
 
@@ -77,15 +63,11 @@ let symbol () =
     "'+" |> rep [] |> should equal "+"
     "'+soup+" |> rep [] |> should equal "+soup+"
 
-    "'->string"
-    |> rep []
-    |> should equal "->string"
+    "'->string" |> rep [] |> should equal "->string"
 
     "'<=?" |> rep [] |> should equal "<=?"
 
-    "'a34kTMNs"
-    |> rep []
-    |> should equal "a34kTMNs"
+    "'a34kTMNs" |> rep [] |> should equal "a34kTMNs"
 
     "'lambda" |> rep [] |> should equal "lambda"
 
@@ -347,17 +329,9 @@ let ``*`` () =
 [<Fact>]
 let ``/`` () =
     "(/)" |> rep builtin |> should equal "1"
-    "(/ 10)" |> rep builtin |> should equal "0.1"
-    "(/ 9 2)" |> rep builtin |> should equal "4.5"
+    "(/ 10)" |> rep builtin |> should equal "1/10"
+    "(/ 9 2)" |> rep builtin |> should equal "9/2"
     "(/ 12 2 3)" |> rep builtin |> should equal "2"
-
-[<Fact>]
-let ``%`` () =
-    "(%)" |> rep builtin |> should equal "0"
-    "(% 10)" |> rep builtin |> should equal "0"
-    "(% 9 2)" |> rep builtin |> should equal "1"
-    "(% 8 2)" |> rep builtin |> should equal "0"
-    "(% 26 7 3)" |> rep builtin |> should equal "2"
 
 [<Fact>]
 let car () =
