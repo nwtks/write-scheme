@@ -15,20 +15,54 @@ let lookupEnvs envs symbol =
     | Some x -> x
     | None -> sprintf "No binding for '%s'." symbol |> failwith
 
-let sQuote eval envs cont =
-    let rec unquote cont' =
+let rec sQuasiquote eval envs cont =
+    let rec map acc =
+        function
+        | [] -> acc |> newList
+        | x :: xs ->
+            x
+            |> quasiquote (fun a -> xs |> map (acc @ unquoteSplicing a))
+
+    and quasiquote cont' =
+        function
+        | SList xs -> xs |> map [] |> cont'
+        | SPair (xs, y) ->
+            xs
+            |> map []
+            |> function
+                | SList ys -> SPair(ys, unquote y) |> cont
+        | x -> unquote x |> cont'
+
+    and unquote =
         function
         | SUnquote x
-        | SList [ SSymbol "unquote"; x ] -> x |> eval envs cont'
-        | SList xs -> xs |> map [] |> cont'
-        | x -> x |> cont'
+        | SList [ SSymbol "unquote"; x ] -> x |> eval envs cont
+        | SQuote x
+        | SList [ SSymbol "quote"; x ] -> x |> quasiquote cont |> SQuote
+        | x -> x
 
-    and map acc =
+    and unquoteSplicing =
         function
-        | [] -> List.rev acc |> newList
-        | x :: xs -> x |> unquote (fun a -> xs |> map (a :: acc))
+        | SUnquote x
+        | SList [ SSymbol "unquote"; x ] ->
+            x
+            |> eval envs cont
+            |> function
+                | SEmpty -> []
+                | y -> [ y ]
+        | SUnquoteSplicing x
+        | SList [ SSymbol "unquote-splicing"; x ] ->
+            x
+            |> eval envs cont
+            |> function
+                | SEmpty -> []
+                | SList xs -> xs
+        | SQuote x
+        | SList [ SSymbol "quote"; x ] -> [ x |> quasiquote cont |> SQuote ]
+        | SEmpty -> []
+        | x -> [ x ]
 
-    unquote cont
+    quasiquote cont
 
 let rec eval envs cont =
     let rec map fn acc =
@@ -53,13 +87,13 @@ let rec eval envs cont =
     | SString _
     | SChar _
     | SPair _
-    | SQuasiquote _
     | SUnquote _
     | SUnquoteSplicing _
     | SClosure _
     | FFunction _ as x -> x |> cont
+    | SQuote x -> x |> cont
+    | SQuasiquote x -> x |> sQuasiquote eval envs cont
     | SSymbol x -> (lookupEnvs envs x).Value |> cont
-    | SQuote x -> sQuote eval envs cont x
     | SList [] -> SEmpty |> cont
     | SList [ SSymbol "quote"; x ] -> SQuote x |> eval envs cont
     | SList [ SSymbol "quasiquote"; x ] -> SQuasiquote x |> eval envs cont
