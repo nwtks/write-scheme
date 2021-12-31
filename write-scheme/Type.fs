@@ -32,6 +32,11 @@ let SNaN = SReal System.Double.NaN
 
 let newBool x = if x then STrue else SFalse
 
+let newList =
+    function
+    | [] -> SEmpty
+    | xs -> SList xs
+
 let newRational (x1: bigint) (x2: bigint) =
     if x2.IsZero then
         failwith "denominator zero."

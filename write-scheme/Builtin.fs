@@ -8,44 +8,45 @@ let zipArgs args =
     let zip xs args' =
         List.zip xs args'
         |> List.map (function
-            | (SSymbol p, a) -> p, a)
+            | (SSymbol x, y) -> x, y)
 
     function
-    | SSymbol x -> [ (x, args |> SList |> SQuote) ]
+    | SSymbol x -> [ (x, args |> newList |> SQuote) ]
+    | SEmpty -> []
     | SList xs -> zip xs args
-    | SPair (xs, SSymbol rest) ->
+    | SPair (xs, SSymbol y) ->
         zip xs (args |> List.take (List.length xs))
-        @ [ (rest,
+        @ [ (y,
              args
              |> List.skip (List.length xs)
-             |> SList
+             |> newList
              |> SQuote) ]
 
 let sLambda envs cont =
     function
-    | [ parameters; body ] ->
+    | [ args; body ] ->
         let rec bind acc envs' cont' =
             function
             | [] ->
                 body
                 |> eval (List.rev acc |> extendEnvs (envs @ envs')) cont'
-            | (p, a) :: xs ->
-                a
-                |> eval envs' (fun a' -> bind ((p, ref a') :: acc) envs' cont' xs)
+            | (x, y) :: xs ->
+                y
+                |> eval envs' (fun a -> xs |> bind ((x, ref a) :: acc) envs' cont')
 
-        let closure envs' cont' args =
-            zipArgs args parameters |> bind [] envs' cont'
+        let closure envs' cont' args' =
+            zipArgs args' args |> bind [] envs' cont'
 
         SClosure closure |> cont
 
 let sDefineMacro envs cont =
     function
-    | [ parameters; body ] ->
-        let closure envs' cont' args =
+    | [ args; body ] ->
+        let closure envs' cont' args' =
             body
             |> eval
-                (zipArgs args parameters
-                 |> List.map (fun (p, a) -> p, ref a)
+                (zipArgs args' args
+                 |> List.map (fun (x, y) -> x, ref y)
                  |> extendEnvs envs)
                 (eval envs' cont')
 
@@ -55,8 +56,8 @@ let sIf envs cont =
     let if' test conseq alter =
         test
         |> eval envs (function
-            | SBool false -> eval envs cont alter
-            | _ -> eval envs cont conseq)
+            | SBool false -> alter |> eval envs cont
+            | _ -> conseq |> eval envs cont)
 
     function
     | [ test; conseq; alter ] -> if' test conseq alter
@@ -85,64 +86,75 @@ let sDefine (envs: SEnv list) cont =
     | [ SPair ([ SSymbol var ], formal); body ] -> sLambda envs cont [ formal; body ] |> define' var
 
 let rec sCond envs cont =
-    let loop test xs conseq =
+    let loop test conseq xs =
         test
         |> eval envs (function
-            | SBool false -> sCond envs cont xs
-            | res -> conseq res)
+            | SBool false -> xs |> sCond envs cont
+            | x -> conseq x)
 
-    let rec each res =
+    let rec each acc =
         function
-        | [] -> res |> cont
-        | [ e ] -> eval envs cont e
-        | e :: exs -> eval envs (fun _ -> each res exs) e
+        | [] -> acc |> cont
+        | [ x ] -> x |> eval envs cont
+        | x :: xs -> x |> eval envs (fun _ -> xs |> each acc)
 
     function
     | [] -> SEmpty |> cont
-    | [ SList (SSymbol "else" :: exs) ] -> each SEmpty exs
-    | SList [ test; SSymbol "=>"; op ] :: xs -> loop test xs (fun res -> SList [ op; SQuote res ] |> eval envs cont)
-    | SList (test :: exs) :: xs -> loop test xs (fun res -> each res exs)
+    | [ SList (SSymbol "else" :: xs) ] -> xs |> each SEmpty
+    | SList [ test; SSymbol "=>"; op ] :: xs ->
+        xs
+        |> loop test (fun a -> [ op; SQuote a ] |> newList |> eval envs cont)
+    | SList (test :: ys) :: xs -> xs |> loop test (fun a -> ys |> each a)
 
 let rec sAnd envs cont =
     function
     | [] -> STrue |> cont
-    | [ t ] ->
-        t
+    | [ x ] ->
+        x
         |> eval envs (function
             | SBool false -> SFalse
-            | x -> x)
-    | t :: ts ->
-        t
+            | a -> a)
+        |> cont
+    | x :: xs ->
+        x
         |> eval envs (function
             | SBool false -> SFalse
-            | _ -> sAnd envs cont ts)
+            | _ -> xs |> sAnd envs cont)
+        |> cont
 
 let rec sOr envs cont =
     function
     | [] -> SFalse |> cont
-    | t :: ts ->
-        t
+    | x :: xs ->
+        x
         |> eval envs (function
-            | SBool false -> sOr envs cont ts
-            | x -> x)
+            | SBool false -> xs |> sOr envs cont
+            | a -> a)
+        |> cont
 
 let sLet envs cont =
     let rec bind acc body =
         function
-        | [] -> eval (List.rev acc |> extendEnvs envs) cont body
-        | SList [ SSymbol s; e ] :: xs -> eval envs (fun x -> bind ((s, ref x) :: acc) body xs) e
+        | [] ->
+            body
+            |> eval (List.rev acc |> extendEnvs envs) cont
+        | SList [ SSymbol x; y ] :: xs ->
+            y
+            |> eval envs (fun a -> xs |> bind ((x, ref a) :: acc) body)
 
     function
-    | [ SList bindings; body ] -> bind [] body bindings
+    | [ SList bindings; body ] -> bindings |> bind [] body
 
 let sLetStar envs cont =
     let rec bind envs' body =
         function
-        | [] -> eval envs' cont body
-        | SList [ SSymbol s; e ] :: xs -> eval envs' (fun x -> bind ([ s, ref x ] |> extendEnvs envs') body xs) e
+        | [] -> body |> eval envs' cont
+        | SList [ SSymbol x; y ] :: xs ->
+            y
+            |> eval envs' (fun a -> xs |> bind ([ x, ref a ] |> extendEnvs envs') body)
 
     function
-    | [ SList bindings; body ] -> bind envs body bindings
+    | [ SList bindings; body ] -> bindings |> bind envs body
 
 let sLetRec envs cont =
     function
@@ -150,19 +162,17 @@ let sLetRec envs cont =
         let envs' =
             bindings
             |> List.map (function
-                | SList [ SSymbol s; _ ] -> (s, ref SEmpty))
+                | SList [ SSymbol x; _ ] -> (x, ref SEmpty))
             |> extendEnvs envs
 
         let rec update =
             function
-            | [] -> eval envs' cont body
-            | SList [ SSymbol s; e ] :: xs ->
-                eval
-                    envs'
-                    (fun x ->
-                        envs'.Head.[s].Value <- x
-                        update xs)
-                    e
+            | [] -> body |> eval envs' cont
+            | SList [ SSymbol x; y ] :: xs ->
+                y
+                |> eval envs' (fun a ->
+                    envs'.Head.[x].Value <- a
+                    update xs)
 
         update bindings
 
@@ -174,29 +184,27 @@ let sLetRecStar envs cont =
             |> List.fold
                 (fun (envs'', refs') ->
                     function
-                    | SList [ SSymbol s; _ ] ->
+                    | SList [ SSymbol x; _ ] ->
                         let r = ref SEmpty
-                        [ s, r ] |> extendEnvs envs'', r :: refs')
+                        [ x, r ] |> extendEnvs envs'', r :: refs')
                 (envs, [])
 
         let rec update =
             function
-            | ([], []) -> eval envs' cont body
-            | (SList [ _; e ] :: xs, r :: rs) ->
-                eval
-                    envs'
-                    (fun x ->
-                        r := x
-                        update (xs, rs))
-                    e
+            | ([], []) -> body |> eval envs' cont
+            | (SList [ _; y ] :: xs, r :: rs) ->
+                y
+                |> eval envs' (fun a ->
+                    r := a
+                    update (xs, rs))
 
         update (bindings, List.rev refs)
 
 let sBegin envs cont =
-    let rec each res =
+    let rec each acc =
         function
-        | [] -> res |> cont
-        | x :: xs -> x |> eval envs (fun a -> each a xs)
+        | [] -> acc |> cont
+        | x :: xs -> x |> eval envs (fun a -> xs |> each a)
 
     each SEmpty
 
@@ -219,6 +227,7 @@ let isEqv envs cont =
         |> eval envs (fun a' ->
             b
             |> eval envs (fun b' -> (a', b') |> eqv |> newBool))
+        |> cont
     | _ -> SFalse |> cont
 
 let isEqual cont =
@@ -288,11 +297,11 @@ let isProcedure cont =
     | [ FFunction _ ] -> STrue |> cont
     | _ -> SFalse |> cont
 
-let toFloat n1 n2 = (float) n1 / (float) n2
+let toFloat x y = (float) x / (float) y
 
 let calc op1 op2 ident1 ident2 cont =
-    let op n1 n2 =
-        match n1, n2 with
+    let op x y =
+        match x, y with
         | SRational (a1, a2), SRational (b1, b2) -> op1 a1 a2 b1 b2
         | SRational (a1, a2), SReal b -> op2 (toFloat a1 a2) b
         | SReal a, SRational (b1, b2) -> op2 a (toFloat b1 b2)
@@ -300,9 +309,9 @@ let calc op1 op2 ident1 ident2 cont =
 
     function
     | [] -> SRational(ident1, 1I) |> cont
-    | [ SRational (n1, n2) ] -> op1 ident1 1I n1 n2 |> cont
-    | [ SReal n ] -> op2 ident2 n |> cont
-    | n :: ns -> List.fold op n ns |> cont
+    | [ SRational (x1, x2) ] -> op1 ident1 1I x1 x2 |> cont
+    | [ SReal x ] -> op2 ident2 x |> cont
+    | x :: xs -> List.fold op x xs |> cont
 
 let addNumber =
     calc (fun a1 a2 b1 b2 -> newRational (a1 * b2 + b1 * a2) (a2 * b2)) (fun n1 n2 -> n1 + n2 |> SReal) 0I 0.0
@@ -336,7 +345,7 @@ let compareNumber pred1 pred2 cont =
 
     function
     | [] -> STrue |> cont
-    | n :: ns -> compare n ns |> cont
+    | x :: xs -> compare x xs |> cont
 
 let equalNumber = compareNumber (=) (=)
 let greaterNumber = compareNumber (>) (>)
@@ -351,28 +360,28 @@ let sCar cont =
 
 let sCdr cont =
     function
-    | [ SList (_ :: xs) ] -> SList xs |> cont
-    | [ SPair ([ _ ], x) ] -> x |> cont
-    | [ SPair (_ :: xs, x) ] -> SPair(xs, x) |> cont
+    | [ SList (_ :: xs) ] -> xs |> newList |> cont
+    | [ SPair ([ _ ], y) ] -> y |> cont
+    | [ SPair (_ :: xs, y) ] -> SPair(xs, y) |> cont
 
 let sCons cont =
     function
-    | [ x; SList xs ] -> x :: xs |> SList |> cont
-    | [ x; SPair (xs, rest) ] -> SPair(x :: xs, rest) |> cont
-    | [ x; SEmpty ] -> SList [ x ] |> cont
+    | [ x; SEmpty ] -> [ x ] |> newList |> cont
+    | [ x; SList xs ] -> x :: xs |> newList |> cont
+    | [ x; SPair (xs, y) ] -> SPair(x :: xs, y) |> cont
     | [ x; y ] -> SPair([ x ], y) |> cont
 
-let sList cont args = SList args |> cont
+let sList cont xs = xs |> newList |> cont
 
 let sLoad envs cont =
     function
-    | [ SString file ] ->
-        System.IO.File.ReadAllText(file)
+    | [ SString f ] ->
+        System.IO.File.ReadAllText(f)
         |> read
         |> eval envs id
         |> ignore
 
-        SSymbol(sprintf "Loaded '%s'." file) |> cont
+        sprintf "Loaded '%s'." f |> SSymbol |> cont
 
 let builtin =
     extendEnvs [] [

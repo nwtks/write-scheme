@@ -206,9 +206,7 @@ let parseList =
         (pchar ')')
         (pIntertokenSpace
          >>. many (parseDatum .>> pIntertokenSpace)
-         |>> function
-             | [] -> SEmpty
-             | x -> SList x)
+         |>> newList)
 
 let parseDotList =
     between

@@ -25,7 +25,7 @@ let sQuote eval envs cont =
 
     and map acc =
         function
-        | [] -> List.rev acc |> SList
+        | [] -> List.rev acc |> newList
         | x :: xs -> x |> unquote (fun a -> xs |> map (a :: acc))
 
     unquote cont
