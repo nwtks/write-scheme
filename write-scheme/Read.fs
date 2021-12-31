@@ -26,7 +26,6 @@ let pAtmosphere =
 
 let pIntertokenSpace = many pAtmosphere
 let pIntertokenSpace1 = many1 pAtmosphere
-
 let pLetter = asciiLetter
 let pSpecialInitial = anyOf "!$%&*/:<=>?^_~"
 let pInitial = choice [ pLetter; pSpecialInitial ]
@@ -90,7 +89,6 @@ let pIdentifier =
              pPeculiarIdentifier
              between (pchar '|') (pchar '|') (pSymbolElement |> manyStrings) ]
 
-
 let pCharacterName =
     choice [ stringCIReturn "#\\alarm" "\u0007"
              stringCIReturn "#\\backspace" "\u0008"
@@ -127,10 +125,12 @@ let pSign =
     anyOf "+-" |> opt |>> Option.defaultValue '+'
 
 let toBigInteger radix n =
-    (0I, n)
-    ||> Seq.fold (fun acc c ->
-        acc * radix
-        + System.Numerics.BigInteger.Parse(c |> string))
+    n
+    |> Seq.fold
+        (fun acc c ->
+            acc * radix
+            + System.Numerics.BigInteger.Parse(c |> string))
+        0I
 
 let pUinteger10 =
     pDigit |> many1Chars
@@ -190,7 +190,7 @@ let parseBool =
              stringCIReturn "#f" SFalse ]
 
 let parseRational =
-    pRational |>> (fun (n1, n2) -> newSRational n1 n2)
+    pRational |>> (fun (n1, n2) -> newRational n1 n2)
 
 let parseReal =
     choice [ stringCIReturn "+inf.0" SPositiveInfinity
@@ -201,7 +201,6 @@ let parseReal =
              pDecimal10 |>> SReal ]
 
 let parseDatum, parseDatumRef = createParserForwardedToRef ()
-
 let parseQuoted = pchar '\'' >>. parseDatum |>> SQuote
 let parseQuasiquote = pchar '`' >>. parseDatum |>> SQuasiquote
 let parseUnquoted = pchar ',' >>. parseDatum |>> SUnquote

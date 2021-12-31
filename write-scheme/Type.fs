@@ -15,12 +15,11 @@ type SExpression =
     | SQuasiquote of SExpression
     | SUnquote of SExpression
     | SUnquoteSplicing of SExpression
-    | SClosure of (Env list -> Continuation -> SExpression list -> SExpression)
-    | FFunction of (Continuation -> SExpression list -> SExpression)
+    | SClosure of (SEnv list -> SContinuation -> SExpression list -> SExpression)
+    | FFunction of (SContinuation -> SExpression list -> SExpression)
 
-and Env = System.Collections.Generic.Dictionary<string, SExpression ref>
-
-and Continuation = SExpression -> SExpression
+and SEnv = System.Collections.Generic.Dictionary<string, SExpression ref>
+and SContinuation = SExpression -> SExpression
 
 let STrue = SBool true
 let SFalse = SBool false
@@ -31,9 +30,9 @@ let SPositiveInfinity = SReal System.Double.PositiveInfinity
 let SNegativeInfinity = SReal System.Double.NegativeInfinity
 let SNaN = SReal nan
 
-let newSBool b = if b then STrue else SFalse
+let newBool x = if x then STrue else SFalse
 
-let newSRational n1 n2 =
+let newRational n1 n2 =
     if n2 = 0I then
         failwith "denominator zero."
 
