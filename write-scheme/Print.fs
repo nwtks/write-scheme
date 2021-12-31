@@ -7,28 +7,23 @@ let rec print =
     | SEmpty -> "()"
     | SBool true -> "#t"
     | SBool false -> "#f"
-    | SRational (n1, n2) ->
-        if n2 = 1I then
-            n1.ToString()
+    | SRational (x1, x2) ->
+        if x2 = 1I then
+            x1.ToString()
         else
-            n1.ToString() + "/" + n2.ToString()
-    | SReal n -> n.ToString()
-    | SString s -> "\"" + s.Replace("\"", "\\\"") + "\""
-    | SChar s -> "#\\" + s
-    | SSymbol s -> s
-    | SQuote s -> "(quote " + (print s) + ")"
-    | SQuasiquote s -> "(quasiquote " + (print s) + ")"
-    | SUnquote s -> "(unquote " + (print s) + ")"
-    | SUnquoteSplicing s -> "(unquote-splicing " + (print s) + ")"
-    | SList list ->
-        "("
-        + (list |> List.map print |> String.concat " ")
-        + ")"
-    | SPair (list, rest) ->
-        "("
-        + (list |> List.map print |> String.concat " ")
-        + " . "
-        + print rest
-        + ")"
+            sprintf "%A/%A" x1 x2
+    | SReal x -> x.ToString()
+    | SString x -> x.Replace("\"", "\\\"") |> sprintf "\"%s\""
+    | SChar x -> sprintf "#\\%s" x
+    | SSymbol x -> x
+    | SQuote x -> print x |> sprintf "(quote %s)"
+    | SQuasiquote x -> print x |> sprintf "(quasiquote %s)"
+    | SUnquote x -> print x |> sprintf "(unquote %s)"
+    | SUnquoteSplicing x -> print x |> sprintf "(unquote-splicing %s)"
+    | SList xs -> xs |> printList |> sprintf "(%s)"
+    | SPair (x1, x2) -> sprintf "(%s . %s)" (printList x1) (print x2)
     | SClosure _
     | FFunction _ -> "Procedure"
+
+and printList xs =
+    xs |> List.map print |> String.concat " "

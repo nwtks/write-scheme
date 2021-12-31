@@ -9,7 +9,7 @@ let rep envs = read >> eval envs id >> print
 
 let newEnvs () = extendEnvs builtin []
 
-let rec repl () =
+let repl () =
     let envs = newEnvs ()
 
     let rec repl' output =
@@ -17,6 +17,6 @@ let rec repl () =
             printf "%s\n> " output
             System.Console.ReadLine() |> rep envs |> repl'
         with
-        | ex -> ex.Message |> repl'
+        | x -> x.Message |> repl'
 
     repl' "Welcome"

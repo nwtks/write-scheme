@@ -28,24 +28,20 @@ let SZero = SRational(0I, 1I)
 
 let SPositiveInfinity = SReal System.Double.PositiveInfinity
 let SNegativeInfinity = SReal System.Double.NegativeInfinity
-let SNaN = SReal nan
+let SNaN = SReal System.Double.NaN
 
 let newBool x = if x then STrue else SFalse
 
-let newRational n1 n2 =
-    if n2 = 0I then
+let newRational (x1: bigint) (x2: bigint) =
+    if x2.IsZero then
         failwith "denominator zero."
-
-    if n1 = 0I then
+    elif x1.IsZero then
         SZero
     else
         let gcd =
-            System.Numerics.BigInteger.GreatestCommonDivisor(
-                System.Numerics.BigInteger.Abs(n1),
-                System.Numerics.BigInteger.Abs(n2)
-            )
+            bigint.GreatestCommonDivisor(abs x1, abs x2)
 
-        let n1', n2' =
-            if n2.Sign < 0 then -n1, -n2 else n1, n2
+        let x1', x2' =
+            if x2.Sign < 0 then -x1, -x2 else x1, x2
 
-        SRational(n1' / gcd, n2' / gcd)
+        SRational(x1' / gcd, x2' / gcd)

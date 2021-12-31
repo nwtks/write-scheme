@@ -1,33 +1,32 @@
 module Eval
 
 open Type
+open Print
 
 let extendEnvs envs bindings = (Map.ofList bindings |> SEnv) :: envs
 
 let lookupEnvs envs symbol =
-    match
-        List.tryPick
-            (fun (env: SEnv) ->
-                match env.TryGetValue symbol with
-                | true, v -> Some v
-                | _ -> None)
-            envs
-        with
-    | Some v -> v
+    let lookup (env: SEnv) =
+        match env.TryGetValue symbol with
+        | true, x -> Some x
+        | _ -> None
+
+    match List.tryPick lookup envs with
+    | Some x -> x
     | None -> sprintf "No binding for '%s'." symbol |> failwith
 
 let sQuote eval envs cont =
     let rec unquote cont' =
         function
-        | SUnquote e
-        | SList [ SSymbol "unquote"; e ] -> e |> eval envs cont'
+        | SUnquote x
+        | SList [ SSymbol "unquote"; x ] -> x |> eval envs cont'
         | SList xs -> xs |> map [] |> cont'
-        | e -> e |> cont'
+        | x -> x |> cont'
 
     and map acc =
         function
         | [] -> List.rev acc |> SList
-        | x' :: xs' -> x' |> unquote (fun a -> xs' |> map (a :: acc))
+        | x :: xs -> x |> unquote (fun a -> xs |> map (a :: acc))
 
     unquote cont
 
@@ -36,6 +35,15 @@ let rec eval envs cont =
         function
         | [] -> List.rev acc |> fn cont
         | x :: xs -> x |> eval envs (fun a -> xs |> map fn (a :: acc))
+
+    let proc xs =
+        function
+        | SClosure fn -> fn envs cont xs
+        | FFunction fn -> map fn [] xs
+        | x ->
+            print x
+            |> sprintf "'%s' not operator."
+            |> failwith
 
     function
     | SEmpty
@@ -49,16 +57,12 @@ let rec eval envs cont =
     | SUnquote _
     | SUnquoteSplicing _
     | SClosure _
-    | FFunction _ as e -> e |> cont
-    | SSymbol s -> (lookupEnvs envs s).Value |> cont
-    | SQuote datum -> sQuote eval envs cont datum
+    | FFunction _ as x -> x |> cont
+    | SSymbol x -> (lookupEnvs envs x).Value |> cont
+    | SQuote x -> sQuote eval envs cont x
     | SList [] -> SEmpty |> cont
-    | SList [ SSymbol "quote"; datum ] -> SQuote datum |> eval envs cont
-    | SList [ SSymbol "quasiquote"; datum ] -> SQuasiquote datum |> eval envs cont
-    | SList [ SSymbol "unquote"; datum ] -> SUnquote datum |> eval envs cont
-    | SList [ SSymbol "unquote-splicing"; datum ] -> SUnquoteSplicing datum |> eval envs cont
-    | SList (operator :: operands) ->
-        operator
-        |> eval envs (function
-            | SClosure fn -> fn envs cont operands
-            | FFunction fn -> map fn [] operands)
+    | SList [ SSymbol "quote"; x ] -> SQuote x |> eval envs cont
+    | SList [ SSymbol "quasiquote"; x ] -> SQuasiquote x |> eval envs cont
+    | SList [ SSymbol "unquote"; x ] -> SUnquote x |> eval envs cont
+    | SList [ SSymbol "unquote-splicing"; x ] -> SUnquoteSplicing x |> eval envs cont
+    | SList (operator :: operands) -> operator |> eval envs (proc operands)
