@@ -51,7 +51,7 @@ let quote () =
 
     "'(quote a)" |> rep [] |> should equal "(quote a)"
 
-    "''a" |> rep [] |> should equal "(quote a)"
+    "''a" |> rep [] |> should equal "'a"
 
     "'((a 1) (b 2) (c 3))"
     |> rep []
@@ -89,6 +89,32 @@ let symbol () =
     "'the-word-recursion-has-many-meanings"
     |> rep []
     |> should equal "the-word-recursion-has-many-meanings"
+
+[<Fact>]
+let ``quasiquote`` () =
+    "`(list ,(+ 1 2) 4)"
+    |> rep builtin
+    |> should equal "(list 3 4)"
+
+    "(let ((name 'a)) `(list ,name ',name))"
+    |> rep builtin
+    |> should equal "(list a 'a)"
+
+    "`((foo ,(- 10 3)) ,@(cdr '(c d)) . ,(car '(cons)))"
+    |> rep builtin
+    |> should equal "((foo 7) d . cons)"
+
+    "(let ((foo '(foo bar)) (baz 'baz)) `(list ,@foo ,baz))"
+    |> rep builtin
+    |> should equal "(list foo bar baz)"
+
+    "`(a `(b ,(+ 1 2) ,(foo ,(+ 1 3) d) e) f)"
+    |> rep builtin
+    |> should equal "(a `(b ,(+ 1 2) ,(foo 4 d) e) f)"
+
+    "(let ((name1 'x) (name2 'y)) `(a `(b ,,name1 ,',name2 d) e))"
+    |> rep builtin
+    |> should equal "(a `(b ,x ,'y d) e)"
 
 [<Fact>]
 let ``lambda`` () =

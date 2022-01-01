@@ -16,10 +16,10 @@ let rec print =
     | SString x -> x.Replace("\"", "\\\"") |> sprintf "\"%s\""
     | SChar x -> sprintf "#\\%s" x
     | SSymbol x -> x
-    | SQuote x -> print x |> sprintf "(quote %s)"
-    | SQuasiquote x -> print x |> sprintf "(quasiquote %s)"
-    | SUnquote x -> print x |> sprintf "(unquote %s)"
-    | SUnquoteSplicing x -> print x |> sprintf "(unquote-splicing %s)"
+    | SQuote x -> print x |> sprintf "'%s"
+    | SQuasiquote x -> print x |> sprintf "`%s"
+    | SUnquote x -> print x |> sprintf ",%s"
+    | SUnquoteSplicing x -> print x |> sprintf ",@%s"
     | SList xs -> xs |> printList |> sprintf "(%s)"
     | SPair (x1, x2) -> sprintf "(%s . %s)" (printList x1) (print x2)
     | SClosure _
