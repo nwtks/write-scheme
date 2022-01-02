@@ -22,8 +22,9 @@ let rec print =
     | SUnquoteSplicing x -> print x |> sprintf ",@%s"
     | SList xs -> xs |> printList |> sprintf "(%s)"
     | SPair (x1, x2) -> sprintf "(%s . %s)" (printList x1) (print x2)
-    | SClosure _
-    | FFunction _ -> "Procedure"
+    | SSyntax _
+    | SProcedure _ -> "Procedure"
+    | SContinuation _ -> "Continuation"
 
 and printList xs =
     xs |> List.map print |> String.concat " "

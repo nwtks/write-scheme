@@ -15,8 +15,9 @@ type SExpression =
     | SQuasiquote of SExpression
     | SUnquote of SExpression
     | SUnquoteSplicing of SExpression
-    | SClosure of (SEnv list -> SContinuation -> SExpression list -> SExpression)
-    | FFunction of (SContinuation -> SExpression list -> SExpression)
+    | SSyntax of (SEnv list -> SContinuation -> SExpression list -> SExpression)
+    | SProcedure of (SEnv list -> SContinuation -> SExpression list -> SExpression)
+    | SContinuation of SContinuation
 
 and SEnv = System.Collections.Generic.Dictionary<string, SExpression ref>
 and SContinuation = SExpression -> SExpression

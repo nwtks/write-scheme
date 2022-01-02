@@ -84,13 +84,22 @@ let sQuasiquote eval envs cont =
 let rec eval envs cont =
     let rec map fn acc =
         function
-        | [] -> List.rev acc |> fn cont
+        | [] -> List.rev acc |> fn envs cont
         | x :: xs -> x |> eval envs (fun a -> xs |> map fn (a :: acc))
 
     let proc xs =
         function
-        | SClosure fn -> fn envs cont xs
-        | FFunction fn -> map fn [] xs
+        | SSyntax fn -> fn envs cont xs
+        | SProcedure fn -> map fn [] xs
+        | SContinuation fn ->
+            match xs with
+            | [ x ] -> fn x
+            | _ ->
+                xs
+                |> newList
+                |> print
+                |> sprintf "'%s' invalid continuation parameter."
+                |> failwith
         | x ->
             print x
             |> sprintf "'%s' not operator."
@@ -106,14 +115,13 @@ let rec eval envs cont =
     | SPair _
     | SUnquote _
     | SUnquoteSplicing _
-    | SClosure _
-    | FFunction _ as x -> x |> cont
-    | SQuote x -> x |> cont
-    | SQuasiquote x -> x |> sQuasiquote eval envs cont
+    | SSyntax _
+    | SProcedure _
+    | SContinuation _ as x -> x |> cont
     | SSymbol x -> (lookupEnvs envs x).Value |> cont
     | SList [] -> SEmpty |> cont
-    | SList [ SSymbol "quote"; x ] -> SQuote x |> eval envs cont
-    | SList [ SSymbol "quasiquote"; x ] -> SQuasiquote x |> eval envs cont
-    | SList [ SSymbol "unquote"; x ] -> SUnquote x |> eval envs cont
-    | SList [ SSymbol "unquote-splicing"; x ] -> SUnquoteSplicing x |> eval envs cont
+    | SQuote x
+    | SList [ SSymbol "quote"; x ] -> x |> cont
+    | SQuasiquote x
+    | SList [ SSymbol "quasiquote"; x ] -> x |> sQuasiquote eval envs cont
     | SList (operator :: operands) -> operator |> eval envs (proc operands)
