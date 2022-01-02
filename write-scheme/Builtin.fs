@@ -469,6 +469,28 @@ let sCons envs cont =
 
 let sList envs cont xs = xs |> newList |> cont
 
+let sAppend envs cont xs =
+    let rec fold =
+        function
+        | [], []
+        | [], [ SEmpty ] -> SEmpty |> cont
+        | [], [ x ] -> x |> cont
+        | acc, []
+        | acc, [ SEmpty ] -> acc |> newList |> cont
+        | acc, [ SList x ] -> acc @ x |> newList |> cont
+        | acc, [ SPair (x1, x2) ] -> SPair(acc @ x1, x2) |> cont
+        | acc, [ x ] -> SPair(acc, x) |> cont
+        | acc, SEmpty :: x -> (acc, x) |> fold
+        | acc, SList x1 :: x2 -> (acc @ x1, x2) |> fold
+        | _ ->
+            xs
+            |> newList
+            |> print
+            |> sprintf "'%s' invalid append parameter."
+            |> failwith
+
+    ([], xs) |> fold
+
 let sCallCC envs cont =
     function
     | [ proc ] ->
@@ -557,6 +579,7 @@ let builtin =
         "cdr", SProcedure sCdr |> ref
         "null?", SProcedure isNull |> ref
         "list", SProcedure sList |> ref
+        "append", SProcedure sAppend |> ref
         "symbol?", SProcedure isSymbol |> ref
         "char?", SProcedure isChar |> ref
         "string?", SProcedure isString |> ref

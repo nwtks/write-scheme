@@ -472,3 +472,25 @@ let list () =
     |> should equal "(a 7 c)"
 
     "(list)" |> rep builtin |> should equal "()"
+
+[<Fact>]
+let append () =
+    "(append '(x) '(y))"
+    |> rep builtin
+    |> should equal "(x y)"
+
+    "(append '(a) '(b c d))"
+    |> rep builtin
+    |> should equal "(a b c d)"
+
+    "(append '(a (b)) '((c)))"
+    |> rep builtin
+    |> should equal "(a (b) (c))"
+
+    "(append '(a b) '(c . d))"
+    |> rep builtin
+    |> should equal "(a b c . d)"
+
+    "(append '() 'a)"
+    |> rep builtin
+    |> should equal "a"
