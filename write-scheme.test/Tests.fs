@@ -6,56 +6,61 @@ open Builtin
 open Repl
 
 [<Fact>]
+let number () =
+    "0" |> rep [] |> should equal "0"
+    "1" |> rep [] |> should equal "1"
+    "+1" |> rep [] |> should equal "1"
+    "-1" |> rep [] |> should equal "-1"
+    "1.0" |> rep [] |> should equal "1"
+    "1." |> rep [] |> should equal "1"
+    "0.1" |> rep [] |> should equal "0.1"
+    ".1" |> rep [] |> should equal "0.1"
+    "-100.0e-3" |> rep [] |> should equal "-0.1"
+    "-0.1" |> rep [] |> should equal "-0.1"
+    "-.1" |> rep [] |> should equal "-0.1"
+    "100.0e-3" |> rep [] |> should equal "0.1"
+    "1e2" |> rep [] |> should equal "100"
+    "1.0E2" |> rep [] |> should equal "100"
+    "1.0e+2" |> rep [] |> should equal "100"
+    "+nan.0" |> rep [] |> should equal "+nan.0"
+    "+NaN.0" |> rep [] |> should equal "+nan.0"
+    "+inf.0" |> rep [] |> should equal "+inf.0"
+    "+Inf.0" |> rep [] |> should equal "+inf.0"
+    "-inf.0" |> rep [] |> should equal "-inf.0"
+    "-INF.0" |> rep [] |> should equal "-inf.0"
+    "1/2" |> rep [] |> should equal "1/2"
+    "10/2" |> rep [] |> should equal "5"
+    "-1/2" |> rep [] |> should equal "-1/2"
+    "0/2" |> rep [] |> should equal "0"
+    "#x11" |> rep [] |> should equal "17"
+    "#X11" |> rep [] |> should equal "17"
+    "#d11" |> rep [] |> should equal "11"
+    "#D11" |> rep [] |> should equal "11"
+    "#o11" |> rep [] |> should equal "9"
+    "#O11" |> rep [] |> should equal "9"
+    "#b11" |> rep [] |> should equal "3"
+    "#B11" |> rep [] |> should equal "3"
+    "#o7" |> rep [] |> should equal "7"
+    "#xA" |> rep [] |> should equal "10"
+    "#Xf" |> rep [] |> should equal "15"
+    "#x-10" |> rep [] |> should equal "-16"
+    "#d-10" |> rep [] |> should equal "-10"
+    "#o-10" |> rep [] |> should equal "-8"
+    "#b-10" |> rep [] |> should equal "-2"
+    "#d1." |> rep [] |> should equal "1"
+    "#d.1" |> rep [] |> should equal "0.1"
+    "#x10/2" |> rep [] |> should equal "8"
+    "#x11/2" |> rep [] |> should equal "17/2"
+    "#d11/2" |> rep [] |> should equal "11/2"
+    "#o11/2" |> rep [] |> should equal "9/2"
+    "#b11/10" |> rep [] |> should equal "3/2"
+
+[<Fact>]
 let bool () =
     "#t" |> rep [] |> should equal "#t"
     "#true" |> rep [] |> should equal "#t"
     "#f" |> rep [] |> should equal "#f"
     "#false" |> rep [] |> should equal "#f"
-
-[<Fact>]
-let number () =
-    "0" |> rep [] |> should equal "0"
-    "+12345" |> rep [] |> should equal "12345"
-    "-12345" |> rep [] |> should equal "-12345"
-
-[<Fact>]
-let string () =
-    "\"\"" |> rep [] |> should equal "\"\""
-
-    "\"12345\"" |> rep [] |> should equal "\"12345\""
-
-    "\"1\\a2\\b3\\t4\\n5\\r6\\\"7\\\\8|90\""
-    |> rep []
-    |> should equal "\"1\a2\b3\t4\n5\r6\\\"7\\8|90\""
-
-    "\"\\x3a;\"" |> rep [] |> should equal "\":\""
-
-    "\"\\x003A;\"" |> rep [] |> should equal "\":\""
-
-    "\"\\x3071;\"" |> rep [] |> should equal "\"ぱ\""
-
-    "\"\\x1F600;\"" |> rep [] |> should equal "\"😀\""
-
-[<Fact>]
-let quote () =
-    "(quote a)" |> rep [] |> should equal "a"
-
-    "(quote (+ 1 2))"
-    |> rep []
-    |> should equal "(+ 1 2)"
-
-    "'a" |> rep [] |> should equal "a"
-    "'()" |> rep [] |> should equal "()"
-
-    "'(+ 1 2)" |> rep [] |> should equal "(+ 1 2)"
-
-    "'(quote a)" |> rep [] |> should equal "(quote a)"
-
-    "''a" |> rep [] |> should equal "'a"
-
-    "'((a 1) (b 2) (c 3))"
-    |> rep []
-    |> should equal "((a 1) (b 2) (c 3))"
 
 [<Fact>]
 let symbol () =
@@ -91,30 +96,47 @@ let symbol () =
     |> should equal "the-word-recursion-has-many-meanings"
 
 [<Fact>]
-let ``quasiquote`` () =
-    "`(list ,(+ 1 2) 4)"
-    |> rep builtin
-    |> should equal "(list 3 4)"
+let string () =
+    "\"\"" |> rep [] |> should equal "\"\""
 
-    "(let ((name 'a)) `(list ,name ',name))"
-    |> rep builtin
-    |> should equal "(list a 'a)"
+    "\"12345\"" |> rep [] |> should equal "\"12345\""
 
-    "`((foo ,(- 10 3)) ,@(cdr '(c d)) . ,(car '(cons)))"
-    |> rep builtin
-    |> should equal "((foo 7) d . cons)"
+    "\"1\\a2\\b3\\t4\\n5\\r6\\\"7\\\\8|90\""
+    |> rep []
+    |> should equal "\"1\a2\b3\t4\n5\r6\\\"7\\8|90\""
 
-    "(let ((foo '(foo bar)) (baz 'baz)) `(list ,@foo ,baz))"
-    |> rep builtin
-    |> should equal "(list foo bar baz)"
+    "\"\\x3a;\"" |> rep [] |> should equal "\":\""
 
-    "`(a `(b ,(+ 1 2) ,(foo ,(+ 1 3) d) e) f)"
-    |> rep builtin
-    |> should equal "(a `(b ,(+ 1 2) ,(foo 4 d) e) f)"
+    "\"\\x003A;\"" |> rep [] |> should equal "\":\""
 
-    "(let ((name1 'x) (name2 'y)) `(a `(b ,,name1 ,',name2 d) e))"
+    "\"\\x3071;\"" |> rep [] |> should equal "\"ぱ\""
+
+    "\"\\x1F600;\"" |> rep [] |> should equal "\"😀\""
+
+[<Fact>]
+let quote () =
+    "(quote a)" |> rep builtin |> should equal "a"
+
+    "(quote (+ 1 2))"
     |> rep builtin
-    |> should equal "(a `(b ,x ,'y d) e)"
+    |> should equal "(+ 1 2)"
+
+    "'a" |> rep builtin |> should equal "a"
+    "'()" |> rep builtin |> should equal "()"
+
+    "'(+ 1 2)"
+    |> rep builtin
+    |> should equal "(+ 1 2)"
+
+    "'(quote a)"
+    |> rep builtin
+    |> should equal "(quote a)"
+
+    "''a" |> rep builtin |> should equal "'a"
+
+    "'((a 1) (b 2) (c 3))"
+    |> rep builtin
+    |> should equal "((a 1) (b 2) (c 3))"
 
 [<Fact>]
 let ``lambda`` () =
@@ -332,6 +354,32 @@ let ``begin`` () =
     |> should equal "6"
 
 [<Fact>]
+let ``quasiquote`` () =
+    "`(list ,(+ 1 2) 4)"
+    |> rep builtin
+    |> should equal "(list 3 4)"
+
+    "(let ((name 'a)) `(list ,name ',name))"
+    |> rep builtin
+    |> should equal "(list a 'a)"
+
+    "`((foo ,(- 10 3)) ,@(cdr '(c d)) . ,(car '(cons)))"
+    |> rep builtin
+    |> should equal "((foo 7) d . cons)"
+
+    "(let ((foo '(foo bar)) (baz 'baz)) `(list ,@foo ,baz))"
+    |> rep builtin
+    |> should equal "(list foo bar baz)"
+
+    "`(a `(b ,(+ 1 2) ,(foo ,(+ 1 3) d) e) f)"
+    |> rep builtin
+    |> should equal "(a `(b ,(+ 1 2) ,(foo 4 d) e) f)"
+
+    "(let ((name1 'x) (name2 'y)) `(a `(b ,,name1 ,',name2 d) e))"
+    |> rep builtin
+    |> should equal "(a `(b ,x ,'y d) e)"
+
+[<Fact>]
 let ``+`` () =
     "(+)" |> rep builtin |> should equal "0"
     "(+ 10)" |> rep builtin |> should equal "10"
@@ -416,3 +464,11 @@ let cons () =
     "(cons '(a b) 'c)"
     |> rep builtin
     |> should equal "((a b) . c)"
+
+[<Fact>]
+let list () =
+    "(list 'a (+ 3 4) 'c)"
+    |> rep builtin
+    |> should equal "(a 7 c)"
+
+    "(list)" |> rep builtin |> should equal "()"

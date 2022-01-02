@@ -12,7 +12,15 @@ let rec print =
             x1.ToString()
         else
             sprintf "%A/%A" x1 x2
-    | SReal x -> x.ToString()
+    | SReal x ->
+        if System.Double.IsNaN(x) then
+            "+nan.0"
+        elif System.Double.IsPositiveInfinity(x) then
+            "+inf.0"
+        elif System.Double.IsNegativeInfinity(x) then
+            "-inf.0"
+        else
+            x.ToString()
     | SString x -> x.Replace("\"", "\\\"") |> sprintf "\"%s\""
     | SChar x -> sprintf "#\\%s" x
     | SSymbol x -> x

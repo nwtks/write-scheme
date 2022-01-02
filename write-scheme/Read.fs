@@ -126,13 +126,13 @@ let pSign =
 
 let toBigInteger radix x =
     x
-    |> Seq.fold (fun acc a -> acc * radix + (a |> string |> bigint.Parse)) 0I
+    |> Seq.fold (fun acc a -> acc * radix + bigint (a |> hex2int)) 0I
 
-let pUinteger10 = pDigit |> many1Chars |>> bigint.Parse
+let pUinteger10 =
+    pDigit |> many1Chars |>> toBigInteger 10I
 
 let pUinteger16 =
-    pHexDigit |> many1Chars
-    |>> (fun x -> bigint.Parse(x, System.Globalization.NumberStyles.HexNumber))
+    pHexDigit |> many1Chars |>> toBigInteger 16I
 
 let pUinteger2 = anyOf "01" |> many1 |>> toBigInteger 2I
 
@@ -155,21 +155,24 @@ let pRational =
 let pSuffix =
     anyOf "Ee"
     >>. pipe2 pSign (pDigit |> many1Chars) (fun c1 s2 -> sprintf "E%c%s" c1 s2)
-    |> opt
-    |>> Option.defaultValue ""
+
+let pSuffixOpt =
+    pSuffix |> opt |>> Option.defaultValue ""
 
 let pDecimal10 =
     choice [ attempt (
-                 pipe5 pSign (pDigit |> many1Chars) (pchar '.') (pDigit |> many1Chars) pSuffix (fun c1 s2 _ s4 s5 ->
+                 pipe5 pSign (pDigit |> many1Chars) (pchar '.') (pDigit |> many1Chars) pSuffixOpt (fun c1 s2 _ s4 s5 ->
                      sprintf "%c%s.%s%s" c1 s2 s4 s5
                      |> System.Double.Parse)
              )
              attempt (
-                 pipe4 pSign (pDigit |> many1Chars) (pchar '.') pSuffix (fun c1 s2 _ s4 ->
+                 pipe4 pSign (pDigit |> many1Chars) (pchar '.') pSuffixOpt (fun c1 s2 _ s4 ->
                      sprintf "%c%s%s" c1 s2 s4 |> System.Double.Parse)
              )
-             pipe4 pSign (pchar '.') (pDigit |> many1Chars) pSuffix (fun c1 _ s3 s4 ->
-                 sprintf "%c0.%s%s" c1 s3 s4 |> System.Double.Parse) ]
+             pipe4 pSign (pchar '.') (pDigit |> many1Chars) pSuffixOpt (fun c1 _ s3 s4 ->
+                 sprintf "%c0.%s%s" c1 s3 s4 |> System.Double.Parse)
+             pipe3 pSign (pDigit |> many1Chars) pSuffix (fun c1 s2 s3 ->
+                 sprintf "%c%s%s" c1 s2 s3 |> System.Double.Parse) ]
 
 let parseSymbol = pIdentifier |>> SSymbol
 let parseChar = pCharacter |>> SChar
@@ -223,8 +226,8 @@ parseDatumRef.Value <-
     choice [ parseBool
              parseChar
              parseString
-             attempt parseRational
              attempt parseReal
+             attempt parseRational
              attempt parseDotList
              parseList
              parseQuoted
