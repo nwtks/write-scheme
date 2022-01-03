@@ -34,7 +34,7 @@ let sQuasiquote eval envs cont =
         function
         | SEmpty -> SEmpty
         | SList xs -> replaceList n xs |> SList
-        | SPair (xs, y) -> SPair(replaceList n xs, replaceDatum n y)
+        | SPair (x1, x2) -> SPair(replaceList n x1, replaceDatum n x2)
         | x -> replaceDatum n x
 
     and replaceList n =
@@ -82,20 +82,22 @@ let sQuasiquote eval envs cont =
     replace 0
 
 let rec eval envs cont =
-    let rec map fn acc =
+    let rec mapEval fn acc =
         function
         | [] -> List.rev acc |> fn envs cont
-        | x :: xs -> x |> eval envs (fun a -> xs |> map fn (a :: acc))
+        | x :: xs ->
+            x
+            |> eval envs (fun a -> xs |> mapEval fn (a :: acc))
 
-    let proc xs =
+    let proc args =
         function
-        | SSyntax fn -> fn envs cont xs
-        | SProcedure fn -> map fn [] xs
+        | SSyntax fn -> fn envs cont args
+        | SProcedure fn -> mapEval fn [] args
         | SContinuation fn ->
-            match xs with
-            | [ x ] -> fn x
+            match args with
+            | [ arg ] -> fn arg
             | _ ->
-                xs
+                args
                 |> newList
                 |> print
                 |> sprintf "'%s' invalid continuation parameter."

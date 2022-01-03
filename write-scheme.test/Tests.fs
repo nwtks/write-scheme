@@ -408,6 +408,36 @@ let ``/`` () =
     "(/ 12 2 3)" |> rep builtin |> should equal "2"
 
 [<Fact>]
+let ``not`` () =
+    "(not #t)" |> rep builtin |> should equal "#f"
+    "(not 3)" |> rep builtin |> should equal "#f"
+
+    "(not (list 3))"
+    |> rep builtin
+    |> should equal "#f"
+
+    "(not #f)" |> rep builtin |> should equal "#t"
+    "(not '())" |> rep builtin |> should equal "#f"
+    "(not (list))" |> rep builtin |> should equal "#f"
+    "(not 'nil)" |> rep builtin |> should equal "#f"
+
+[<Fact>]
+let ``boolean?`` () =
+    "(boolean? #f)"
+    |> rep builtin
+    |> should equal "#t"
+
+    "(boolean? #t)"
+    |> rep builtin
+    |> should equal "#t"
+
+    "(boolean? 0)" |> rep builtin |> should equal "#f"
+
+    "(boolean? '())"
+    |> rep builtin
+    |> should equal "#f"
+
+[<Fact>]
 let car () =
     "(car '(a b c))"
     |> rep builtin

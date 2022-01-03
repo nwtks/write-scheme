@@ -5,61 +5,61 @@ open Eval
 open Read
 open Print
 
-let rec evalEach envs cont acc =
+let rec eachEval envs cont acc =
     function
     | [] -> acc |> cont
     | x :: xs ->
         x
-        |> eval envs (fun a -> xs |> evalEach envs cont a)
+        |> eval envs (fun a -> xs |> eachEval envs cont a)
 
 let zipFormals args =
-    let zip xs args' =
-        List.zip xs args'
+    let zipVarArg vars args' =
+        List.zip vars args'
         |> List.map (function
-            | SSymbol x, y -> x, ref y
+            | SSymbol var, expr -> var, expr
             | x, _ -> print x |> sprintf "'%s' not symbol." |> failwith)
 
-    let argVal =
+    let argsExpr =
         function
         | [] -> SEmpty
         | [ x ] -> x
         | xs -> xs |> SList |> SQuote
 
     function
-    | SSymbol x -> [ x, args |> argVal |> ref ]
+    | SSymbol var -> [ var, args |> argsExpr ]
     | SEmpty -> []
-    | SList xs -> zip xs args
-    | SPair (xs, SSymbol y) ->
-        zip xs (args |> List.take (List.length xs))
-        @ [ y,
-            args
-            |> List.skip (List.length xs)
-            |> argVal
-            |> ref ]
+    | SList vars -> zipVarArg vars args
+    | SPair (vars, SSymbol var) ->
+        let varsLen = List.length vars
+
+        zipVarArg vars (args |> List.take varsLen)
+        @ [ var, args |> List.skip varsLen |> argsExpr ]
     | x -> print x |> sprintf "'%s' not symbol." |> failwith
 
 let eachBinding =
     function
-    | SList [ SSymbol x; y ] -> x, y
+    | SList [ SSymbol var; expr ] -> var, expr
     | x -> print x |> sprintf "'%s' not symbol." |> failwith
 
 let sLambda envs cont =
-    let rec bind body envs' cont' acc =
+    let rec bindArgs body envs' cont' acc =
         function
         | [] ->
             body
-            |> evalEach (List.rev acc |> extendEnvs envs') cont' SEmpty
-        | (x1, (x2: SExpression ref)) :: xs ->
-            x2.Value
-            |> eval envs' (fun a -> xs |> bind body envs' cont' ((x1, ref a) :: acc))
+            |> eachEval (List.rev acc |> extendEnvs envs') cont' SEmpty
+        | (var, expr) :: xs ->
+            expr
+            |> eval envs' (fun a ->
+                xs
+                |> bindArgs body envs' cont' ((var, ref a) :: acc))
 
     let closure formals body envs' cont' args =
         formals
         |> zipFormals args
-        |> bind body (envs' @ envs) cont' []
+        |> bindArgs body (envs' @ envs) cont' []
 
     function
-    | formals :: body -> closure formals body |> SSyntax |> cont
+    | formals :: body -> closure formals body |> SProcedure |> cont
     | x ->
         x
         |> newList
@@ -70,7 +70,13 @@ let sLambda envs cont =
 let sMacro envs cont =
     let closure formals body envs' cont' args =
         body
-        |> evalEach (formals |> zipFormals args |> extendEnvs envs) (eval envs' cont') SEmpty
+        |> eachEval
+            (formals
+             |> zipFormals args
+             |> List.map (fun (var, expr) -> (var, ref expr))
+             |> extendEnvs envs)
+            (eval envs' cont')
+            SEmpty
 
     function
     | formals :: body -> closure formals body |> SSyntax |> cont
@@ -78,7 +84,7 @@ let sMacro envs cont =
         x
         |> newList
         |> print
-        |> sprintf "'%s' invalid define-macro parameter."
+        |> sprintf "'%s' invalid macro parameter."
         |> failwith
 
 let sIf envs cont =
@@ -112,6 +118,184 @@ let sSet envs cont =
         |> sprintf "'%s' invalid set! parameter."
         |> failwith
 
+let rec sCond envs cont =
+    let eachTest conseq clauses =
+        eval envs (function
+            | SBool false -> clauses |> sCond envs cont
+            | x -> conseq x)
+
+    function
+    | [] -> SEmpty |> cont
+    | [ SList (SSymbol "else" :: exprs) ] -> exprs |> eachEval envs cont SEmpty
+    | SList [ test; SSymbol "=>"; expr ] :: clauses ->
+        test
+        |> eachTest (fun a -> [ expr; SQuote a ] |> newList |> eval envs cont) clauses
+    | SList (test :: exprs) :: clauses ->
+        test
+        |> eachTest (fun a -> exprs |> eachEval envs cont a) clauses
+    | x ->
+        x
+        |> newList
+        |> print
+        |> sprintf "'%s' invalid cond parameter."
+        |> failwith
+
+let rec sAnd envs cont =
+    function
+    | [] -> STrue |> cont
+    | [ test ] ->
+        test
+        |> eval envs (function
+            | SBool false -> SFalse
+            | a -> a)
+        |> cont
+    | test :: tests ->
+        test
+        |> eval envs (function
+            | SBool false -> SFalse
+            | _ -> tests |> sAnd envs cont)
+        |> cont
+
+let rec sOr envs cont =
+    function
+    | [] -> SFalse |> cont
+    | test :: tests ->
+        test
+        |> eval envs (function
+            | SBool false -> tests |> sOr envs cont
+            | a -> a)
+        |> cont
+
+let sWhen envs cont =
+    function
+    | test :: exprs ->
+        test
+        |> eval envs (function
+            | SBool false -> SEmpty |> cont
+            | _ -> exprs |> eachEval envs cont SEmpty)
+    | x ->
+        x
+        |> newList
+        |> print
+        |> sprintf "'%s' invalid when parameter."
+        |> failwith
+
+let sUnless envs cont =
+    function
+    | test :: exprs ->
+        test
+        |> eval envs (function
+            | SBool false -> exprs |> eachEval envs cont SEmpty
+            | _ -> SEmpty |> cont)
+    | x ->
+        x
+        |> newList
+        |> print
+        |> sprintf "'%s' invalid unless parameter."
+        |> failwith
+
+let sLet envs cont =
+    let rec bind body acc =
+        function
+        | [] ->
+            body
+            |> eachEval (List.rev acc |> extendEnvs envs) cont SEmpty
+        | (var, expr) :: xs ->
+            expr
+            |> eval envs (fun a -> xs |> bind body ((var, ref a) :: acc))
+
+    function
+    | SList bindings :: body -> bindings |> List.map eachBinding |> bind body []
+    | x ->
+        x
+        |> newList
+        |> print
+        |> sprintf "'%s' invalid let parameter."
+        |> failwith
+
+let sLetStar envs cont =
+    let rec bind body envs' =
+        function
+        | [] -> body |> eachEval envs' cont SEmpty
+        | (var, expr) :: xs ->
+            expr
+            |> eval envs' (fun a ->
+                xs
+                |> bind body ([ var, ref a ] |> extendEnvs envs'))
+
+    function
+    | SList bindings :: body -> bindings |> List.map eachBinding |> bind body envs
+    | x ->
+        x
+        |> newList
+        |> print
+        |> sprintf "'%s' invalid let* parameter."
+        |> failwith
+
+let sLetRec envs cont =
+    let bindRef bindings =
+        bindings
+        |> List.map (function
+            | (var, _) -> var, ref SEmpty)
+        |> extendEnvs envs
+
+    let rec bindExpr body envs' =
+        function
+        | [] -> body |> eachEval envs' cont SEmpty
+        | (var, expr) :: xs ->
+            expr
+            |> eval envs' (fun a ->
+                envs'.Head.[var].Value <- a
+                xs |> bindExpr body envs')
+
+    function
+    | SList bindings :: body ->
+        let bindings' = bindings |> List.map eachBinding
+        bindings' |> bindExpr body (bindings' |> bindRef)
+    | x ->
+        x
+        |> newList
+        |> print
+        |> sprintf "'%s' invalid letrec parameter."
+        |> failwith
+
+let sLetRecStar envs cont =
+    let eachRef (envs', refs) =
+        function
+        | (var, _) ->
+            let r = ref SEmpty
+            [ var, r ] |> extendEnvs envs', r :: refs
+
+    let bindRef bindings =
+        let envs', refs =
+            bindings |> List.fold eachRef (envs, [])
+
+        envs', List.rev refs
+
+    let rec bindExpr body envs' =
+        function
+        | [], _
+        | _, [] -> body |> eachEval envs' cont SEmpty
+        | (_, expr) :: xs, (r: SExpression ref) :: rs ->
+            expr
+            |> eval envs' (fun a ->
+                r.Value <- a
+                (xs, rs) |> bindExpr body envs')
+
+    function
+    | SList bindings :: body ->
+        let bindings' = bindings |> List.map eachBinding
+        let envs', refs = bindRef bindings'
+        (bindings', refs) |> bindExpr body envs'
+    | x ->
+        x
+        |> newList
+        |> print
+        |> sprintf "'%s' invalid letrec* parameter."
+        |> failwith
+
+let sBegin envs cont = eachEval envs cont SEmpty
+
 let sDefine (envs: SEnv list) cont =
     let define' var =
         envs.Head.TryAdd(var, ref SEmpty) |> ignore
@@ -132,156 +316,6 @@ let sDefine (envs: SEnv list) cont =
         |> print
         |> sprintf "'%s' invalid define parameter."
         |> failwith
-
-let rec sCond envs cont =
-    let loop conseq xs =
-        eval envs (function
-            | SBool false -> xs |> sCond envs cont
-            | x -> conseq x)
-
-    function
-    | [] -> SEmpty |> cont
-    | [ SList (SSymbol "else" :: xs) ] -> xs |> evalEach envs cont SEmpty
-    | SList [ test; SSymbol "=>"; op ] :: xs ->
-        test
-        |> loop (fun a -> [ op; SQuote a ] |> newList |> eval envs cont) xs
-    | SList (test :: ys) :: xs ->
-        test
-        |> loop (fun a -> ys |> evalEach envs cont a) xs
-    | x ->
-        x
-        |> newList
-        |> print
-        |> sprintf "'%s' invalid cond parameter."
-        |> failwith
-
-let rec sAnd envs cont =
-    function
-    | [] -> STrue |> cont
-    | [ x ] ->
-        x
-        |> eval envs (function
-            | SBool false -> SFalse
-            | a -> a)
-        |> cont
-    | x :: xs ->
-        x
-        |> eval envs (function
-            | SBool false -> SFalse
-            | _ -> xs |> sAnd envs cont)
-        |> cont
-
-let rec sOr envs cont =
-    function
-    | [] -> SFalse |> cont
-    | x :: xs ->
-        x
-        |> eval envs (function
-            | SBool false -> xs |> sOr envs cont
-            | a -> a)
-        |> cont
-
-let sLet envs cont =
-    let rec bind body acc =
-        function
-        | [] ->
-            body
-            |> evalEach (List.rev acc |> extendEnvs envs) cont SEmpty
-        | (x1, x2) :: xs ->
-            x2
-            |> eval envs (fun a -> xs |> bind body ((x1, ref a) :: acc))
-
-    function
-    | SList bindings :: body -> bindings |> List.map eachBinding |> bind body []
-    | x ->
-        x
-        |> newList
-        |> print
-        |> sprintf "'%s' invalid let parameter."
-        |> failwith
-
-let sLetStar envs cont =
-    let rec bind body envs' =
-        function
-        | [] -> body |> evalEach envs' cont SEmpty
-        | (x1, x2) :: xs ->
-            x2
-            |> eval envs' (fun a ->
-                xs
-                |> bind body ([ x1, ref a ] |> extendEnvs envs'))
-
-    function
-    | SList bindings :: body -> bindings |> List.map eachBinding |> bind body envs
-    | x ->
-        x
-        |> newList
-        |> print
-        |> sprintf "'%s' invalid let* parameter."
-        |> failwith
-
-let sLetRec envs cont =
-    let bindRef bindings =
-        bindings
-        |> List.map (function
-            | (x, _) -> x, ref SEmpty)
-        |> extendEnvs envs
-
-    let rec update body envs' =
-        function
-        | [] -> body |> evalEach envs' cont SEmpty
-        | (x1, x2) :: xs ->
-            x2
-            |> eval envs' (fun a ->
-                envs'.Head.[x1].Value <- a
-                xs |> update body envs')
-
-    function
-    | SList bindings :: body ->
-        let bindings' = bindings |> List.map eachBinding
-        bindings' |> update body (bindings' |> bindRef)
-    | x ->
-        x
-        |> newList
-        |> print
-        |> sprintf "'%s' invalid letrec parameter."
-        |> failwith
-
-let sLetRecStar envs cont =
-    let eachRef (envs', refs) =
-        function
-        | (x, _) ->
-            let r = ref SEmpty
-            [ x, r ] |> extendEnvs envs', r :: refs
-
-    let bindRef bindings =
-        let envs', refs =
-            bindings |> List.fold eachRef (envs, [])
-
-        envs', List.rev refs
-
-    let rec update body envs' =
-        function
-        | [], _
-        | _, [] -> body |> evalEach envs' cont SEmpty
-        | (_, x) :: xs, (r: SExpression ref) :: rs ->
-            x
-            |> eval envs' (fun a ->
-                r.Value <- a
-                (xs, rs) |> update body envs')
-
-    function
-    | SList bindings :: body ->
-        let bindings' = bindings |> List.map eachBinding
-        let envs', refs = bindRef bindings'
-        (bindings', refs) |> update body envs'
-    | x ->
-        x
-        |> newList
-        |> print
-        |> sprintf "'%s' invalid letrec* parameter."
-        |> failwith
-
-let sBegin envs cont = evalEach envs cont SEmpty
 
 let isEqv envs cont =
     let rec eqv =
@@ -327,6 +361,11 @@ let isEqual envs cont =
 
     function
     | [ a; b ] -> (a, b) |> equal |> newBool |> cont
+    | _ -> SFalse |> cont
+
+let sNot envs cont =
+    function
+    | [ SBool false ] -> STrue |> cont
     | _ -> SFalse |> cont
 
 let isBoolean envs cont =
@@ -445,8 +484,8 @@ let sCar envs cont =
 let sCdr envs cont =
     function
     | [ SList (_ :: xs) ] -> xs |> newList |> cont
-    | [ SPair ([ _ ], y) ] -> y |> cont
-    | [ SPair (_ :: xs, y) ] -> SPair(xs, y) |> cont
+    | [ SPair ([ _ ], x2) ] -> x2 |> cont
+    | [ SPair (_ :: xs, x2) ] -> SPair(xs, x2) |> cont
     | x ->
         x
         |> newList
@@ -458,7 +497,7 @@ let sCons envs cont =
     function
     | [ x; SEmpty ] -> [ x ] |> newList |> cont
     | [ x; SList xs ] -> x :: xs |> newList |> cont
-    | [ x; SPair (xs, y) ] -> SPair(x :: xs, y) |> cont
+    | [ x; SPair (y1, y2) ] -> SPair(x :: y1, y2) |> cont
     | [ x; y ] -> SPair([ x ], y) |> cont
     | x ->
         x
@@ -533,7 +572,7 @@ let sLoad envs cont =
     | [ SString f ] ->
         System.IO.File.ReadAllText(f)
         |> read
-        |> eval envs id
+        |> eval envs cont
         |> ignore
 
         sprintf "Loaded '%s'." f |> SSymbol |> cont
@@ -553,6 +592,8 @@ let builtin =
         "cond", SSyntax sCond |> ref
         "and", SSyntax sAnd |> ref
         "or", SSyntax sOr |> ref
+        "when", SSyntax sWhen |> ref
+        "unless", SSyntax sUnless |> ref
         "let", SSyntax sLet |> ref
         "let*", SSyntax sLetStar |> ref
         "letrec", SSyntax sLetRec |> ref
@@ -572,6 +613,7 @@ let builtin =
         "*", SProcedure multiplyNumber |> ref
         "-", SProcedure subtractNumber |> ref
         "/", SProcedure divideNumber |> ref
+        "not", SProcedure sNot |> ref
         "boolean?", SProcedure isBoolean |> ref
         "pair?", SProcedure isPair |> ref
         "cons", SProcedure sCons |> ref

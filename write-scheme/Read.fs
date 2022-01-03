@@ -126,7 +126,8 @@ let pSign =
 
 let toBigInteger radix x =
     x
-    |> Seq.fold (fun acc a -> acc * radix + bigint (a |> hex2int)) 0I
+    |> Seq.map hex2int
+    |> Seq.fold (fun acc a -> acc * radix + bigint a) 0I
 
 let pUinteger10 =
     pDigit |> many1Chars |>> toBigInteger 10I
