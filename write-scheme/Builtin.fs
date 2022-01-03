@@ -146,15 +146,13 @@ let rec sAnd envs cont =
     | [ test ] ->
         test
         |> eval envs (function
-            | SBool false -> SFalse
-            | a -> a)
-        |> cont
+            | SBool false -> SFalse |> cont
+            | x -> x |> cont)
     | test :: tests ->
         test
         |> eval envs (function
-            | SBool false -> SFalse
+            | SBool false -> SFalse |> cont
             | _ -> tests |> sAnd envs cont)
-        |> cont
 
 let rec sOr envs cont =
     function
@@ -163,8 +161,7 @@ let rec sOr envs cont =
         test
         |> eval envs (function
             | SBool false -> tests |> sOr envs cont
-            | a -> a)
-        |> cont
+            | x -> x |> cont)
 
 let sWhen envs cont =
     function
@@ -331,12 +328,7 @@ let isEqv envs cont =
         | a, b -> a = b
 
     function
-    | [ a; b ] ->
-        a
-        |> eval envs (fun a' ->
-            b
-            |> eval envs (fun b' -> (a', b') |> eqv |> newBool))
-        |> cont
+    | [ a; b ] -> (a, b) |> eqv |> newBool |> cont
     | _ -> SFalse |> cont
 
 let isEqual envs cont =
