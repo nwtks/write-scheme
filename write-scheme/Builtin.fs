@@ -5,6 +5,9 @@ open Eval
 open Read
 open Print
 
+let invalidParameter fmt =
+    newList >> print >> sprintf fmt >> failwith
+
 let rec eachEval envs cont acc =
     function
     | [] -> acc |> cont
@@ -48,6 +51,13 @@ let eachBinding =
     | SList [ SSymbol var; expr ] -> var, expr
     | x -> print x |> sprintf "'%s' not symbol." |> failwith
 
+let sQuote envs cont =
+    function
+    | [ x ] -> x |> cont
+    | x ->
+        x
+        |> invalidParameter "'%s' invalid quote parameter."
+
 let sLambda envs cont =
     let rec bindArgs body envs' cont' acc =
         function
@@ -69,10 +79,7 @@ let sLambda envs cont =
     | formals :: body -> closure formals body |> SSyntax |> cont
     | x ->
         x
-        |> newList
-        |> print
-        |> sprintf "'%s' invalid lambda parameter."
-        |> failwith
+        |> invalidParameter "'%s' invalid lambda parameter."
 
 let sMacro envs cont =
     let closure formals body envs' cont' args =
@@ -89,10 +96,7 @@ let sMacro envs cont =
     | formals :: body -> closure formals body |> SSyntax |> cont
     | x ->
         x
-        |> newList
-        |> print
-        |> sprintf "'%s' invalid macro parameter."
-        |> failwith
+        |> invalidParameter "'%s' invalid macro parameter."
 
 let sIf envs cont =
     let if' test conseq alter =
@@ -104,12 +108,7 @@ let sIf envs cont =
     function
     | [ test; conseq; alter ] -> if' test conseq alter
     | [ test; conseq ] -> if' test conseq SEmpty
-    | x ->
-        x
-        |> newList
-        |> print
-        |> sprintf "'%s' invalid if parameter."
-        |> failwith
+    | x -> x |> invalidParameter "'%s' invalid if parameter."
 
 let sSet envs cont =
     function
@@ -120,10 +119,7 @@ let sSet envs cont =
             x |> cont)
     | x ->
         x
-        |> newList
-        |> print
-        |> sprintf "'%s' invalid set! parameter."
-        |> failwith
+        |> invalidParameter "'%s' invalid set! parameter."
 
 let rec sCond envs cont =
     let eachTest conseq clauses =
@@ -142,10 +138,7 @@ let rec sCond envs cont =
         |> eachTest (fun a -> exprs |> eachEval envs cont a) clauses
     | x ->
         x
-        |> newList
-        |> print
-        |> sprintf "'%s' invalid cond parameter."
-        |> failwith
+        |> invalidParameter "'%s' invalid cond parameter."
 
 let rec sAnd envs cont =
     function
@@ -179,10 +172,7 @@ let sWhen envs cont =
             | _ -> exprs |> eachEval envs cont SEmpty)
     | x ->
         x
-        |> newList
-        |> print
-        |> sprintf "'%s' invalid when parameter."
-        |> failwith
+        |> invalidParameter "'%s' invalid when parameter."
 
 let sUnless envs cont =
     function
@@ -193,10 +183,7 @@ let sUnless envs cont =
             | _ -> SEmpty |> cont)
     | x ->
         x
-        |> newList
-        |> print
-        |> sprintf "'%s' invalid unless parameter."
-        |> failwith
+        |> invalidParameter "'%s' invalid unless parameter."
 
 let sLet envs cont =
     let rec bind body acc =
@@ -212,10 +199,7 @@ let sLet envs cont =
     | SList bindings :: body -> bindings |> List.map eachBinding |> bind body []
     | x ->
         x
-        |> newList
-        |> print
-        |> sprintf "'%s' invalid let parameter."
-        |> failwith
+        |> invalidParameter "'%s' invalid let parameter."
 
 let sLetStar envs cont =
     let rec bind body envs' =
@@ -231,10 +215,7 @@ let sLetStar envs cont =
     | SList bindings :: body -> bindings |> List.map eachBinding |> bind body envs
     | x ->
         x
-        |> newList
-        |> print
-        |> sprintf "'%s' invalid let* parameter."
-        |> failwith
+        |> invalidParameter "'%s' invalid let* parameter."
 
 let sLetRec envs cont =
     let bindRef bindings =
@@ -258,10 +239,7 @@ let sLetRec envs cont =
         bindings' |> bindExpr body (bindings' |> bindRef)
     | x ->
         x
-        |> newList
-        |> print
-        |> sprintf "'%s' invalid letrec parameter."
-        |> failwith
+        |> invalidParameter "'%s' invalid letrec parameter."
 
 let sLetRecStar envs cont =
     let eachRef (envs', refs) =
@@ -293,12 +271,109 @@ let sLetRecStar envs cont =
         (bindings', refs) |> bindExpr body envs'
     | x ->
         x
-        |> newList
-        |> print
-        |> sprintf "'%s' invalid letrec* parameter."
-        |> failwith
+        |> invalidParameter "'%s' invalid letrec* parameter."
 
 let sBegin envs cont = eachEval envs cont SEmpty
+
+let sQuasiquote envs cont =
+    let cons x =
+        function
+        | SEmpty -> [ x ] |> newList
+        | SList ys -> x :: ys |> newList
+        | y -> [ x; y ] |> newList
+
+    let join =
+        function
+        | SEmpty, SEmpty -> SEmpty
+        | SList xs, SEmpty -> xs |> newList
+        | SEmpty, SList ys -> ys |> newList
+        | SList xs, SList ys -> xs @ ys |> newList
+        | x, y -> [ x; y ] |> newList
+
+    let rec replace n next =
+        function
+        | SEmpty -> SEmpty |> next
+        | SList xs -> replaceList n xs |> next
+        | SPair (x1, x2) ->
+            match replaceList n x1 with
+            | SList ys -> SPair(ys, replaceDatum n x2) |> next
+            | _ -> replaceDatum n x2 |> next
+        | x -> replaceDatum n x |> next
+
+    and replaceList n =
+        function
+        | [] -> SEmpty
+        | SUnquote x :: xs
+        | SList [ SSymbol "unquote"; x ] :: xs ->
+            if n = 0 then
+                x
+                |> eval envs (fun a ->
+                    xs
+                    |> newList
+                    |> replace n (fun b -> cons a b |> cont))
+            else
+                x
+                |> replace (n - 1) (fun a ->
+                    xs
+                    |> newList
+                    |> replace n (fun b -> cons (SUnquote a) b))
+        | SUnquoteSplicing x :: xs
+        | SList [ SSymbol "unquote-splicing"; x ] :: xs ->
+            if n = 0 then
+                x
+                |> eval envs (fun a ->
+                    xs
+                    |> newList
+                    |> replace n (fun b -> join (a, b) |> cont))
+            else
+                x
+                |> replace (n - 1) (fun a ->
+                    xs
+                    |> newList
+                    |> replace n (fun b -> cons (SUnquoteSplicing a) b))
+        | SQuasiquote x :: xs
+        | SList [ SSymbol "quasiquote"; x ] :: xs ->
+            x
+            |> replace (n + 1) (fun a ->
+                xs
+                |> newList
+                |> replace n (fun b -> cons (SQuasiquote a) b))
+        | SQuote x :: xs
+        | SList [ SSymbol "quote"; x ] :: xs ->
+            x
+            |> replace n (fun a ->
+                xs
+                |> newList
+                |> replace n (fun b -> cons (SQuote a) b))
+        | x :: xs ->
+            x
+            |> replace n (fun a -> xs |> newList |> replace n (fun b -> cons a b))
+
+    and replaceDatum n =
+        function
+        | SUnquote x
+        | SList [ SSymbol "unquote"; x ] ->
+            if n = 0 then
+                x |> eval envs cont
+            else
+                x |> replace (n - 1) SUnquote
+        | SUnquoteSplicing x
+        | SList [ SSymbol "unquote-splicing"; x ] ->
+            if n = 0 then
+                x |> eval envs cont
+            else
+                x |> replace (n - 1) SUnquoteSplicing
+        | SQuasiquote x
+        | SList [ SSymbol "quasiquote"; x ] -> x |> replace (n + 1) SQuasiquote
+        | SQuote x
+        | SList [ SSymbol "quote"; x ] -> x |> replace n SQuote
+        | x -> x
+
+    function
+    | [ x ] -> replace 0 id x
+    | x ->
+        x
+        |> invalidParameter "'%s' invalid quasiquote parameter."
 
 let sDefine (envs: SEnv list) cont =
     let define' var =
@@ -316,10 +391,7 @@ let sDefine (envs: SEnv list) cont =
     | SPair ([ SSymbol var ], formal) :: body -> sLambda envs cont (formal :: body) |> define' var
     | x ->
         x
-        |> newList
-        |> print
-        |> sprintf "'%s' invalid define parameter."
-        |> failwith
+        |> invalidParameter "'%s' invalid define parameter."
 
 let isEqv envs cont =
     let rec eqv =
@@ -466,10 +538,7 @@ let sCons envs cont =
     | [ x; y ] -> SPair([ x ], y) |> cont
     | x ->
         x
-        |> newList
-        |> print
-        |> sprintf "'%s' invalid cons parameter."
-        |> failwith
+        |> invalidParameter "'%s' invalid cons parameter."
 
 let sCar envs cont =
     function
@@ -477,10 +546,7 @@ let sCar envs cont =
     | [ SPair (x :: _, _) ] -> x |> cont
     | x ->
         x
-        |> newList
-        |> print
-        |> sprintf "'%s' invalid car parameter."
-        |> failwith
+        |> invalidParameter "'%s' invalid car parameter."
 
 let sCdr envs cont =
     function
@@ -489,10 +555,7 @@ let sCdr envs cont =
     | [ SPair (_ :: xs, x2) ] -> SPair(xs, x2) |> cont
     | x ->
         x
-        |> newList
-        |> print
-        |> sprintf "'%s' invalid cdr parameter."
-        |> failwith
+        |> invalidParameter "'%s' invalid cdr parameter."
 
 let isNull envs cont =
     function
@@ -511,23 +574,20 @@ let sAppend envs cont xs =
     let rec fold =
         function
         | [], []
-        | [], [ SEmpty ] -> SEmpty |> cont
-        | [], [ x ] -> x |> cont
+        | [], [ SEmpty ] -> SEmpty
+        | [], [ x ] -> x
         | acc, []
-        | acc, [ SEmpty ] -> acc |> newList |> cont
-        | acc, [ SList x ] -> acc @ x |> newList |> cont
-        | acc, [ SPair (x1, x2) ] -> SPair(acc @ x1, x2) |> cont
-        | acc, [ x ] -> SPair(acc, x) |> cont
+        | acc, [ SEmpty ] -> acc |> newList
+        | acc, [ SList x ] -> acc @ x |> newList
+        | acc, [ SPair (x1, x2) ] -> SPair(acc @ x1, x2)
+        | acc, [ x ] -> SPair(acc, x)
         | acc, SEmpty :: x -> (acc, x) |> fold
         | acc, SList x1 :: x2 -> (acc @ x1, x2) |> fold
         | _ ->
             xs
-            |> newList
-            |> print
-            |> sprintf "'%s' invalid append parameter."
-            |> failwith
+            |> invalidParameter "'%s' invalid append parameter."
 
-    ([], xs) |> fold
+    ([], xs) |> fold |> cont
 
 let isSymbol envs cont =
     function
@@ -551,18 +611,27 @@ let isProcedure envs cont =
     | [ SContinuation _ ] -> STrue |> cont
     | _ -> SFalse |> cont
 
-let sCallCC envs cont =
+let sApply envs cont =
+    let rec fold =
+        function
+        | acc, []
+        | acc, [ SEmpty ] -> List.rev acc
+        | acc, [ SList x ] -> List.rev acc @ x
+        | acc, [ SPair (x1, x2) ] -> [ SPair(List.rev acc @ x1, x2) ]
+        | acc, x1 :: x2 -> (x1 :: acc, x2) |> fold
+
     function
-    | [ proc ] ->
-        [ proc; SContinuation cont ]
-        |> newList
-        |> eval envs cont
+    | proc :: args -> apply envs cont (([], args) |> fold) proc
     | x ->
         x
-        |> newList
-        |> print
-        |> sprintf "'%s' invalid call/cc parameter."
-        |> failwith
+        |> invalidParameter "'%s' invalid apply parameter."
+
+let sCallCC envs cont =
+    function
+    | [ proc ] -> apply envs cont [ SContinuation cont ] proc
+    | x ->
+        x
+        |> invalidParameter "'%s' invalid call/cc parameter."
 
 let sDisplay envs cont =
     function
@@ -577,10 +646,7 @@ let sDisplay envs cont =
         SEmpty |> cont
     | x ->
         x
-        |> newList
-        |> print
-        |> sprintf "'%s' invalid display parameter."
-        |> failwith
+        |> invalidParameter "'%s' invalid display parameter."
 
 let sLoad envs cont =
     function
@@ -593,13 +659,11 @@ let sLoad envs cont =
         sprintf "Loaded '%s'." f |> SSymbol |> cont
     | x ->
         x
-        |> newList
-        |> print
-        |> sprintf "'%s' invalid load parameter."
-        |> failwith
+        |> invalidParameter "'%s' invalid load parameter."
 
 let builtin =
     extendEnvs [] [
+        "quote", SSyntax sQuote |> ref
         "lambda", SSyntax sLambda |> ref
         "macro", SSyntax sMacro |> ref
         "if", SSyntax sIf |> ref
@@ -614,6 +678,7 @@ let builtin =
         "letrec", SSyntax sLetRec |> ref
         "letrec*", SSyntax sLetRecStar |> ref
         "begin", SSyntax sBegin |> ref
+        "quasiquote", SSyntax sQuasiquote |> ref
         "define", SSyntax sDefine |> ref
         "eqv?", SProcedure isEqv |> ref
         "eq?", SProcedure isEqv |> ref
@@ -645,6 +710,7 @@ let builtin =
         "char?", SProcedure isChar |> ref
         "string?", SProcedure isString |> ref
         "procedure?", SProcedure isProcedure |> ref
+        "apply", SProcedure sApply |> ref
         "call/cc", SProcedure sCallCC |> ref
         "call-with-current-continuation", SProcedure sCallCC |> ref
         "display", SProcedure sDisplay |> ref
