@@ -9,7 +9,7 @@ let rec print =
     | SBool false -> "#f"
     | SRational (x1, x2) ->
         if x2 = 1I then
-            x1.ToString()
+            string x1
         else
             sprintf "%A/%A" x1 x2
     | SReal x ->
@@ -20,7 +20,7 @@ let rec print =
         elif System.Double.IsNegativeInfinity(x) then
             "-inf.0"
         else
-            x.ToString()
+            string x
     | SString x -> x.Replace("\"", "\\\"") |> sprintf "\"%s\""
     | SChar x -> sprintf "#\\%s" x
     | SSymbol x -> x

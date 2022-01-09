@@ -14,7 +14,14 @@ let rec eachEval envs cont acc =
 
 let zipFormals args =
     let zipVarArg vars args' =
-        List.zip vars args'
+        let varsLen = List.length vars
+        let argsLen = List.length args'
+
+        if argsLen < varsLen then
+            sprintf "%d parameters requires, but %d." varsLen argsLen
+            |> failwith
+
+        List.zip vars (args' |> List.take varsLen)
         |> List.map (function
             | SSymbol var, expr -> var, expr
             | x, _ -> print x |> sprintf "'%s' not symbol." |> failwith)
@@ -59,7 +66,7 @@ let sLambda envs cont =
         |> bindArgs body (envs' @ envs) cont' []
 
     function
-    | formals :: body -> closure formals body |> SProcedure |> cont
+    | formals :: body -> closure formals body |> SSyntax |> cont
     | x ->
         x
         |> newList
@@ -355,84 +362,13 @@ let isEqual envs cont =
     | [ a; b ] -> (a, b) |> equal |> newBool |> cont
     | _ -> SFalse |> cont
 
-let sNot envs cont =
-    function
-    | [ SBool false ] -> STrue |> cont
-    | _ -> SFalse |> cont
-
-let isBoolean envs cont =
-    function
-    | [ SBool _ ] -> STrue |> cont
-    | _ -> SFalse |> cont
-
-let isString envs cont =
-    function
-    | [ SString _ ] -> STrue |> cont
-    | _ -> SFalse |> cont
-
 let isNumber envs cont =
     function
     | [ SRational _ ]
     | [ SReal _ ] -> STrue |> cont
     | _ -> SFalse |> cont
 
-let isSymbol envs cont =
-    function
-    | [ SSymbol _ ] -> STrue |> cont
-    | _ -> SFalse |> cont
-
-let isChar envs cont =
-    function
-    | [ SChar _ ] -> STrue |> cont
-    | _ -> SFalse |> cont
-
-let isPair envs cont =
-    function
-    | [ SList _ ]
-    | [ SPair _ ] -> STrue |> cont
-    | _ -> SFalse |> cont
-
-let isNull envs cont =
-    function
-    | [ SEmpty ] -> STrue |> cont
-    | _ -> SFalse |> cont
-
-let isProcedure envs cont =
-    function
-    | [ SSyntax _ ]
-    | [ SProcedure _ ] -> STrue |> cont
-    | _ -> SFalse |> cont
-
 let toFloat x y = (float) x / (float) y
-
-let calc op1 op2 ident1 ident2 envs cont =
-    let op x y =
-        match x, y with
-        | SRational (a1, a2), SRational (b1, b2) -> op1 a1 a2 b1 b2
-        | SRational (a1, a2), SReal b -> op2 (toFloat a1 a2) b
-        | SReal a, SRational (b1, b2) -> op2 a (toFloat b1 b2)
-        | SReal a, SReal b -> op2 a b
-        | a, b ->
-            sprintf "'%s', '%s' not number." (print a) (print b)
-            |> failwith
-
-    function
-    | [] -> SRational(ident1, 1I) |> cont
-    | [ SRational (x1, x2) ] -> op1 ident1 1I x1 x2 |> cont
-    | [ SReal x ] -> op2 ident2 x |> cont
-    | x :: xs -> List.fold op x xs |> cont
-
-let addNumber =
-    calc (fun a1 a2 b1 b2 -> newRational (a1 * b2 + b1 * a2) (a2 * b2)) (fun n1 n2 -> n1 + n2 |> SReal) 0I 0.0
-
-let subtractNumber =
-    calc (fun a1 a2 b1 b2 -> newRational (a1 * b2 - b1 * a2) (a2 * b2)) (fun n1 n2 -> n1 - n2 |> SReal) 0I 0.0
-
-let multiplyNumber =
-    calc (fun a1 a2 b1 b2 -> newRational (a1 * b1) (a2 * b2)) (fun n1 n2 -> n1 * n2 |> SReal) 1I 1.0
-
-let divideNumber =
-    calc (fun a1 a2 b1 b2 -> newRational (a1 * b2) (a2 * b1)) (fun n1 n2 -> n1 / n2 |> SReal) 1I 1.0
 
 let compareNumber pred1 pred2 envs cont =
     let pred =
@@ -457,10 +393,83 @@ let compareNumber pred1 pred2 envs cont =
     | x :: xs -> compare x xs |> cont
 
 let equalNumber = compareNumber (=) (=)
-let greaterNumber = compareNumber (>) (>)
-let greaterEqualNumber = compareNumber (>=) (>=)
 let lessNumber = compareNumber (<) (<)
+let greaterNumber = compareNumber (>) (>)
 let lessEqualNumber = compareNumber (<=) (<=)
+let greaterEqualNumber = compareNumber (>=) (>=)
+
+let isZero envs cont =
+    function
+    | [ x ] -> equalNumber envs cont [ x; SZero ]
+    | _ -> SFalse |> cont
+
+let isPositive envs cont =
+    function
+    | [ x ] -> greaterNumber envs cont [ x; SZero ]
+    | _ -> SFalse |> cont
+
+let isNegative envs cont =
+    function
+    | [ x ] -> lessNumber envs cont [ x; SZero ]
+    | _ -> SFalse |> cont
+
+let calc op1 op2 ident1 ident2 envs cont =
+    let op x y =
+        match x, y with
+        | SRational (a1, a2), SRational (b1, b2) -> op1 a1 a2 b1 b2
+        | SRational (a1, a2), SReal b -> op2 (toFloat a1 a2) b
+        | SReal a, SRational (b1, b2) -> op2 a (toFloat b1 b2)
+        | SReal a, SReal b -> op2 a b
+        | a, b ->
+            sprintf "'%s', '%s' not number." (print a) (print b)
+            |> failwith
+
+    function
+    | [] -> SRational(ident1, 1I) |> cont
+    | [ SRational (x1, x2) ] -> op1 ident1 1I x1 x2 |> cont
+    | [ SReal x ] -> op2 ident2 x |> cont
+    | x :: xs -> List.fold op x xs |> cont
+
+let addNumber =
+    calc (fun a1 a2 b1 b2 -> newRational (a1 * b2 + b1 * a2) (a2 * b2)) (fun n1 n2 -> n1 + n2 |> SReal) 0I 0.0
+
+let multiplyNumber =
+    calc (fun a1 a2 b1 b2 -> newRational (a1 * b1) (a2 * b2)) (fun n1 n2 -> n1 * n2 |> SReal) 1I 1.0
+
+let subtractNumber =
+    calc (fun a1 a2 b1 b2 -> newRational (a1 * b2 - b1 * a2) (a2 * b2)) (fun n1 n2 -> n1 - n2 |> SReal) 0I 0.0
+
+let divideNumber =
+    calc (fun a1 a2 b1 b2 -> newRational (a1 * b2) (a2 * b1)) (fun n1 n2 -> n1 / n2 |> SReal) 1I 1.0
+
+let sNot envs cont =
+    function
+    | [ SBool false ] -> STrue |> cont
+    | _ -> SFalse |> cont
+
+let isBoolean envs cont =
+    function
+    | [ SBool _ ] -> STrue |> cont
+    | _ -> SFalse |> cont
+
+let isPair envs cont =
+    function
+    | [ SList _ ]
+    | [ SPair _ ] -> STrue |> cont
+    | _ -> SFalse |> cont
+
+let sCons envs cont =
+    function
+    | [ x; SEmpty ] -> [ x ] |> newList |> cont
+    | [ x; SList xs ] -> x :: xs |> newList |> cont
+    | [ x; SPair (y1, y2) ] -> SPair(x :: y1, y2) |> cont
+    | [ x; y ] -> SPair([ x ], y) |> cont
+    | x ->
+        x
+        |> newList
+        |> print
+        |> sprintf "'%s' invalid cons parameter."
+        |> failwith
 
 let sCar envs cont =
     function
@@ -485,18 +494,16 @@ let sCdr envs cont =
         |> sprintf "'%s' invalid cdr parameter."
         |> failwith
 
-let sCons envs cont =
+let isNull envs cont =
     function
-    | [ x; SEmpty ] -> [ x ] |> newList |> cont
-    | [ x; SList xs ] -> x :: xs |> newList |> cont
-    | [ x; SPair (y1, y2) ] -> SPair(x :: y1, y2) |> cont
-    | [ x; y ] -> SPair([ x ], y) |> cont
-    | x ->
-        x
-        |> newList
-        |> print
-        |> sprintf "'%s' invalid cons parameter."
-        |> failwith
+    | [ SEmpty ] -> STrue |> cont
+    | _ -> SFalse |> cont
+
+let isList envs cont =
+    function
+    | [ SList _ ]
+    | [ SEmpty ] -> STrue |> cont
+    | _ -> SFalse |> cont
 
 let sList envs cont xs = xs |> newList |> cont
 
@@ -522,18 +529,34 @@ let sAppend envs cont xs =
 
     ([], xs) |> fold
 
+let isSymbol envs cont =
+    function
+    | [ SSymbol _ ] -> STrue |> cont
+    | _ -> SFalse |> cont
+
+let isChar envs cont =
+    function
+    | [ SChar _ ] -> STrue |> cont
+    | _ -> SFalse |> cont
+
+let isString envs cont =
+    function
+    | [ SString _ ] -> STrue |> cont
+    | _ -> SFalse |> cont
+
+let isProcedure envs cont =
+    function
+    | [ SSyntax _ ]
+    | [ SProcedure _ ]
+    | [ SContinuation _ ] -> STrue |> cont
+    | _ -> SFalse |> cont
+
 let sCallCC envs cont =
     function
     | [ proc ] ->
-        proc
-        |> eval envs (function
-            | SProcedure fn -> fn envs cont [ SContinuation cont ]
-            | SSyntax fn -> fn envs cont [ SContinuation cont ]
-            | x ->
-                x
-                |> print
-                |> sprintf "'%s' invalid call/cc parameter."
-                |> failwith)
+        [ proc; SContinuation cont ]
+        |> newList
+        |> eval envs cont
     | x ->
         x
         |> newList
@@ -601,6 +624,9 @@ let builtin =
         ">", SProcedure greaterNumber |> ref
         "<=", SProcedure lessEqualNumber |> ref
         ">=", SProcedure greaterEqualNumber |> ref
+        "zero?", SProcedure isZero |> ref
+        "positive?", SProcedure isPositive |> ref
+        "negative?", SProcedure isNegative |> ref
         "+", SProcedure addNumber |> ref
         "*", SProcedure multiplyNumber |> ref
         "-", SProcedure subtractNumber |> ref
@@ -612,6 +638,7 @@ let builtin =
         "car", SProcedure sCar |> ref
         "cdr", SProcedure sCdr |> ref
         "null?", SProcedure isNull |> ref
+        "list?", SProcedure isList |> ref
         "list", SProcedure sList |> ref
         "append", SProcedure sAppend |> ref
         "symbol?", SProcedure isSymbol |> ref

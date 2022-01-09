@@ -16,48 +16,78 @@ let lookupEnvs envs symbol =
     | None -> sprintf "No binding for '%s'." symbol |> failwith
 
 let sQuasiquote eval envs cont =
-    let cons x y =
-        match y with
-        | SEmpty -> [ x ]
-        | SList ys -> x :: ys
-        | _ -> [ x; y ]
-
-    let join x y =
-        match x, y with
-        | SEmpty, SEmpty -> []
-        | SList xs, SEmpty -> xs
-        | SEmpty, SList ys -> ys
-        | SList xs, SList ys -> xs @ ys
-        | _ -> [ x; y ]
-
-    let rec replace n =
+    let cons x =
         function
-        | SEmpty -> SEmpty
-        | SList xs -> replaceList n xs |> SList
-        | SPair (x1, x2) -> SPair(replaceList n x1, replaceDatum n x2)
-        | x -> replaceDatum n x
+        | SEmpty -> [ x ] |> newList
+        | SList ys -> x :: ys |> newList
+        | y -> [ x; y ] |> newList
+
+    let join =
+        function
+        | SEmpty, SEmpty -> SEmpty
+        | SList xs, SEmpty -> xs |> newList
+        | SEmpty, SList ys -> ys |> newList
+        | SList xs, SList ys -> xs @ ys |> newList
+        | x, y -> [ x; y ] |> newList
+
+    let rec replace n next =
+        function
+        | SEmpty -> SEmpty |> next
+        | SList xs -> replaceList n xs |> next
+        | SPair (x1, x2) ->
+            match replaceList n x1 with
+            | SList ys -> SPair(ys, replaceDatum n x2) |> next
+            | _ -> replaceDatum n x2 |> next
+        | x -> replaceDatum n x |> next
 
     and replaceList n =
         function
-        | [] -> []
+        | [] -> SEmpty
         | SUnquote x :: xs
         | SList [ SSymbol "unquote"; x ] :: xs ->
             if n = 0 then
-                cons (x |> eval envs cont) (xs |> newList |> replace n)
+                x
+                |> eval envs (fun a ->
+                    xs
+                    |> newList
+                    |> replace n (fun b -> cons a b |> cont))
             else
-                cons (x |> replace (n - 1) |> SUnquote) (xs |> newList |> replace n)
+                x
+                |> replace (n - 1) (fun a ->
+                    xs
+                    |> newList
+                    |> replace n (fun b -> cons (SUnquote a) b))
         | SUnquoteSplicing x :: xs
         | SList [ SSymbol "unquote-splicing"; x ] :: xs ->
             if n = 0 then
-                join (x |> eval envs cont) (xs |> newList |> replace n)
+                x
+                |> eval envs (fun a ->
+                    xs
+                    |> newList
+                    |> replace n (fun b -> join (a, b) |> cont))
             else
-                cons (x |> replace (n - 1) |> SUnquoteSplicing) (xs |> newList |> replace n)
+                x
+                |> replace (n - 1) (fun a ->
+                    xs
+                    |> newList
+                    |> replace n (fun b -> cons (SUnquoteSplicing a) b))
         | SQuasiquote x :: xs
         | SList [ SSymbol "quasiquote"; x ] :: xs ->
-            cons (x |> replace (n + 1) |> SQuasiquote) (xs |> newList |> replace n)
+            x
+            |> replace (n + 1) (fun a ->
+                xs
+                |> newList
+                |> replace n (fun b -> cons (SQuasiquote a) b))
         | SQuote x :: xs
-        | SList [ SSymbol "quote"; x ] :: xs -> cons (x |> replace n |> SQuote) (xs |> newList |> replace n)
-        | x :: xs -> cons (x |> replace n) (xs |> newList |> replace n)
+        | SList [ SSymbol "quote"; x ] :: xs ->
+            x
+            |> replace n (fun a ->
+                xs
+                |> newList
+                |> replace n (fun b -> cons (SQuote a) b))
+        | x :: xs ->
+            x
+            |> replace n (fun a -> xs |> newList |> replace n (fun b -> cons a b))
 
     and replaceDatum n =
         function
@@ -66,20 +96,20 @@ let sQuasiquote eval envs cont =
             if n = 0 then
                 x |> eval envs cont
             else
-                x |> replace (n - 1) |> SUnquote
+                x |> replace (n - 1) SUnquote
         | SUnquoteSplicing x
         | SList [ SSymbol "unquote-splicing"; x ] ->
             if n = 0 then
                 x |> eval envs cont
             else
-                x |> replace (n - 1) |> SUnquoteSplicing
+                x |> replace (n - 1) SUnquoteSplicing
         | SQuasiquote x
-        | SList [ SSymbol "quasiquote"; x ] -> x |> replace (n + 1) |> SQuasiquote
+        | SList [ SSymbol "quasiquote"; x ] -> x |> replace (n + 1) SQuasiquote
         | SQuote x
-        | SList [ SSymbol "quote"; x ] -> x |> replace n |> SQuote
+        | SList [ SSymbol "quote"; x ] -> x |> replace n SQuote
         | x -> x
 
-    replace 0
+    replace 0 id
 
 let rec eval envs cont =
     let rec mapEval fn acc =

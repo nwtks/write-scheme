@@ -340,6 +340,15 @@ let ``letrec*`` () =
     |> rep builtin
     |> should equal "5"
 
+    "(let
+       ((x 5))
+       (letrec*
+         ((foo (lambda (y) (bar x y)))
+          (bar (lambda (a b) (+ (* a b) a))))
+         (foo (+ x 3))))"
+    |> rep builtin
+    |> should equal "45"
+
 [<Fact>]
 let ``begin`` () =
     let envs = newEnvs ()
@@ -380,18 +389,25 @@ let ``quasiquote`` () =
     |> should equal "(a `(b ,x ,'y d) e)"
 
 [<Fact>]
+let ``define`` () =
+    let envs = newEnvs ()
+
+    "(define add3
+       (lambda (x) (+ x 3)))"
+    |> rep envs
+    |> ignore
+
+    "(add3 3)" |> rep envs |> should equal "6"
+
+    "(define first car)" |> rep envs |> ignore
+    "(first '(1 2))" |> rep envs |> should equal "1"
+
+[<Fact>]
 let ``+`` () =
     "(+)" |> rep builtin |> should equal "0"
     "(+ 10)" |> rep builtin |> should equal "10"
     "(+ 10 2)" |> rep builtin |> should equal "12"
     "(+ 10 2 3)" |> rep builtin |> should equal "15"
-
-[<Fact>]
-let ``-`` () =
-    "(-)" |> rep builtin |> should equal "0"
-    "(- 10)" |> rep builtin |> should equal "-10"
-    "(- 10 2)" |> rep builtin |> should equal "8"
-    "(- 10 2 3)" |> rep builtin |> should equal "5"
 
 [<Fact>]
 let ``*`` () =
@@ -401,11 +417,19 @@ let ``*`` () =
     "(* 10 2 3)" |> rep builtin |> should equal "60"
 
 [<Fact>]
+let ``-`` () =
+    "(-)" |> rep builtin |> should equal "0"
+    "(- 10)" |> rep builtin |> should equal "-10"
+    "(- 10 2)" |> rep builtin |> should equal "8"
+    "(- 10 2 3)" |> rep builtin |> should equal "5"
+
+[<Fact>]
 let ``/`` () =
     "(/)" |> rep builtin |> should equal "1"
     "(/ 10)" |> rep builtin |> should equal "1/10"
     "(/ 9 2)" |> rep builtin |> should equal "9/2"
     "(/ 12 2 3)" |> rep builtin |> should equal "2"
+    "(/ 3 4 5)" |> rep builtin |> should equal "3/20"
 
 [<Fact>]
 let ``not`` () =
@@ -436,6 +460,40 @@ let ``boolean?`` () =
     "(boolean? '())"
     |> rep builtin
     |> should equal "#f"
+
+[<Fact>]
+let ``pair?`` () =
+    "(pair? '(a . b))"
+    |> rep builtin
+    |> should equal "#t"
+
+    "(pair? '(a b c))"
+    |> rep builtin
+    |> should equal "#t"
+
+    "(pair? '())" |> rep builtin |> should equal "#f"
+
+[<Fact>]
+let cons () =
+    "(cons 'a '())"
+    |> rep builtin
+    |> should equal "(a)"
+
+    "(cons '(a) '(b c d))"
+    |> rep builtin
+    |> should equal "((a) b c d)"
+
+    "(cons \"a\" '(b c))"
+    |> rep builtin
+    |> should equal "(\"a\" b c)"
+
+    "(cons 'a 3)"
+    |> rep builtin
+    |> should equal "(a . 3)"
+
+    "(cons '(a b) 'c)"
+    |> rep builtin
+    |> should equal "((a b) . c)"
 
 [<Fact>]
 let car () =
@@ -474,26 +532,28 @@ let cdr () =
     |> should equal "(2 . 3)"
 
 [<Fact>]
-let cons () =
-    "(cons 'a '())"
+let ``null?`` () =
+    "(null? '(a . b))"
     |> rep builtin
-    |> should equal "(a)"
+    |> should equal "#f"
 
-    "(cons '(a) '(b c d))"
+    "(null? '(a b c))"
     |> rep builtin
-    |> should equal "((a) b c d)"
+    |> should equal "#f"
 
-    "(cons \"a\" '(b c))"
-    |> rep builtin
-    |> should equal "(\"a\" b c)"
+    "(null? '())" |> rep builtin |> should equal "#t"
 
-    "(cons 'a 3)"
+[<Fact>]
+let ``list?`` () =
+    "(list? '(a . b))"
     |> rep builtin
-    |> should equal "(a . 3)"
+    |> should equal "#f"
 
-    "(cons '(a b) 'c)"
+    "(list? '(a b c))"
     |> rep builtin
-    |> should equal "((a b) . c)"
+    |> should equal "#t"
+
+    "(list? '())" |> rep builtin |> should equal "#t"
 
 [<Fact>]
 let list () =
@@ -524,3 +584,76 @@ let append () =
     "(append '() 'a)"
     |> rep builtin
     |> should equal "a"
+
+[<Fact>]
+let ``symbol?`` () =
+    "(symbol? 'foo)"
+    |> rep builtin
+    |> should equal "#t"
+
+    "(symbol? (car '(a b)))"
+    |> rep builtin
+    |> should equal "#t"
+
+    "(symbol? \"bar\")"
+    |> rep builtin
+    |> should equal "#f"
+
+    "(symbol? 'nil)"
+    |> rep builtin
+    |> should equal "#t"
+
+    "(symbol? '())"
+    |> rep builtin
+    |> should equal "#f"
+
+    "(symbol? #f)" |> rep builtin |> should equal "#f"
+
+[<Fact>]
+let ``procedure?`` () =
+    "(procedure? car)"
+    |> rep builtin
+    |> should equal "#t"
+
+    "(procedure? 'car)"
+    |> rep builtin
+    |> should equal "#f"
+
+    "(procedure? (lambda (x) (* x x)))"
+    |> rep builtin
+    |> should equal "#t"
+
+    "(procedure? '(lambda (x) (* x x)))"
+    |> rep builtin
+    |> should equal "#f"
+
+    "(call-with-current-continuation procedure?)"
+    |> rep builtin
+    |> should equal "#t"
+
+[<Fact>]
+let ``call-with-current-continuation`` () =
+    let envs = newEnvs ()
+
+    "(define list-length
+       (lambda (obj)
+         (call-with-current-continuation
+           (lambda (return)
+             (letrec
+               ((r
+                 (lambda (o)
+                   (cond
+                     ((null? o) 0)
+                     ((pair? o) (+ (r (cdr o)) 1))
+                     (else (return #f))))))
+               (r obj))))))"
+    |> rep envs
+    |> ignore
+
+    "(list-length '(a b c d))"
+    |> rep envs
+    |> should equal "4"
+
+    "(list-length '(a b . c))"
+    |> rep envs
+    |> should equal "#f"
