@@ -626,6 +626,63 @@ let sApply envs cont =
         x
         |> invalidParameter "'%s' invalid apply parameter."
 
+let transposeList lists =
+    let rec fold acc =
+        function
+        | 0, _
+        | _, [] -> List.rev acc
+        | n, xs -> fold ((xs |> List.map (List.head >> SQuote)) :: acc) (n - 1, xs |> List.map List.tail)
+
+    fold [] (lists |> List.map List.length |> Seq.min, lists)
+
+let sMap envs cont =
+    let rec map proc acc =
+        function
+        | [] -> List.rev acc |> newList |> cont
+        | x :: xs -> apply envs (fun a -> map proc (a :: acc) xs) x proc
+
+    function
+    | [ _ ] as x ->
+        x
+        |> invalidParameter "'%s' invalid map parameter."
+    | proc :: lists as x ->
+        lists
+        |> List.map (function
+            | SEmpty -> []
+            | SList xs -> xs
+            | _ ->
+                x
+                |> invalidParameter "'%s' invalid map parameter.")
+        |> transposeList
+        |> map proc []
+    | x ->
+        x
+        |> invalidParameter "'%s' invalid map parameter."
+
+let sForEach envs cont =
+    let rec loop proc =
+        function
+        | [] -> SEmpty |> cont
+        | x :: xs -> apply envs (fun _ -> loop proc xs) x proc
+
+    function
+    | [ _ ] as x ->
+        x
+        |> invalidParameter "'%s' invalid for-each parameter."
+    | proc :: lists as x ->
+        lists
+        |> List.map (function
+            | SEmpty -> []
+            | SList xs -> xs
+            | _ ->
+                x
+                |> invalidParameter "'%s' invalid for-each parameter.")
+        |> transposeList
+        |> loop proc
+    | x ->
+        x
+        |> invalidParameter "'%s' invalid for-each parameter."
+
 let sCallCC envs cont =
     function
     | [ proc ] -> apply envs cont [ SContinuation cont ] proc
@@ -711,6 +768,8 @@ let builtin =
         "string?", SProcedure isString |> ref
         "procedure?", SProcedure isProcedure |> ref
         "apply", SProcedure sApply |> ref
+        "map", SProcedure sMap |> ref
+        "for-each", SProcedure sForEach |> ref
         "call/cc", SProcedure sCallCC |> ref
         "call-with-current-continuation", SProcedure sCallCC |> ref
         "display", SProcedure sDisplay |> ref

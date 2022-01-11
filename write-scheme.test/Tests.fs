@@ -652,6 +652,27 @@ let ``apply`` () =
     |> should equal "7"
 
 [<Fact>]
+let ``map`` () =
+    "(map cdr '((a b) (d e) (g h)))"
+    |> rep builtin
+    |> should equal "((b) (e) (h))"
+
+    "(map + '(1 2 3) '(4 5 6 7))"
+    |> rep builtin
+    |> should equal "(5 7 9)"
+
+[<Fact>]
+let ``for-each`` () =
+    "(let
+       ((v '()))
+       (for-each
+         (lambda (i) (set! v (cons (* i i) v)))
+         '(0 1 2 3 4))
+       v)"
+    |> rep builtin
+    |> should equal "(16 9 4 1 0)"
+
+[<Fact>]
 let ``call-with-current-continuation`` () =
     let envs = newEnvs ()
 
