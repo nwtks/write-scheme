@@ -44,10 +44,6 @@ let newRational (x1: bigint) (x2: bigint) =
     elif x1.IsZero then
         SZero
     else
-        let gcd =
-            bigint.GreatestCommonDivisor(abs x1, abs x2)
-
-        let x1', x2' =
-            if x2.Sign < 0 then -x1, -x2 else x1, x2
-
+        let gcd = bigint.GreatestCommonDivisor(abs x1, abs x2)
+        let x1', x2' = if x2.Sign < 0 then -x1, -x2 else x1, x2
         SRational(x1' / gcd, x2' / gcd)

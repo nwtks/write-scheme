@@ -249,9 +249,7 @@ let sLetRecStar envs cont =
             [ var, r ] |> extendEnvs envs', r :: refs
 
     let bindRef bindings =
-        let envs', refs =
-            bindings |> List.fold eachRef (envs, [])
-
+        let envs', refs = bindings |> List.fold eachRef (envs, [])
         envs', List.rev refs
 
     let rec bindExpr body envs' =

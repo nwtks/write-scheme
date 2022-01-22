@@ -417,6 +417,70 @@ let ``define`` () =
     "(first '(1 2))" |> rep envs |> should equal "1"
 
 [<Fact>]
+let ``eqv?`` () =
+    "(eqv? 'a 'a)" |> rep builtin |> should equal "#t"
+    "(eqv? 'a 'b)" |> rep builtin |> should equal "#f"
+    "(eqv? 2 2)" |> rep builtin |> should equal "#t"
+    "(eqv? 2 3)" |> rep builtin |> should equal "#f"
+
+    "(eqv? '() '())"
+    |> rep builtin
+    |> should equal "#t"
+
+    "(eqv? 100000000 100000000)"
+    |> rep builtin
+    |> should equal "#t"
+
+    "(eqv? (cons 1 2) (cons 1 2))"
+    |> rep builtin
+    |> should equal "#f"
+
+    "(eqv? (lambda () 1) (lambda () 2))"
+    |> rep builtin
+    |> should equal "#f"
+
+    "(let ((p (lambda (x) x))) (eqv? p p))"
+    |> rep builtin
+    |> should equal "#t"
+
+    "(eqv? #f 'nil)"
+    |> rep builtin
+    |> should equal "#f"
+
+[<Fact>]
+let ``equal?`` () =
+    "(equal? 'a 'a)"
+    |> rep builtin
+    |> should equal "#t"
+
+    "(equal? '(a) '(a))"
+    |> rep builtin
+    |> should equal "#t"
+
+    "(equal? 'a '(a))"
+    |> rep builtin
+    |> should equal "#f"
+
+    "(equal? '(a (b) c) '(a (b) c))"
+    |> rep builtin
+    |> should equal "#t"
+
+    "(equal? '(a b c) '(a (b) c))"
+    |> rep builtin
+    |> should equal "#f"
+
+    "(equal? \"abc\" \"abc\")"
+    |> rep builtin
+    |> should equal "#t"
+
+    "(equal? \"a\" \"abc\")"
+    |> rep builtin
+    |> should equal "#f"
+
+    "(equal? 2 2)" |> rep builtin |> should equal "#t"
+    "(equal? 3 2)" |> rep builtin |> should equal "#f"
+
+[<Fact>]
 let ``+`` () =
     "(+)" |> rep builtin |> should equal "0"
     "(+ 10)" |> rep builtin |> should equal "10"

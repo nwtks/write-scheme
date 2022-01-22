@@ -49,8 +49,7 @@ let pHexScalarValue =
         |> Seq.fold (fun acc a -> acc * 16 + a) 0
         |> System.Char.ConvertFromUtf32)
 
-let pInlineHexEscape =
-    between (pstring "\\x") (pchar ';') pHexScalarValue
+let pInlineHexEscape = between (pstring "\\x") (pchar ';') pHexScalarValue
 
 let pMnemonicEscape =
     choice [ stringReturn "\\a" "\u0007"
@@ -118,27 +117,18 @@ let pStringElement =
                  (pIntralineWhitespace |> manyChars)
                  (fun s1 c2 s3 -> sprintf "%s%c%s" s1 c2 s3) ]
 
-let pString =
-    between (pchar '"') (pchar '"') (pStringElement |> manyStrings)
-
-let pSign =
-    anyOf "+-" |> opt |>> Option.defaultValue '+'
+let pString = between (pchar '"') (pchar '"') (pStringElement |> manyStrings)
+let pSign = anyOf "+-" |> opt |>> Option.defaultValue '+'
 
 let toBigInteger radix x =
     x
     |> Seq.map hex2int
     |> Seq.fold (fun acc a -> acc * radix + bigint a) 0I
 
-let pUinteger10 =
-    pDigit |> many1Chars |>> toBigInteger 10I
-
-let pUinteger16 =
-    pHexDigit |> many1Chars |>> toBigInteger 16I
-
+let pUinteger10 = pDigit |> many1Chars |>> toBigInteger 10I
+let pUinteger16 = pHexDigit |> many1Chars |>> toBigInteger 16I
 let pUinteger2 = anyOf "01" |> many1 |>> toBigInteger 2I
-
-let pUinteger8 =
-    anyOf "01234567" |> many1 |>> toBigInteger 8I
+let pUinteger8 = anyOf "01234567" |> many1 |>> toBigInteger 8I
 
 let pRationalN pUinteger =
     choice [ attempt (
@@ -157,8 +147,7 @@ let pSuffix =
     anyOf "Ee"
     >>. pipe2 pSign (pDigit |> many1Chars) (fun c1 s2 -> sprintf "E%c%s" c1 s2)
 
-let pSuffixOpt =
-    pSuffix |> opt |>> Option.defaultValue ""
+let pSuffixOpt = pSuffix |> opt |>> Option.defaultValue ""
 
 let pDecimal10 =
     choice [ attempt (
@@ -185,8 +174,7 @@ let parseBool =
              stringCIReturn "#false" SFalse
              stringCIReturn "#f" SFalse ]
 
-let parseRational =
-    pRational |>> (fun (x1, x2) -> newRational x1 x2)
+let parseRational = pRational |>> (fun (x1, x2) -> newRational x1 x2)
 
 let parseReal =
     choice [ stringCIReturn "+inf.0" SPositiveInfinity
@@ -200,9 +188,7 @@ let parseDatum, parseDatumRef = createParserForwardedToRef ()
 let parseQuoted = pchar '\'' >>. parseDatum |>> SQuote
 let parseQuasiquote = pchar '`' >>. parseDatum |>> SQuasiquote
 let parseUnquoted = pchar ',' >>. parseDatum |>> SUnquote
-
-let parseUnquoteSplicing =
-    pstring ",@" >>. parseDatum |>> SUnquoteSplicing
+let parseUnquoteSplicing = pstring ",@" >>. parseDatum |>> SUnquoteSplicing
 
 let parseList =
     between
