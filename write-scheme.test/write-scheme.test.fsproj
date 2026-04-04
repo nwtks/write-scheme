@@ -7,7 +7,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Tests.fs" />
+    <Compile Include="Builtin/LiteralTest.fs" />
+    <Compile Include="Builtin/SpecialFormTest.fs" />
+    <Compile Include="Builtin/MathTest.fs" />
+    <Compile Include="Builtin/ListTest.fs" />
+    <Compile Include="Builtin/CoreTest.fs" />
+    <Compile Include="Builtin/MacroTest.fs" />
+    <Compile Include="Program.fs" />
   </ItemGroup>
 
   <ItemGroup>
