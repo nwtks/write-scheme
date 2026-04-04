@@ -192,6 +192,15 @@ module Read =
                  (pchar '.' >>. pIntertokenSpace1 >>. parseDatum .>> pIntertokenSpace)
                  (fun x1 x2 -> SPair(x1, x2)))
 
+    let parseWithPos p =
+        pipe2 getPosition p (fun pos expr ->
+            try
+                exprPositions.Add(expr, pos)
+            with _ ->
+                ()
+
+            expr)
+
     parseDatumRef.Value <-
         choice
             [ parseBool
@@ -206,6 +215,7 @@ module Read =
               attempt parseUnquoteSplicing
               parseUnquoted
               attempt parseSymbol ]
+        |> parseWithPos
 
     let read input =
         match input |> run (pIntertokenSpace >>. parseDatum .>> pIntertokenSpace .>> eof) with

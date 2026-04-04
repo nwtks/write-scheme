@@ -16,7 +16,8 @@ module Repl =
         let rec repl' output =
             try
                 printf "%s\n> " output
-                System.Console.ReadLine() |> rep envs |> repl'
+                let line = System.Console.ReadLine()
+                if isNull line then () else line |> rep envs |> repl'
             with x ->
                 x.Message |> repl'
 

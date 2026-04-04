@@ -1,5 +1,7 @@
 namespace WriteScheme
 
+open System.Runtime.CompilerServices
+
 module Type =
     [<ReferenceEqualityAttribute>]
     type SExpression =
@@ -52,3 +54,10 @@ module Type =
             SRational(x1' / gcd, x2' / gcd)
 
     exception SchemeRaise of SExpression
+
+    let exprPositions = new ConditionalWeakTable<SExpression, FParsec.Position>()
+
+    let getExprPos (expr: SExpression) =
+        match exprPositions.TryGetValue expr with
+        | true, pos -> Some pos
+        | _ -> None
