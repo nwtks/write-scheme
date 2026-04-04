@@ -1,4 +1,4 @@
-module Tests
+module WriteScheme.Tests
 
 open Xunit
 open FsUnit.Xunit
@@ -67,33 +67,15 @@ let symbol () =
     "'..." |> rep builtin |> should equal "..."
     "'+" |> rep builtin |> should equal "+"
     "'+soup+" |> rep builtin |> should equal "+soup+"
-
-    "'->string"
-    |> rep builtin
-    |> should equal "->string"
-
+    "'->string" |> rep builtin |> should equal "->string"
     "'<=?" |> rep builtin |> should equal "<=?"
-
-    "'a34kTMNs"
-    |> rep builtin
-    |> should equal "a34kTMNs"
-
+    "'a34kTMNs" |> rep builtin |> should equal "a34kTMNs"
     "'lambda" |> rep builtin |> should equal "lambda"
-
-    "'list->vector"
-    |> rep builtin
-    |> should equal "list->vector"
-
+    "'list->vector" |> rep builtin |> should equal "list->vector"
     "'q" |> rep builtin |> should equal "q"
     "'V17a" |> rep builtin |> should equal "V17a"
-
-    "'|two words|"
-    |> rep builtin
-    |> should equal "two words"
-
-    "'|two\\x20;words|"
-    |> rep builtin
-    |> should equal "two words"
+    "'|two words|" |> rep builtin |> should equal "two words"
+    "'|two\\x20;words|" |> rep builtin |> should equal "two words"
 
     "'the-word-recursion-has-many-meanings"
     |> rep builtin
@@ -102,79 +84,38 @@ let symbol () =
 [<Fact>]
 let string () =
     "\"\"" |> rep builtin |> should equal "\"\""
-
-    "\"12345\""
-    |> rep builtin
-    |> should equal "\"12345\""
+    "\"12345\"" |> rep builtin |> should equal "\"12345\""
 
     "\"1\\a2\\b3\\t4\\n5\\r6\\\"7\\\\8|90\""
     |> rep builtin
     |> should equal "\"1\a2\b3\t4\n5\r6\\\"7\\8|90\""
 
-    "\"\\x3a;\""
-    |> rep builtin
-    |> should equal "\":\""
-
-    "\"\\x003A;\""
-    |> rep builtin
-    |> should equal "\":\""
-
-    "\"\\x3071;\""
-    |> rep builtin
-    |> should equal "\"ぱ\""
-
-    "\"\\x1F600;\""
-    |> rep builtin
-    |> should equal "\"😀\""
+    "\"\\x3a;\"" |> rep builtin |> should equal "\":\""
+    "\"\\x003A;\"" |> rep builtin |> should equal "\":\""
+    "\"\\x3071;\"" |> rep builtin |> should equal "\"ぱ\""
+    "\"\\x1F600;\"" |> rep builtin |> should equal "\"😀\""
 
 [<Fact>]
 let quote () =
     "(quote a)" |> rep builtin |> should equal "a"
-
-    "(quote (+ 1 2))"
-    |> rep builtin
-    |> should equal "(+ 1 2)"
-
+    "(quote (+ 1 2))" |> rep builtin |> should equal "(+ 1 2)"
     "'a" |> rep builtin |> should equal "a"
     "'()" |> rep builtin |> should equal "()"
-
-    "'(+ 1 2)"
-    |> rep builtin
-    |> should equal "(+ 1 2)"
-
-    "'(quote a)"
-    |> rep builtin
-    |> should equal "(quote a)"
-
+    "'(+ 1 2)" |> rep builtin |> should equal "(+ 1 2)"
+    "'(quote a)" |> rep builtin |> should equal "(quote a)"
     "''a" |> rep builtin |> should equal "'a"
-
-    "'((a 1) (b 2) (c 3))"
-    |> rep builtin
-    |> should equal "((a 1) (b 2) (c 3))"
+    "'((a 1) (b 2) (c 3))" |> rep builtin |> should equal "((a 1) (b 2) (c 3))"
 
 [<Fact>]
 let ``lambda`` () =
-    "((lambda (x) (+ x x)) 4)"
-    |> rep builtin
-    |> should equal "8"
-
-    "((lambda x x) 3 4 5 6)"
-    |> rep builtin
-    |> should equal "(3 4 5 6)"
-
-    "((lambda (x y . z) z) 3 4 5 6)"
-    |> rep builtin
-    |> should equal "(5 6)"
+    "((lambda (x) (+ x x)) 4)" |> rep builtin |> should equal "8"
+    "((lambda x x) 3 4 5 6)" |> rep builtin |> should equal "(3 4 5 6)"
+    "((lambda (x y . z) z) 3 4 5 6)" |> rep builtin |> should equal "(5 6)"
 
     let envs = newEnvs ()
 
-    "(define reverse-subtract (lambda (x y) (- y x)))"
-    |> rep envs
-    |> ignore
-
-    "(reverse-subtract 7 10)"
-    |> rep envs
-    |> should equal "3"
+    "(define reverse-subtract (lambda (x y) (- y x)))" |> rep envs |> ignore
+    "(reverse-subtract 7 10)" |> rep envs |> should equal "3"
 
     "(define add4
       (let ((x 4))
@@ -186,29 +127,16 @@ let ``lambda`` () =
 
 [<Fact>]
 let ``if`` () =
-    "(if (> 3 2) 'yes)"
-    |> rep builtin
-    |> should equal "yes"
-
-    "(if (> 2 3) 'yes 'no)"
-    |> rep builtin
-    |> should equal "no"
-
-    "(if (> 3 2) (- 3 2) (+ 3 2))"
-    |> rep builtin
-    |> should equal "1"
-
-    "((if #t + *) 3 4)"
-    |> rep builtin
-    |> should equal "7"
-
-    "((if #f + *) 3 4)"
-    |> rep builtin
-    |> should equal "12"
+    "(if (> 3 2) 'yes)" |> rep builtin |> should equal "yes"
+    "(if (> 2 3) 'yes 'no)" |> rep builtin |> should equal "no"
+    "(if (> 3 2) (- 3 2) (+ 3 2))" |> rep builtin |> should equal "1"
+    "((if #t + *) 3 4)" |> rep builtin |> should equal "7"
+    "((if #f + *) 3 4)" |> rep builtin |> should equal "12"
 
 [<Fact>]
 let ``set!`` () =
     let envs = newEnvs ()
+
     "(define x 2)" |> rep envs |> ignore
     "(+ x 1)" |> rep envs |> should equal "3"
     "(set! x 4)" |> rep envs |> ignore
@@ -230,34 +158,16 @@ let cond () =
 
 [<Fact>]
 let ``and`` () =
-    "(and (= 2 2) (> 2 1))"
-    |> rep builtin
-    |> should equal "#t"
-
-    "(and (= 2 2) (< 2 1))"
-    |> rep builtin
-    |> should equal "#f"
-
-    "(and 1 2 'c '(f g))"
-    |> rep builtin
-    |> should equal "(f g)"
-
+    "(and (= 2 2) (> 2 1))" |> rep builtin |> should equal "#t"
+    "(and (= 2 2) (< 2 1))" |> rep builtin |> should equal "#f"
+    "(and 1 2 'c '(f g))" |> rep builtin |> should equal "(f g)"
     "(and)" |> rep builtin |> should equal "#t"
 
 [<Fact>]
 let ``or`` () =
-    "(or (= 2 2) (> 2 1))"
-    |> rep builtin
-    |> should equal "#t"
-
-    "(or (= 2 2) (< 2 1))"
-    |> rep builtin
-    |> should equal "#t"
-
-    "(or #f #f #f)"
-    |> rep builtin
-    |> should equal "#f"
-
+    "(or (= 2 2) (> 2 1))" |> rep builtin |> should equal "#t"
+    "(or (= 2 2) (< 2 1))" |> rep builtin |> should equal "#t"
+    "(or #f #f #f)" |> rep builtin |> should equal "#f"
     "(or)" |> rep builtin |> should equal "#f"
 
 [<Fact>]
@@ -366,6 +276,7 @@ let ``letrec*`` () =
 [<Fact>]
 let ``begin`` () =
     let envs = newEnvs ()
+
     "(define x 0)" |> rep envs |> ignore
 
     "(and
@@ -378,9 +289,7 @@ let ``begin`` () =
 
 [<Fact>]
 let ``quasiquote`` () =
-    "`(list ,(+ 1 2) 4)"
-    |> rep builtin
-    |> should equal "(list 3 4)"
+    "`(list ,(+ 1 2) 4)" |> rep builtin |> should equal "(list 3 4)"
 
     "(let ((name 'a)) `(list ,name ',name))"
     |> rep builtin
@@ -422,61 +331,24 @@ let ``eqv?`` () =
     "(eqv? 'a 'b)" |> rep builtin |> should equal "#f"
     "(eqv? 2 2)" |> rep builtin |> should equal "#t"
     "(eqv? 2 3)" |> rep builtin |> should equal "#f"
-
-    "(eqv? '() '())"
-    |> rep builtin
-    |> should equal "#t"
-
-    "(eqv? 100000000 100000000)"
-    |> rep builtin
-    |> should equal "#t"
-
-    "(eqv? (cons 1 2) (cons 1 2))"
-    |> rep builtin
-    |> should equal "#f"
-
-    "(eqv? (lambda () 1) (lambda () 2))"
-    |> rep builtin
-    |> should equal "#f"
-
-    "(let ((p (lambda (x) x))) (eqv? p p))"
-    |> rep builtin
-    |> should equal "#t"
-
-    "(eqv? #f 'nil)"
-    |> rep builtin
-    |> should equal "#f"
+    "(eqv? \"a\" \"a\")" |> rep builtin |> should equal "#f"
+    "(let ((p \"a\")) (eqv? p p))" |> rep builtin |> should equal "#t"
+    "(eqv? '() '())" |> rep builtin |> should equal "#t"
+    "(eqv? 100000000 100000000)" |> rep builtin |> should equal "#t"
+    "(eqv? (cons 1 2) (cons 1 2))" |> rep builtin |> should equal "#f"
+    "(eqv? (lambda () 1) (lambda () 2))" |> rep builtin |> should equal "#f"
+    "(let ((p (lambda (x) x))) (eqv? p p))" |> rep builtin |> should equal "#t"
+    "(eqv? #f 'nil)" |> rep builtin |> should equal "#f"
 
 [<Fact>]
 let ``equal?`` () =
-    "(equal? 'a 'a)"
-    |> rep builtin
-    |> should equal "#t"
-
-    "(equal? '(a) '(a))"
-    |> rep builtin
-    |> should equal "#t"
-
-    "(equal? 'a '(a))"
-    |> rep builtin
-    |> should equal "#f"
-
-    "(equal? '(a (b) c) '(a (b) c))"
-    |> rep builtin
-    |> should equal "#t"
-
-    "(equal? '(a b c) '(a (b) c))"
-    |> rep builtin
-    |> should equal "#f"
-
-    "(equal? \"abc\" \"abc\")"
-    |> rep builtin
-    |> should equal "#t"
-
-    "(equal? \"a\" \"abc\")"
-    |> rep builtin
-    |> should equal "#f"
-
+    "(equal? 'a 'a)" |> rep builtin |> should equal "#t"
+    "(equal? '(a) '(a))" |> rep builtin |> should equal "#t"
+    "(equal? 'a '(a))" |> rep builtin |> should equal "#f"
+    "(equal? '(a (b) c) '(a (b) c))" |> rep builtin |> should equal "#t"
+    "(equal? '(a b c) '(a (b) c))" |> rep builtin |> should equal "#f"
+    "(equal? \"abc\" \"abc\")" |> rep builtin |> should equal "#t"
+    "(equal? \"a\" \"abc\")" |> rep builtin |> should equal "#f"
     "(equal? 2 2)" |> rep builtin |> should equal "#t"
     "(equal? 3 2)" |> rep builtin |> should equal "#f"
 
@@ -513,11 +385,7 @@ let ``/`` () =
 let ``not`` () =
     "(not #t)" |> rep builtin |> should equal "#f"
     "(not 3)" |> rep builtin |> should equal "#f"
-
-    "(not (list 3))"
-    |> rep builtin
-    |> should equal "#f"
-
+    "(not (list 3))" |> rep builtin |> should equal "#f"
     "(not #f)" |> rep builtin |> should equal "#t"
     "(not '())" |> rep builtin |> should equal "#f"
     "(not (list))" |> rep builtin |> should equal "#f"
@@ -525,185 +393,79 @@ let ``not`` () =
 
 [<Fact>]
 let ``boolean?`` () =
-    "(boolean? #f)"
-    |> rep builtin
-    |> should equal "#t"
-
-    "(boolean? #t)"
-    |> rep builtin
-    |> should equal "#t"
-
+    "(boolean? #f)" |> rep builtin |> should equal "#t"
+    "(boolean? #t)" |> rep builtin |> should equal "#t"
     "(boolean? 0)" |> rep builtin |> should equal "#f"
-
-    "(boolean? '())"
-    |> rep builtin
-    |> should equal "#f"
+    "(boolean? '())" |> rep builtin |> should equal "#f"
 
 [<Fact>]
 let ``pair?`` () =
-    "(pair? '(a . b))"
-    |> rep builtin
-    |> should equal "#t"
-
-    "(pair? '(a b c))"
-    |> rep builtin
-    |> should equal "#t"
-
+    "(pair? '(a . b))" |> rep builtin |> should equal "#t"
+    "(pair? '(a b c))" |> rep builtin |> should equal "#t"
     "(pair? '())" |> rep builtin |> should equal "#f"
 
 [<Fact>]
 let cons () =
-    "(cons 'a '())"
-    |> rep builtin
-    |> should equal "(a)"
-
-    "(cons '(a) '(b c d))"
-    |> rep builtin
-    |> should equal "((a) b c d)"
-
-    "(cons \"a\" '(b c))"
-    |> rep builtin
-    |> should equal "(\"a\" b c)"
-
-    "(cons 'a 3)"
-    |> rep builtin
-    |> should equal "(a . 3)"
-
-    "(cons '(a b) 'c)"
-    |> rep builtin
-    |> should equal "((a b) . c)"
+    "(cons 'a '())" |> rep builtin |> should equal "(a)"
+    "(cons '(a) '(b c d))" |> rep builtin |> should equal "((a) b c d)"
+    "(cons \"a\" '(b c))" |> rep builtin |> should equal "(\"a\" b c)"
+    "(cons 'a 3)" |> rep builtin |> should equal "(a . 3)"
+    "(cons '(a b) 'c)" |> rep builtin |> should equal "((a b) . c)"
 
 [<Fact>]
 let car () =
-    "(car '(a b c))"
-    |> rep builtin
-    |> should equal "a"
-
-    "(car '((a) b c d))"
-    |> rep builtin
-    |> should equal "(a)"
-
-    "(car '(1 . 2))"
-    |> rep builtin
-    |> should equal "1"
-
-    "(car '(1 2 . 3))"
-    |> rep builtin
-    |> should equal "1"
+    "(car '(a b c))" |> rep builtin |> should equal "a"
+    "(car '((a) b c d))" |> rep builtin |> should equal "(a)"
+    "(car '(1 . 2))" |> rep builtin |> should equal "1"
+    "(car '(1 2 . 3))" |> rep builtin |> should equal "1"
 
 [<Fact>]
 let cdr () =
-    "(cdr '(a b c))"
-    |> rep builtin
-    |> should equal "(b c)"
-
-    "(cdr '((a) b c d))"
-    |> rep builtin
-    |> should equal "(b c d)"
-
-    "(cdr '(1 . 2))"
-    |> rep builtin
-    |> should equal "2"
-
-    "(cdr '(1 2 . 3))"
-    |> rep builtin
-    |> should equal "(2 . 3)"
+    "(cdr '(a b c))" |> rep builtin |> should equal "(b c)"
+    "(cdr '((a) b c d))" |> rep builtin |> should equal "(b c d)"
+    "(cdr '(1 . 2))" |> rep builtin |> should equal "2"
+    "(cdr '(1 2 . 3))" |> rep builtin |> should equal "(2 . 3)"
 
 [<Fact>]
 let ``null?`` () =
-    "(null? '(a . b))"
-    |> rep builtin
-    |> should equal "#f"
-
-    "(null? '(a b c))"
-    |> rep builtin
-    |> should equal "#f"
-
+    "(null? '(a . b))" |> rep builtin |> should equal "#f"
+    "(null? '(a b c))" |> rep builtin |> should equal "#f"
     "(null? '())" |> rep builtin |> should equal "#t"
 
 [<Fact>]
 let ``list?`` () =
-    "(list? '(a . b))"
-    |> rep builtin
-    |> should equal "#f"
-
-    "(list? '(a b c))"
-    |> rep builtin
-    |> should equal "#t"
-
+    "(list? '(a . b))" |> rep builtin |> should equal "#f"
+    "(list? '(a b c))" |> rep builtin |> should equal "#t"
     "(list? '())" |> rep builtin |> should equal "#t"
 
 [<Fact>]
 let list () =
-    "(list 'a (+ 3 4) 'c)"
-    |> rep builtin
-    |> should equal "(a 7 c)"
-
+    "(list 'a (+ 3 4) 'c)" |> rep builtin |> should equal "(a 7 c)"
     "(list)" |> rep builtin |> should equal "()"
 
 [<Fact>]
 let append () =
-    "(append '(x) '(y))"
-    |> rep builtin
-    |> should equal "(x y)"
-
-    "(append '(a) '(b c d))"
-    |> rep builtin
-    |> should equal "(a b c d)"
-
-    "(append '(a (b)) '((c)))"
-    |> rep builtin
-    |> should equal "(a (b) (c))"
-
-    "(append '(a b) '(c . d))"
-    |> rep builtin
-    |> should equal "(a b c . d)"
-
-    "(append '() 'a)"
-    |> rep builtin
-    |> should equal "a"
+    "(append '(x) '(y))" |> rep builtin |> should equal "(x y)"
+    "(append '(a) '(b c d))" |> rep builtin |> should equal "(a b c d)"
+    "(append '(a (b)) '((c)))" |> rep builtin |> should equal "(a (b) (c))"
+    "(append '(a b) '(c . d))" |> rep builtin |> should equal "(a b c . d)"
+    "(append '() 'a)" |> rep builtin |> should equal "a"
 
 [<Fact>]
 let ``symbol?`` () =
-    "(symbol? 'foo)"
-    |> rep builtin
-    |> should equal "#t"
-
-    "(symbol? (car '(a b)))"
-    |> rep builtin
-    |> should equal "#t"
-
-    "(symbol? \"bar\")"
-    |> rep builtin
-    |> should equal "#f"
-
-    "(symbol? 'nil)"
-    |> rep builtin
-    |> should equal "#t"
-
-    "(symbol? '())"
-    |> rep builtin
-    |> should equal "#f"
-
+    "(symbol? 'foo)" |> rep builtin |> should equal "#t"
+    "(symbol? (car '(a b)))" |> rep builtin |> should equal "#t"
+    "(symbol? \"bar\")" |> rep builtin |> should equal "#f"
+    "(symbol? 'nil)" |> rep builtin |> should equal "#t"
+    "(symbol? '())" |> rep builtin |> should equal "#f"
     "(symbol? #f)" |> rep builtin |> should equal "#f"
 
 [<Fact>]
 let ``procedure?`` () =
-    "(procedure? car)"
-    |> rep builtin
-    |> should equal "#t"
-
-    "(procedure? 'car)"
-    |> rep builtin
-    |> should equal "#f"
-
-    "(procedure? (lambda (x) (* x x)))"
-    |> rep builtin
-    |> should equal "#t"
-
-    "(procedure? '(lambda (x) (* x x)))"
-    |> rep builtin
-    |> should equal "#f"
+    "(procedure? car)" |> rep builtin |> should equal "#t"
+    "(procedure? 'car)" |> rep builtin |> should equal "#f"
+    "(procedure? (lambda (x) (* x x)))" |> rep builtin |> should equal "#t"
+    "(procedure? '(lambda (x) (* x x)))" |> rep builtin |> should equal "#f"
 
     "(call-with-current-continuation procedure?)"
     |> rep builtin
@@ -711,19 +473,12 @@ let ``procedure?`` () =
 
 [<Fact>]
 let ``apply`` () =
-    "(apply + (list 3 4))"
-    |> rep builtin
-    |> should equal "7"
+    "(apply + (list 3 4))" |> rep builtin |> should equal "7"
 
 [<Fact>]
 let ``map`` () =
-    "(map cdr '((a b) (d e) (g h)))"
-    |> rep builtin
-    |> should equal "((b) (e) (h))"
-
-    "(map + '(1 2 3) '(4 5 6 7))"
-    |> rep builtin
-    |> should equal "(5 7 9)"
+    "(map cdr '((a b) (d e) (g h)))" |> rep builtin |> should equal "((b) (e) (h))"
+    "(map + '(1 2 3) '(4 5 6 7))" |> rep builtin |> should equal "(5 7 9)"
 
 [<Fact>]
 let ``for-each`` () =
@@ -755,10 +510,131 @@ let ``call-with-current-continuation`` () =
     |> rep envs
     |> ignore
 
-    "(list-length '(a b c d))"
-    |> rep envs
-    |> should equal "4"
+    "(list-length '(a b c d))" |> rep envs |> should equal "4"
+    "(list-length '(a b . c))" |> rep envs |> should equal "#f"
 
-    "(list-length '(a b . c))"
+[<Fact>]
+let ``syntax-rules basic`` () =
+    let envs = newEnvs ()
+
+    "(define-syntax my-if
+       (syntax-rules ()
+         ((my-if test then else)
+          (cond (test then) (#t else)))))"
     |> rep envs
+    |> ignore
+
+    "(my-if #t 1 2)" |> rep envs |> should equal "1"
+    "(my-if #f 1 2)" |> rep envs |> should equal "2"
+    "(my-if (> 3 2) 'yes 'no)" |> rep envs |> should equal "yes"
+
+[<Fact>]
+let ``syntax-rules ellipsis`` () =
+    let envs = newEnvs ()
+
+    "(define-syntax my-list
+       (syntax-rules ()
+         ((my-list x ...) (list x ...))))"
+    |> rep envs
+    |> ignore
+
+    "(my-list 1 2 3)" |> rep envs |> should equal "(1 2 3)"
+    "(my-list)" |> rep envs |> should equal "()"
+    "(my-list 'a)" |> rep envs |> should equal "(a)"
+
+[<Fact>]
+let ``syntax-rules multiple rules`` () =
+    let envs = newEnvs ()
+
+    "(define-syntax my-and
+       (syntax-rules ()
+         ((my-and) #t)
+         ((my-and x) x)
+         ((my-and x y ...) (if x (my-and y ...) #f))))"
+    |> rep envs
+    |> ignore
+
+    "(my-and)" |> rep envs |> should equal "#t"
+    "(my-and 1)" |> rep envs |> should equal "1"
+    "(my-and 1 2)" |> rep envs |> should equal "2"
+    "(my-and #f 2)" |> rep envs |> should equal "#f"
+    "(my-and 1 2 3)" |> rep envs |> should equal "3"
+
+[<Fact>]
+let ``syntax-rules swap!`` () =
+    let envs = newEnvs ()
+
+    "(define-syntax swap!
+       (syntax-rules ()
+         ((swap! a b)
+          (let ((tmp a))
+            (set! a b)
+            (set! b tmp)))))"
+    |> rep envs
+    |> ignore
+
+    "(define x 1)" |> rep envs |> ignore
+    "(define y 2)" |> rep envs |> ignore
+    "(swap! x y)" |> rep envs |> ignore
+    "x" |> rep envs |> should equal "2"
+    "y" |> rep envs |> should equal "1"
+
+[<Fact>]
+let ``syntax-rules literal keywords`` () =
+    let envs = newEnvs ()
+
+    "(define-syntax my-cond
+       (syntax-rules (else)
+         ((my-cond (else e)) e)
+         ((my-cond (t e)) (if t e))))"
+    |> rep envs
+    |> ignore
+
+    "(my-cond (#t 42))" |> rep envs |> should equal "42"
+    "(my-cond (else 99))" |> rep envs |> should equal "99"
+
+[<Fact>]
+let ``with-exception-handler basic`` () =
+    "(with-exception-handler
+       (lambda (e) (+ e 100))
+       (lambda () (raise 1)))"
+    |> rep builtin
+    |> should equal "101"
+
+[<Fact>]
+let ``with-exception-handler no exception`` () =
+    "(with-exception-handler
+       (lambda (e) 'error)
+       (lambda () 42))"
+    |> rep builtin
+    |> should equal "42"
+
+[<Fact>]
+let ``with-exception-handler nested`` () =
+    "(with-exception-handler
+       (lambda (e) (+ e 100))
+       (lambda ()
+         (with-exception-handler
+           (lambda (e) (raise (+ e 10)))
+           (lambda () (raise 1)))))"
+    |> rep builtin
+    |> should equal "111"
+
+[<Fact>]
+let ``error and error-object`` () =
+    "(with-exception-handler
+       (lambda (e)
+         (list (error-object? e)
+               (error-object-message e)
+               (error-object-irritants e)))
+       (lambda () (error \"bad value\" 1 2)))"
+    |> rep builtin
+    |> should equal "(#t \"bad value\" (1 2))"
+
+[<Fact>]
+let ``error-object? false for non-error`` () =
+    "(with-exception-handler
+       (lambda (e) (error-object? e))
+       (lambda () (raise 42)))"
+    |> rep builtin
     |> should equal "#f"

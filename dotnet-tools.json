@@ -2,11 +2,12 @@
   "version": 1,
   "isRoot": true,
   "tools": {
-    "fantomas-tool": {
-      "version": "4.6.0",
+    "fantomas": {
+      "version": "7.0.5",
       "commands": [
         "fantomas"
-      ]
+      ],
+      "rollForward": false
     }
   }
 }
