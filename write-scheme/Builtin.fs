@@ -88,6 +88,7 @@ module Builtin =
               "call/cc", SProcedure sCallCC |> ref
               "values", SProcedure sValues |> ref
               "call-with-values", SProcedure sCallWithValues |> ref
+              "dynamic-wind", SProcedure sDynamicWind |> ref
               "with-exception-handler", SProcedure sWithExceptionHandler |> ref
               "raise", SProcedure sRaise |> ref
               "error", SProcedure sError |> ref

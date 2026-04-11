@@ -377,11 +377,11 @@ module SpecialForm =
     let sGuard envs cont =
         function
         | SList(SSymbol var :: clauses) :: body ->
+            let savedWinders = currentWinders.Value
+
             try
                 body |> eachEval envs cont SEmpty
             with SchemeRaise obj ->
-                let envs' = Eval.extendEnvs envs [ var, ref obj ]
-
                 let hasElse =
                     match List.tryLast clauses with
                     | Some(SList(SSymbol "else" :: _)) -> true
@@ -393,7 +393,9 @@ module SpecialForm =
                     else
                         clauses @ [ SList [ SSymbol "else"; SList [ SSymbol "raise"; SQuote obj ] ] ]
 
-                finalClauses |> sCond envs' cont
+                doWind envs currentWinders.Value savedWinders (fun _ ->
+                    let envs' = Eval.extendEnvs envs [ var, ref obj ]
+                    finalClauses |> sCond envs' cont)
         | x -> x |> invalidParameter "'%s' invalid guard parameter."
 
     [<TailCall>]

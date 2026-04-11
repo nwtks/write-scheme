@@ -8,6 +8,14 @@ module Helper =
     let invalidParameter fmt =
         toSList >> Print.print >> sprintf fmt >> failwith
 
+    type Winder =
+        { Id: int
+          Before: SExpression
+          After: SExpression }
+
+    let nextWinderId = ref 0
+    let currentWinders = ref ([]: Winder list)
+
     [<TailCall>]
     let rec eachEval envs cont acc =
         function
@@ -88,3 +96,59 @@ module Helper =
             | a', b' -> a' = b' && loopEqual xs
 
     let equal (a, b) = [ a, b ] |> loopEqual
+
+    [<TailCall>]
+    let rec loopDiffWinders sList tList lenS lenT accS accT =
+        if lenS > lenT then
+            match sList with
+            | hd :: tl -> loopDiffWinders tl tList (lenS - 1) lenT (hd :: accS) accT
+            | [] -> failwith "unreachable"
+        elif lenT > lenS then
+            match tList with
+            | hd :: tl -> loopDiffWinders sList tl lenS (lenT - 1) accS (hd :: accT)
+            | [] -> failwith "unreachable"
+        else
+            match sList, tList with
+            | [], [] -> List.rev accS, List.rev accT
+            | h1 :: _, h2 :: _ when h1.Id = h2.Id -> List.rev accS, List.rev accT
+            | h1 :: t1, h2 :: t2 -> loopDiffWinders t1 t2 (lenS - 1) (lenT - 1) (h1 :: accS) (h2 :: accT)
+            | _ -> List.rev accS, List.rev accT
+
+    let diffWinders src tgt =
+        loopDiffWinders src tgt (List.length src) (List.length tgt) [] []
+
+    [<TailCall>]
+    let rec runWindLeaves envs cont cur =
+        function
+        | [] -> cont cur
+        | head :: rest ->
+            let nextCur =
+                match cur with
+                | h :: t when h.Id = head.Id -> t
+                | _ -> cur
+
+            currentWinders.Value <- nextCur
+
+            head.After
+            |> Eval.apply envs (fun _ -> rest |> runWindLeaves envs cont nextCur) []
+
+    [<TailCall>]
+    let rec runWindEnters envs cont cur =
+        function
+        | [] -> cont cur
+        | head :: rest ->
+            head.Before
+            |> Eval.apply
+                envs
+                (fun _ ->
+                    let nextCur = head :: cur
+                    currentWinders.Value <- nextCur
+                    rest |> runWindEnters envs cont nextCur)
+                []
+
+    let doWind envs src tgt next =
+        let leaves, enters = diffWinders src tgt
+        let entersRev = List.rev enters
+
+        leaves
+        |> runWindLeaves envs (fun cur -> entersRev |> runWindEnters envs next cur) src

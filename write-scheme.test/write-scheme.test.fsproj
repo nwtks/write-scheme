@@ -11,6 +11,7 @@
     <Compile Include="LiteralTest.fs" />
     <Compile Include="SpecialFormTest.fs" />
     <Compile Include="MacroTest.fs" />
+    <Compile Include="DynamicWindTest.fs" />
     <Compile Include="CoreTest.fs" />
     <Compile Include="MathTest.fs" />
     <Compile Include="ListTest.fs" />
