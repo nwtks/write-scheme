@@ -525,3 +525,81 @@ module SpecialForm =
 
                 formals |> zipFormals vals |> bindDefineValues envs cont formals)
         | x -> x |> invalidParameter "'%s' invalid define-values parameter."
+
+    let sDefineRecordType (envs: SEnv list) cont =
+        let defineVal var valExpr =
+            if envs.Head.ContainsKey var then
+                envs.Head.[var].Value <- valExpr
+            else
+                envs.Head.Add(var, ref valExpr)
+
+        function
+        | SSymbol name :: SList(SSymbol ctorName :: ctorFields) :: SSymbol predName :: restSpecs ->
+            let typeId = Type.getNextRecordTypeId ()
+
+            let fieldSpecs =
+                restSpecs
+                |> List.map (function
+                    | SList(SSymbol fName :: SSymbol aName :: rest) ->
+                        let mName =
+                            match rest with
+                            | [ SSymbol m ] -> Some m
+                            | _ -> None
+
+                        fName, aName, mName
+                    | x -> failwithf "Invalid record field spec: %s" (Print.print x))
+
+            let fieldNames = fieldSpecs |> List.map (fun (n, _, _) -> n)
+            let fieldCount = fieldNames.Length
+
+            let predProc _ cont' =
+                function
+                | [ SRecord(tid, _, _) ] -> tid = typeId |> toSBool |> cont'
+                | _ -> SFalse |> cont'
+
+            defineVal predName (SProcedure predProc)
+
+            let ctorProc _ cont' (args: SExpression list) =
+                if args.Length <> ctorFields.Length then
+                    failwithf "%s requires %d arguments, but got %d" ctorName ctorFields.Length args.Length
+
+                let recordFields = Array.init fieldCount (fun _ -> ref SUnspecified)
+
+                List.zip ctorFields args
+                |> List.iter (fun (fExpr, v) ->
+                    let fName =
+                        match fExpr with
+                        | SSymbol s -> s
+                        | _ -> failwith "not symbol"
+
+                    let idx = fieldNames |> List.findIndex ((=) fName)
+                    recordFields.[idx].Value <- v)
+
+                SRecord(typeId, name, recordFields) |> cont'
+
+            defineVal ctorName (SProcedure ctorProc)
+
+            fieldSpecs
+            |> List.iteri (fun idx (_, aName, mNameOpt) ->
+                let accessorProc _ cont' =
+                    function
+                    | [ SRecord(tid, _, fs) ] when tid = typeId -> (fs: SExpression ref array).[idx].Value |> cont'
+                    | [ x ] -> failwithf "Accessor %s expected %s, but got %s" aName name (Print.print x)
+                    | _ -> failwithf "Accessor %s requires 1 argument" aName
+
+                defineVal aName (SProcedure accessorProc)
+
+                mNameOpt
+                |> Option.iter (fun mName ->
+                    let modifierProc _ cont' =
+                        function
+                        | [ SRecord(tid, _, fs); v ] when tid = typeId ->
+                            (fs: SExpression ref array).[idx].Value <- v
+                            SUnspecified |> cont'
+                        | [ x; _ ] -> failwithf "Modifier %s expected %s, but got %s" mName name (Print.print x)
+                        | _ -> failwithf "Modifier %s requires 2 arguments" mName
+
+                    defineVal mName (SProcedure modifierProc)))
+
+            name |> SSymbol |> cont
+        | x -> x |> invalidParameter "'%s' invalid define-record-type parameter."

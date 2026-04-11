@@ -36,6 +36,7 @@ module Builtin =
               "define", SSyntax sDefine |> ref
               "define-values", SSyntax sDefineValues |> ref
               "define-syntax", SSyntax sDefineSyntax |> ref
+              "define-record-type", SSyntax sDefineRecordType |> ref
               "force", SProcedure sForce |> ref
               "promise?", SProcedure isPromise |> ref
               "make-promise", SProcedure sMakePromise |> ref

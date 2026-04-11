@@ -16,6 +16,7 @@ module Type =
         | SList of SExpression list
         | SVector of SExpression array
         | SPair of SExpression list * SExpression
+        | SRecord of typeId: int * typeName: string * fields: SExpression ref array
         | SQuote of SExpression
         | SQuasiquote of SExpression
         | SUnquote of SExpression
@@ -54,5 +55,12 @@ module Type =
             let gcd = bigint.GreatestCommonDivisor(abs x1, abs x2)
             let x1', x2' = if x2.Sign < 0 then -x1, -x2 else x1, x2
             SRational(x1' / gcd, x2' / gcd)
+
+    let mutable private nextRecordTypeId = 0
+
+    let getNextRecordTypeId () =
+        let id = nextRecordTypeId
+        nextRecordTypeId <- nextRecordTypeId + 1
+        id
 
     exception SchemeRaise of SExpression

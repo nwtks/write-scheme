@@ -24,6 +24,7 @@ module Print =
         | SList xs -> xs |> printList |> sprintf "(%s)"
         | SVector xs -> xs |> Array.map print |> String.concat " " |> sprintf "#(%s)"
         | SPair(x1, x2) -> sprintf "(%s . %s)" (printList x1) (print x2)
+        | SRecord(_, typeName, _) -> sprintf "#<%s>" typeName
         | SQuote x -> print x |> sprintf "'%s"
         | SQuasiquote x -> print x |> sprintf "`%s"
         | SUnquote x -> print x |> sprintf ",%s"

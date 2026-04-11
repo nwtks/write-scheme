@@ -29,6 +29,7 @@ module Eval =
         | SValues _
         | SVector _
         | SPair _
+        | SRecord _
         | SUnquote _
         | SUnquoteSplicing _
         | SPromise _

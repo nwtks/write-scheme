@@ -459,3 +459,25 @@ let ``define-values`` () =
     "b" |> rep |> should equal "(20 30)"
 
     "(define-values () (values))" |> rep |> ignore
+
+[<Fact>]
+let ``define-record-type`` () =
+    let rep = repEnvs ()
+
+    "(define-record-type <p> (make-p x y) p? (x get-x) (y get-y set-y!))"
+    |> rep
+    |> ignore
+
+    "(define p1 (make-p 1 2))" |> rep |> ignore
+    "(p? p1)" |> rep |> should equal "#t"
+    "(p? 1)" |> rep |> should equal "#f"
+    "(get-x p1)" |> rep |> should equal "1"
+    "(get-y p1)" |> rep |> should equal "2"
+    "(set-y! p1 10)" |> rep |> ignore
+    "(get-y p1)" |> rep |> should equal "10"
+
+    "(define-record-type <q> (make-q) q?)" |> rep |> ignore
+    "(define q1 (make-q))" |> rep |> ignore
+    "(q? q1)" |> rep |> should equal "#t"
+    "(p? q1)" |> rep |> should equal "#f"
+    "(q? p1)" |> rep |> should equal "#f"
