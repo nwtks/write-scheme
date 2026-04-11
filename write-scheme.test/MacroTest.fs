@@ -85,3 +85,22 @@ let ``syntax-rules literal keywords`` () =
 
     "(my-cond (#t 42))" |> rep |> should equal "42"
     "(my-cond (else 99))" |> rep |> should equal "99"
+
+[<Fact>]
+let ``syntax-error`` () =
+    let rep = repEnvs ()
+
+    (fun () -> "(syntax-error \"test error\" 1 2)" |> rep |> ignore)
+    |> should throw typeof<WriteScheme.Type.SchemeRaise>
+
+    "(define-syntax check-positive
+       (syntax-rules ()
+         ((check-positive x)
+          (if (> x 0) x (syntax-error \"not positive\" x)))))"
+    |> rep
+    |> ignore
+
+    "(check-positive 1)" |> rep |> should equal "1"
+
+    (fun () -> "(check-positive -1)" |> rep |> ignore)
+    |> should throw typeof<WriteScheme.Type.SchemeRaise>

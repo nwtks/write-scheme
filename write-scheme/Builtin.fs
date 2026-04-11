@@ -33,6 +33,7 @@ module Builtin =
               "letrec-syntax", SSyntax sLetRecSyntax |> ref
               "quasiquote", SSyntax sQuasiquote |> ref
               "syntax-rules", SSyntax sSyntaxRules |> ref
+              "syntax-error", SSyntax sSyntaxError |> ref
               "define", SSyntax sDefine |> ref
               "define-values", SSyntax sDefineValues |> ref
               "define-syntax", SSyntax sDefineSyntax |> ref

@@ -234,6 +234,11 @@ module Macro =
             SSyntax transformer |> cont
         | x -> x |> invalidParameter "'%s' invalid syntax-rules parameter."
 
+    let sSyntaxError envs cont =
+        function
+        | SString msg :: irritants -> raise (SchemeRaise(SError(msg, irritants)))
+        | x -> x |> invalidParameter "'%s' invalid syntax-error parameter."
+
     [<TailCall>]
     let rec evalLetSyntaxTransformers envs cont body acc =
         function
