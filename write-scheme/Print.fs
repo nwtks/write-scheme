@@ -11,9 +11,9 @@ module Print =
         | SBool false -> "#f"
         | SRational(x1, x2) -> if x2 = 1I then string x1 else sprintf "%A/%A" x1 x2
         | SReal x ->
-            if System.Double.IsNaN(x) then "+nan.0"
-            elif System.Double.IsPositiveInfinity(x) then "+inf.0"
-            elif System.Double.IsNegativeInfinity(x) then "-inf.0"
+            if System.Double.IsNaN x then "+nan.0"
+            elif System.Double.IsPositiveInfinity x then "+inf.0"
+            elif System.Double.IsNegativeInfinity x then "-inf.0"
             else string x
         | SString x -> x.Replace("\"", "\\\"") |> sprintf "\"%s\""
         | SChar x -> sprintf "#\\%s" x

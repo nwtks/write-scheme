@@ -1,24 +1,21 @@
 namespace WriteScheme
 
-open Read
-open Print
-open Eval
-open Builtin
-
 module Repl =
-    let rep envs = read >> eval envs id >> print
+    let rep envs =
+        Read.read >> Eval.eval envs id >> Print.print
 
-    let newEnvs () = extendEnvs builtin []
+    let newEnvs () = Eval.extendEnvs Builtin.builtin []
+
+    [<TailCall>]
+    let rec repl' envs output =
+        printf "%s\n> " output
+        let line = System.Console.ReadLine()
+        if isNull line then () else line |> rep envs |> repl' envs
 
     let repl () =
         let envs = newEnvs ()
 
-        let rec repl' output =
-            try
-                printf "%s\n> " output
-                let line = System.Console.ReadLine()
-                if isNull line then () else line |> rep envs |> repl'
-            with x ->
-                x.Message |> repl'
-
-        repl' "Welcome"
+        try
+            repl' envs "Welcome"
+        with x ->
+            x.Message |> repl' envs

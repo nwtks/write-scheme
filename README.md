@@ -1,7 +1,7 @@
 
 # R7RS Scheme Interpreter in F#
 
-A subset R7RS Scheme interpreter written in F#. Features a CPS (Continuation-Passing Style) based evaluator with first-class continuations and hygienic macros.
+A subset R7RS Scheme interpreter written in F#. Features a CPS (Continuation-Passing Style) based evaluator with first-class continuations and macros.
 
 ## Requirements
 
@@ -41,7 +41,7 @@ dotnet test
 | `lambda` | Closure creation (variadic `. rest` supported) |
 | `define` | Variable / procedure definition |
 | `define-syntax` | Syntax definition |
-| `syntax-rules` | Hygienic macros (pattern matching with ellipsis `...`) |
+| `syntax-rules` | Hygienic macros (in development) |
 | `set!` | Variable assignment |
 | `if` | Conditional branching |
 | `cond` | Multi-way conditional (`else`, `=>` supported) |

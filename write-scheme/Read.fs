@@ -162,7 +162,7 @@ module Read =
               stringCIReturn "#false" SFalse
               stringCIReturn "#f" SFalse ]
 
-    let parseRational = pRational |>> fun (x1, x2) -> newRational x1 x2
+    let parseRational = pRational |>> fun (x1, x2) -> newSRational x1 x2
 
     let parseReal =
         choice
@@ -180,7 +180,7 @@ module Read =
     let parseUnquoteSplicing = pstring ",@" >>. parseDatum |>> SUnquoteSplicing
 
     let parseList =
-        between (pchar '(') (pchar ')') (pIntertokenSpace >>. many (parseDatum .>> pIntertokenSpace) |>> newList)
+        between (pchar '(') (pchar ')') (pIntertokenSpace >>. many (parseDatum .>> pIntertokenSpace) |>> toSList)
 
     let parseDotList =
         between
@@ -191,6 +191,14 @@ module Read =
                  (many1 (parseDatum .>> pIntertokenSpace1))
                  (pchar '.' >>. pIntertokenSpace1 >>. parseDatum .>> pIntertokenSpace)
                  (fun x1 x2 -> SPair(x1, x2)))
+
+    let exprPositions =
+        new System.Runtime.CompilerServices.ConditionalWeakTable<SExpression, Position>()
+
+    let getExprPos (expr: SExpression) =
+        match exprPositions.TryGetValue expr with
+        | true, pos -> Some pos
+        | _ -> None
 
     let parseWithPos p =
         pipe2 getPosition p (fun pos expr ->

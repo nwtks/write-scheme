@@ -1,12 +1,11 @@
 namespace WriteScheme
 
 open Type
-open Eval
 open WriteScheme.Builtins
 
 module Builtin =
     let builtin =
-        extendEnvs
+        Eval.extendEnvs
             []
             [ "quote", SSyntax sQuote |> ref
               "lambda", SSyntax sLambda |> ref

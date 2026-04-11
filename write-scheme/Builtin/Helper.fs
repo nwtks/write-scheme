@@ -2,18 +2,17 @@ namespace WriteScheme.Builtins
 
 open WriteScheme
 open Type
-open Eval
-open Print
 
 [<AutoOpen>]
 module Helper =
     let invalidParameter fmt =
-        newList >> print >> sprintf fmt >> failwith
+        toSList >> Print.print >> sprintf fmt >> failwith
 
+    [<TailCall>]
     let rec eachEval envs cont acc =
         function
         | [] -> acc |> cont
-        | x :: xs -> x |> eval envs (fun a -> xs |> eachEval envs cont a)
+        | x :: xs -> x |> Eval.eval envs (fun a -> xs |> eachEval envs cont a)
 
     let zipFormals args =
         let zipVarArg vars args' =
@@ -26,7 +25,7 @@ module Helper =
             List.zip vars (args' |> List.take varsLen)
             |> List.map (function
                 | SSymbol var, expr -> var, expr
-                | x, _ -> print x |> sprintf "'%s' not symbol." |> failwith)
+                | x, _ -> Print.print x |> sprintf "'%s' not symbol." |> failwith)
 
         let argsExpr =
             function
@@ -43,9 +42,9 @@ module Helper =
 
             zipVarArg vars (args |> List.take varsLen)
             @ [ var, args |> List.skip varsLen |> argsExpr ]
-        | x -> print x |> sprintf "'%s' not symbol." |> failwith
+        | x -> Print.print x |> sprintf "'%s' not symbol." |> failwith
 
     let eachBinding =
         function
         | SList [ SSymbol var; expr ] -> var, expr
-        | x -> print x |> sprintf "'%s' not symbol." |> failwith
+        | x -> Print.print x |> sprintf "'%s' not symbol." |> failwith

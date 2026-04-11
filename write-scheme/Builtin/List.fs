@@ -13,8 +13,8 @@ module List =
 
     let sCons envs cont =
         function
-        | [ x; SEmpty ] -> [ x ] |> newList |> cont
-        | [ x; SList xs ] -> x :: xs |> newList |> cont
+        | [ x; SEmpty ] -> [ x ] |> toSList |> cont
+        | [ x; SList xs ] -> x :: xs |> toSList |> cont
         | [ x; SPair(y1, y2) ] -> SPair(x :: y1, y2) |> cont
         | [ x; y ] -> SPair([ x ], y) |> cont
         | x -> x |> invalidParameter "'%s' invalid cons parameter."
@@ -27,7 +27,7 @@ module List =
 
     let sCdr envs cont =
         function
-        | [ SList(_ :: xs) ] -> xs |> newList |> cont
+        | [ SList(_ :: xs) ] -> xs |> toSList |> cont
         | [ SPair([ _ ], x2) ] -> x2 |> cont
         | [ SPair(_ :: xs, x2) ] -> SPair(xs, x2) |> cont
         | x -> x |> invalidParameter "'%s' invalid cdr parameter."
@@ -43,21 +43,21 @@ module List =
         | [ SEmpty ] -> STrue |> cont
         | _ -> SFalse |> cont
 
-    let sList envs cont xs = xs |> newList |> cont
+    let sList envs cont xs = xs |> toSList |> cont
 
-    let sAppend envs cont xs =
-        let rec fold =
-            function
-            | [], []
-            | [], [ SEmpty ] -> SEmpty
-            | [], [ x ] -> x
-            | acc, []
-            | acc, [ SEmpty ] -> acc |> newList
-            | acc, [ SList x ] -> acc @ x |> newList
-            | acc, [ SPair(x1, x2) ] -> SPair(acc @ x1, x2)
-            | acc, [ x ] -> SPair(acc, x)
-            | acc, SEmpty :: x -> (acc, x) |> fold
-            | acc, SList x1 :: x2 -> (acc @ x1, x2) |> fold
-            | _ -> xs |> invalidParameter "'%s' invalid append parameter."
+    [<TailCall>]
+    let rec foldAppend xs =
+        function
+        | [], []
+        | [], [ SEmpty ] -> SEmpty
+        | [], [ x ] -> x
+        | acc, []
+        | acc, [ SEmpty ] -> acc |> toSList
+        | acc, [ SList x ] -> acc @ x |> toSList
+        | acc, [ SPair(x1, x2) ] -> SPair(acc @ x1, x2)
+        | acc, [ x ] -> SPair(acc, x)
+        | acc, SEmpty :: x -> (acc, x) |> foldAppend xs
+        | acc, SList x1 :: x2 -> (acc @ x1, x2) |> foldAppend xs
+        | _ -> xs |> invalidParameter "'%s' invalid append parameter."
 
-        ([], xs) |> fold |> cont
+    let sAppend envs cont xs = ([], xs) |> foldAppend xs |> cont

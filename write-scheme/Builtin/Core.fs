@@ -2,9 +2,6 @@ namespace WriteScheme.Builtins
 
 open WriteScheme
 open Type
-open Eval
-open Read
-open Print
 
 [<AutoOpen>]
 module Core =
@@ -40,34 +37,37 @@ module Core =
         | [ SContinuation _ ] -> STrue |> cont
         | _ -> SFalse |> cont
 
-    let sApply envs cont =
-        let rec fold =
-            function
-            | acc, []
-            | acc, [ SEmpty ] -> List.rev acc
-            | acc, [ SList x ] -> List.rev acc @ x
-            | acc, [ SPair(x1, x2) ] -> [ SPair(List.rev acc @ x1, x2) ]
-            | acc, x1 :: x2 -> (x1 :: acc, x2) |> fold
-
+    [<TailCall>]
+    let rec foldApply =
         function
-        | proc :: args -> apply envs cont (([], args) |> fold) proc
+        | acc, []
+        | acc, [ SEmpty ] -> List.rev acc
+        | acc, [ SList x ] -> List.rev acc @ x
+        | acc, [ SPair(x1, x2) ] -> [ SPair(List.rev acc @ x1, x2) ]
+        | acc, x1 :: x2 -> (x1 :: acc, x2) |> foldApply
+
+    let sApply envs cont =
+        function
+        | proc :: args -> Eval.apply envs cont (([], args) |> foldApply) proc
         | x -> x |> invalidParameter "'%s' invalid apply parameter."
 
-    let transposeList lists =
-        let rec fold acc =
-            function
-            | 0, _
-            | _, [] -> List.rev acc
-            | n, xs -> fold ((xs |> List.map (List.head >> SQuote)) :: acc) (n - 1, xs |> List.map List.tail)
+    [<TailCall>]
+    let rec foldTranspose acc =
+        function
+        | 0, _
+        | _, [] -> List.rev acc
+        | n, xs -> foldTranspose ((xs |> List.map (List.head >> SQuote)) :: acc) (n - 1, xs |> List.map List.tail)
 
-        fold [] (lists |> List.map List.length |> Seq.min, lists)
+    let transposeList lists =
+        foldTranspose [] (lists |> List.map List.length |> Seq.min, lists)
+
+    [<TailCall>]
+    let rec mapMap envs cont proc acc =
+        function
+        | [] -> List.rev acc |> toSList |> cont
+        | x :: xs -> Eval.apply envs (fun a -> mapMap envs cont proc (a :: acc) xs) x proc
 
     let sMap envs cont =
-        let rec map proc acc =
-            function
-            | [] -> List.rev acc |> newList |> cont
-            | x :: xs -> apply envs (fun a -> map proc (a :: acc) xs) x proc
-
         function
         | [ _ ] as x -> x |> invalidParameter "'%s' invalid map parameter."
         | proc :: lists as x ->
@@ -77,15 +77,16 @@ module Core =
                 | SList xs -> xs
                 | _ -> x |> invalidParameter "'%s' invalid map parameter.")
             |> transposeList
-            |> map proc []
+            |> mapMap envs cont proc []
         | x -> x |> invalidParameter "'%s' invalid map parameter."
 
-    let sForEach envs cont =
-        let rec loop proc =
-            function
-            | [] -> SEmpty |> cont
-            | x :: xs -> apply envs (fun _ -> loop proc xs) x proc
+    [<TailCall>]
+    let rec loopForEach envs cont proc =
+        function
+        | [] -> SEmpty |> cont
+        | x :: xs -> Eval.apply envs (fun _ -> loopForEach envs cont proc xs) x proc
 
+    let sForEach envs cont =
         function
         | [ _ ] as x -> x |> invalidParameter "'%s' invalid for-each parameter."
         | proc :: lists as x ->
@@ -95,12 +96,12 @@ module Core =
                 | SList xs -> xs
                 | _ -> x |> invalidParameter "'%s' invalid for-each parameter.")
             |> transposeList
-            |> loop proc
+            |> loopForEach envs cont proc
         | x -> x |> invalidParameter "'%s' invalid for-each parameter."
 
     let sCallCC envs cont =
         function
-        | [ proc ] -> apply envs cont [ SContinuation cont ] proc
+        | [ proc ] -> Eval.apply envs cont [ SContinuation cont ] proc
         | x -> x |> invalidParameter "'%s' invalid call/cc parameter."
 
     let sDisplay envs cont =
@@ -112,14 +113,14 @@ module Core =
             x |> printf "%s"
             SEmpty |> cont
         | [ x ] ->
-            x |> print |> printf "%s"
+            x |> Print.print |> printf "%s"
             SEmpty |> cont
         | x -> x |> invalidParameter "'%s' invalid display parameter."
 
     let sLoad envs cont =
         function
         | [ SString f ] ->
-            System.IO.File.ReadAllText(f) |> read |> eval envs cont |> ignore
+            System.IO.File.ReadAllText(f) |> Read.read |> Eval.eval envs cont |> ignore
 
             sprintf "Loaded '%s'." f |> SSymbol |> cont
         | x -> x |> invalidParameter "'%s' invalid load parameter."
@@ -133,9 +134,9 @@ module Core =
         function
         | [ handlerProc; thunkProc ] ->
             try
-                apply envs cont [] thunkProc
+                Eval.apply envs cont [] thunkProc
             with SchemeRaise obj ->
-                apply envs cont [ obj ] handlerProc
+                Eval.apply envs cont [ obj ] handlerProc
         | x -> x |> invalidParameter "'%s' invalid with-exception-handler parameter."
 
     let sError envs cont =
@@ -155,5 +156,5 @@ module Core =
 
     let sErrorObjectIrritants envs cont =
         function
-        | [ SError(_, irritants) ] -> irritants |> newList |> cont
+        | [ SError(_, irritants) ] -> irritants |> toSList |> cont
         | x -> x |> invalidParameter "'%s' invalid error-object-irritants parameter."

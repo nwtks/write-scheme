@@ -1,7 +1,5 @@
 namespace WriteScheme
 
-open System.Runtime.CompilerServices
-
 module Type =
     [<ReferenceEqualityAttribute>]
     type SExpression =
@@ -36,14 +34,14 @@ module Type =
     let SNegativeInfinity = SReal System.Double.NegativeInfinity
     let SNaN = SReal System.Double.NaN
 
-    let newBool x = if x then STrue else SFalse
+    let toSBool x = if x then STrue else SFalse
 
-    let newList =
+    let toSList =
         function
         | [] -> SEmpty
         | xs -> SList xs
 
-    let newRational (x1: bigint) (x2: bigint) =
+    let newSRational (x1: bigint) (x2: bigint) =
         if x2.IsZero then
             failwith "denominator zero."
         elif x1.IsZero then
@@ -54,10 +52,3 @@ module Type =
             SRational(x1' / gcd, x2' / gcd)
 
     exception SchemeRaise of SExpression
-
-    let exprPositions = new ConditionalWeakTable<SExpression, FParsec.Position>()
-
-    let getExprPos (expr: SExpression) =
-        match exprPositions.TryGetValue expr with
-        | true, pos -> Some pos
-        | _ -> None

@@ -2,8 +2,6 @@ namespace WriteScheme.Builtins
 
 open WriteScheme
 open Type
-open Eval
-open Print
 
 [<AutoOpen>]
 module Macro =
@@ -14,15 +12,23 @@ module Macro =
     let mergeBindings (b1: Map<string, SBinding>) (b2: Map<string, SBinding>) =
         Map.fold (fun acc k v -> Map.add k v acc) b1 b2
 
-    let rec collectPatternVars (literals: Set<string>) =
+    [<TailCall>]
+    let rec loopPatternVars (literals: Set<string>) acc =
         function
-        | SSymbol "_" -> []
-        | SSymbol "..." -> []
-        | SSymbol s when Set.contains s literals -> []
-        | SSymbol s -> [ s ]
-        | SList pats -> pats |> List.collect (collectPatternVars literals)
-        | _ -> []
+        | [] -> acc
+        | x :: xs ->
+            match x with
+            | SSymbol "_" -> loopPatternVars literals acc xs
+            | SSymbol "..." -> loopPatternVars literals acc xs
+            | SSymbol s when Set.contains s literals -> loopPatternVars literals acc xs
+            | SSymbol s -> loopPatternVars literals (s :: acc) xs
+            | SList pats -> loopPatternVars literals acc (pats @ xs)
+            | _ -> loopPatternVars literals acc xs
 
+    let collectPatternVars literals x =
+        [ x ] |> loopPatternVars literals [] |> List.distinct |> List.rev
+
+    [<TailCall>]
     let rec matchOne (literals: Set<string>) (pat: SExpression) (inp: SExpression) : Map<string, SBinding> option =
         match pat with
         | SSymbol "_" -> Some Map.empty
@@ -106,31 +112,47 @@ module Macro =
         else
             None
 
-    let rec collectTemplateVars =
+    [<TailCall>]
+    let rec loopTemplateVars acc =
         function
-        | SSymbol s -> [ s ]
-        | SList elems -> elems |> List.collect collectTemplateVars
-        | SQuote x -> collectTemplateVars x
-        | SQuasiquote x -> collectTemplateVars x
-        | _ -> []
+        | [] -> acc
+        | x :: xs ->
+            match x with
+            | SSymbol s -> loopTemplateVars (s :: acc) xs
+            | SList elems -> loopTemplateVars acc (elems @ xs)
+            | SQuote x
+            | SQuasiquote x
+            | SUnquote x
+            | SUnquoteSplicing x -> loopTemplateVars acc (x :: xs)
+            | SPair(elems, x) -> loopTemplateVars acc (elems @ x :: xs)
+            | _ -> loopTemplateVars acc xs
 
-    let rec expandTemplate (bindings: Map<string, SBinding>) =
+    let collectTemplateVars x =
+        [ x ] |> loopTemplateVars [] |> List.distinct |> List.rev
+
+    [<TailCall>]
+    let rec expandTemplate cont bindings =
         function
         | SSymbol s ->
             match Map.tryFind s bindings with
-            | Some(SingleB v) -> v
-            | _ -> SSymbol s
-        | SList elems -> expandTemplateList bindings elems |> newList
-        | SQuote x -> SQuote(expandTemplate bindings x)
-        | SQuasiquote x -> SQuasiquote(expandTemplate bindings x)
-        | SUnquote x -> SUnquote(expandTemplate bindings x)
-        | SUnquoteSplicing x -> SUnquoteSplicing(expandTemplate bindings x)
-        | SPair(xs, x) -> SPair(xs |> List.map (expandTemplate bindings), expandTemplate bindings x)
-        | x -> x
+            | Some(SingleB v) -> v |> cont
+            | _ -> SSymbol s |> cont
+        | SList elems -> expandTemplateList (toSList >> cont) bindings elems
+        | SQuote x -> expandTemplate (SQuote >> cont) bindings x
+        | SQuasiquote x -> expandTemplate (SQuasiquote >> cont) bindings x
+        | SUnquote x -> expandTemplate (SUnquote >> cont) bindings x
+        | SUnquoteSplicing x -> expandTemplate (SUnquoteSplicing >> cont) bindings x
+        | SPair(xs, x) ->
+            expandTemplateList
+                (fun (expandedXs: SExpression list) ->
+                    expandTemplate (fun expandedX -> SPair(expandedXs, expandedX) |> cont) bindings x)
+                bindings
+                xs
+        | x -> x |> cont
 
-    and expandTemplateList (bindings: Map<string, SBinding>) =
+    and expandTemplateList cont bindings =
         function
-        | [] -> []
+        | [] -> [] |> cont
         | tmpl :: SSymbol "..." :: rest ->
             let vars = collectTemplateVars tmpl
 
@@ -142,21 +164,47 @@ module Macro =
                     | _ -> None)
 
             match ellipsisVars with
-            | [] -> expandTemplateList bindings rest
+            | [] -> expandTemplateList cont bindings rest
             | (_, firstValues) :: _ ->
                 let count = firstValues.Length
 
-                let expanded =
-                    [ 0 .. count - 1 ]
-                    |> List.map (fun i ->
-                        let localBindings =
-                            ellipsisVars
-                            |> List.fold (fun acc (v, values) -> Map.add v (SingleB values.[i]) acc) bindings
+                expandEllipsis
+                    (fun expanded ->
+                        expandTemplateList (fun expandedRest -> expanded @ expandedRest |> cont) bindings rest)
+                    bindings
+                    tmpl
+                    ellipsisVars
+                    count
+                    0
+                    []
+        | tmpl :: rest ->
+            expandTemplate
+                (fun expandedTmpl ->
+                    expandTemplateList (fun expandedRest -> expandedTmpl :: expandedRest |> cont) bindings rest)
+                bindings
+                tmpl
 
-                        expandTemplate localBindings tmpl)
+    and expandEllipsis cont bindings tmpl ellipsisVars count i acc =
+        if i >= count then
+            List.rev acc |> cont
+        else
+            let localBindings =
+                ellipsisVars
+                |> List.fold (fun acc (v, values) -> Map.add v (SingleB values.[i]) acc) bindings
 
-                expanded @ expandTemplateList bindings rest
-        | tmpl :: rest -> expandTemplate bindings tmpl :: expandTemplateList bindings rest
+            expandTemplate
+                (fun res -> expandEllipsis cont bindings tmpl ellipsisVars count (i + 1) (res :: acc))
+                localBindings
+                tmpl
+
+    [<TailCall>]
+    let rec trySyntaxRules envs cont literalSet args =
+        function
+        | [] -> failwith "no matching syntax-rules pattern"
+        | (patBody, template) :: rest ->
+            match matchPatternList literalSet patBody args with
+            | Some bindings -> expandTemplate (Eval.eval envs cont) bindings template
+            | None -> trySyntaxRules envs cont literalSet args rest
 
     let sSyntaxRules envs cont =
         let parseLiterals =
@@ -168,12 +216,12 @@ module Macro =
                     | SSymbol s -> Some s
                     | _ -> None)
                 |> Set.ofList
-            | x -> print x |> sprintf "'%s' invalid syntax-rules literals." |> failwith
+            | x -> Print.print x |> sprintf "'%s' invalid syntax-rules literals." |> failwith
 
         let parseRule =
             function
-            | SList [ SList(_ :: patBody); template ] -> (patBody, template)
-            | x -> print x |> sprintf "'%s' invalid syntax-rules clause." |> failwith
+            | SList [ SList(_ :: patBody); template ] -> patBody, template
+            | x -> Print.print x |> sprintf "'%s' invalid syntax-rules clause." |> failwith
 
         function
         | literals :: rules ->
@@ -181,15 +229,7 @@ module Macro =
             let parsedRules = rules |> List.map parseRule
 
             let transformer envs' cont' args =
-                let rec tryRules =
-                    function
-                    | [] -> failwith "no matching syntax-rules pattern"
-                    | (patBody, template) :: rest ->
-                        match matchPatternList literalSet patBody args with
-                        | Some bindings -> expandTemplate bindings template |> eval envs' cont'
-                        | None -> tryRules rest
-
-                tryRules parsedRules
+                trySyntaxRules envs' cont' literalSet args parsedRules
 
             SSyntax transformer |> cont
         | x -> x |> invalidParameter "'%s' invalid syntax-rules parameter."
@@ -200,7 +240,7 @@ module Macro =
             envs.Head.TryAdd(var, ref SEmpty) |> ignore
 
             expr
-            |> eval envs (fun x ->
+            |> Eval.eval envs (fun x ->
                 envs.Head.[var].Value <- x
                 var |> SSymbol |> cont)
         | x -> x |> invalidParameter "'%s' invalid define-syntax parameter."
