@@ -239,6 +239,27 @@ module SpecialForm =
         | SList bindings :: body -> bindings |> List.map eachValuesBinding |> bindLetValues envs cont body []
         | x -> x |> invalidParameter "'%s' invalid let-values parameter."
 
+    [<TailCall>]
+    let rec bindLetStarValues envs cont body =
+        function
+        | [] -> body |> eachEval envs cont SEmpty
+        | (vars: string list, expr) :: xs ->
+            expr
+            |> Eval.eval envs (fun v ->
+                let vals =
+                    match v with
+                    | SValues vs -> vs
+                    | single -> [ single ]
+
+                let bindings = List.zip vars vals |> List.map (fun (vr, vl) -> vr, ref vl)
+                let nextEnvs = bindings |> Eval.extendEnvs envs
+                xs |> bindLetStarValues nextEnvs cont body)
+
+    let sLetStarValues envs cont =
+        function
+        | SList bindings :: body -> bindings |> List.map eachValuesBinding |> bindLetStarValues envs cont body
+        | x -> x |> invalidParameter "'%s' invalid let*-values parameter."
+
     let sBegin envs cont = eachEval envs cont SEmpty
 
     [<TailCall>]

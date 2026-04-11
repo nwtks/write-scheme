@@ -240,6 +240,20 @@ let ``let-values`` () =
     |> should equal "42"
 
 [<Fact>]
+let ``let*-values`` () =
+    "(let*-values (((a b) (values 1 2))
+                   ((c d) (values a b)))
+       (+ a b c d))"
+    |> rep
+    |> should equal "6"
+
+    "(let*-values (((x y) (values 1 2))
+                   ((x y) (values y x)))
+       (list x y))"
+    |> rep
+    |> should equal "(2 1)"
+
+[<Fact>]
 let ``values and call-with-values`` () =
     "(call-with-values (lambda () (values 1 2)) +)" |> rep |> should equal "3"
 

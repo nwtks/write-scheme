@@ -22,6 +22,7 @@ module Builtin =
               "letrec", SSyntax sLetRec |> ref
               "letrec*", SSyntax sLetRecStar |> ref
               "let-values", SSyntax sLetValues |> ref
+              "let*-values", SSyntax sLetStarValues |> ref
               "begin", SSyntax sBegin |> ref
               "do", SSyntax sDo |> ref
               "delay", SSyntax sDelay |> ref
