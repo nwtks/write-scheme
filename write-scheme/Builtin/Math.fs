@@ -5,56 +5,6 @@ open Type
 
 [<AutoOpen>]
 module Math =
-    [<TailCall>]
-    let rec eqv =
-        function
-        | SBool a, SBool b -> a = b
-        | SRational(a1, a2), SRational(b1, b2) -> a1 = b1 && a2 = b2
-        | SReal a, SReal b -> a = b
-        | SChar a, SChar b -> a = b
-        | SSymbol a, SSymbol b -> a = b
-        | SQuote a, SQuote b -> (a, b) |> eqv
-        | SUnquote a, SUnquote b -> (a, b) |> eqv
-        | a, b -> a = b
-
-    [<TailCall>]
-    let rec loopEqual =
-        function
-        | [] -> true
-        | (a, b) :: xs ->
-            match a, b with
-            | SList la, SList lb ->
-                if la.Length <> lb.Length then
-                    false
-                else
-                    List.zip la lb @ xs |> loopEqual
-            | SPair(la, ra), SPair(lb, rb) ->
-                if la.Length <> lb.Length then
-                    false
-                else
-                    List.zip la lb @ (ra, rb) :: xs |> loopEqual
-            | SQuote a', SQuote b' -> (a', b') :: xs |> loopEqual
-            | SUnquote a', SUnquote b' -> (a', b') :: xs |> loopEqual
-            | SBool a', SBool b' -> a' = b' && loopEqual xs
-            | SRational(a1, a2), SRational(b1, b2) -> a1 = b1 && a2 = b2 && loopEqual xs
-            | SReal a', SReal b' -> a' = b' && loopEqual xs
-            | SString a', SString b' -> a' = b' && loopEqual xs
-            | SChar a', SChar b' -> a' = b' && loopEqual xs
-            | SSymbol a', SSymbol b' -> a' = b' && loopEqual xs
-            | a', b' -> a' = b' && loopEqual xs
-
-    let equal (a, b) = [ a, b ] |> loopEqual
-
-    let isEqv envs cont =
-        function
-        | [ a; b ] -> (a, b) |> eqv |> toSBool |> cont
-        | _ -> SFalse |> cont
-
-    let isEqual envs cont =
-        function
-        | [ a; b ] -> (a, b) |> equal |> toSBool |> cont
-        | _ -> SFalse |> cont
-
     let isNumber envs cont =
         function
         | [ SRational _ ]
@@ -84,7 +34,7 @@ module Math =
     let compareNumber pred1 pred2 envs cont =
         function
         | [] -> STrue |> cont
-        | x :: xs -> compare pred1 pred2 x xs |> cont
+        | x :: xs -> xs |> compare pred1 pred2 x |> cont
 
     let equalNumber envs cont args = compareNumber (=) (=) envs cont args
     let lessNumber envs cont args = compareNumber (<) (<) envs cont args

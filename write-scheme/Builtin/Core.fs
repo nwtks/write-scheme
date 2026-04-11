@@ -5,6 +5,57 @@ open Type
 
 [<AutoOpen>]
 module Core =
+    let isPromise envs cont =
+        function
+        | [ SPromise _ ] -> STrue |> cont
+        | _ -> SFalse |> cont
+
+    [<TailCall>]
+    let rec sForce envs cont =
+        function
+        | [ SPromise r ] ->
+            match r.Value with
+            | true, value -> value |> cont
+            | false, thunk ->
+                thunk
+                |> Eval.apply
+                    envs
+                    (fun result ->
+                        match result with
+                        | SPromise r2 ->
+                            r.Value <- r2.Value
+                            sForce envs cont [ SPromise r ]
+                        | value ->
+                            r.Value <- (true, value)
+                            value |> cont)
+                    []
+        | [ x ] -> x |> cont
+        | x -> x |> invalidParameter "'%s' invalid force parameter."
+
+    let sMakePromise envs cont =
+        function
+        | [ SPromise _ as p ] -> p |> cont
+        | [ x ] -> SPromise(ref (true, x)) |> cont
+        | x -> x |> invalidParameter "'%s' invalid make-promise parameter."
+
+    let sMakeParameter envs cont =
+        function
+        | [ init ] -> SParameter(ref init, None) |> cont
+        | [ init; converter ] ->
+            converter
+            |> Eval.apply envs (fun converted -> SParameter(ref converted, Some converter) |> cont) [ init ]
+        | x -> x |> invalidParameter "'%s' invalid make-parameter parameter."
+
+    let isEqv envs cont =
+        function
+        | [ a; b ] -> (a, b) |> eqv |> toSBool |> cont
+        | _ -> SFalse |> cont
+
+    let isEqual envs cont =
+        function
+        | [ a; b ] -> (a, b) |> equal |> toSBool |> cont
+        | _ -> SFalse |> cont
+
     let sNot envs cont =
         function
         | [ SBool false ] -> STrue |> cont
@@ -48,7 +99,7 @@ module Core =
 
     let sApply envs cont =
         function
-        | proc :: args -> Eval.apply envs cont (([], args) |> foldApply) proc
+        | proc :: args -> proc |> Eval.apply envs cont (([], args) |> foldApply)
         | x -> x |> invalidParameter "'%s' invalid apply parameter."
 
     [<TailCall>]
@@ -65,7 +116,7 @@ module Core =
     let rec mapMap envs cont proc acc =
         function
         | [] -> List.rev acc |> toSList |> cont
-        | x :: xs -> Eval.apply envs (fun a -> mapMap envs cont proc (a :: acc) xs) x proc
+        | x :: xs -> proc |> Eval.apply envs (fun a -> mapMap envs cont proc (a :: acc) xs) x
 
     let sMap envs cont =
         function
@@ -84,7 +135,7 @@ module Core =
     let rec loopForEach envs cont proc =
         function
         | [] -> SEmpty |> cont
-        | x :: xs -> Eval.apply envs (fun _ -> loopForEach envs cont proc xs) x proc
+        | x :: xs -> proc |> Eval.apply envs (fun _ -> loopForEach envs cont proc xs) x
 
     let sForEach envs cont =
         function
@@ -101,8 +152,59 @@ module Core =
 
     let sCallCC envs cont =
         function
-        | [ proc ] -> Eval.apply envs cont [ SContinuation cont ] proc
+        | [ proc ] -> proc |> Eval.apply envs cont [ SContinuation cont ]
         | x -> x |> invalidParameter "'%s' invalid call/cc parameter."
+
+    let sValues envs cont =
+        function
+        | [ x ] -> x |> cont
+        | xs -> SValues xs |> cont
+
+    let sCallWithValues envs cont =
+        function
+        | [ producer; consumer ] ->
+            producer
+            |> Eval.apply
+                envs
+                (function
+                | SValues xs -> consumer |> Eval.apply envs cont xs
+                | x -> consumer |> Eval.apply envs cont [ x ])
+                []
+        | x -> x |> invalidParameter "'%s' invalid call-with-values parameter."
+
+    let sWithExceptionHandler envs cont =
+        function
+        | [ handlerProc; thunkProc ] ->
+            try
+                thunkProc |> Eval.apply envs cont []
+            with SchemeRaise obj ->
+                handlerProc |> Eval.apply envs cont [ obj ]
+        | x -> x |> invalidParameter "'%s' invalid with-exception-handler parameter."
+
+    let sRaise envs cont =
+        function
+        | [ obj ] -> raise (SchemeRaise obj)
+        | x -> x |> invalidParameter "'%s' invalid raise parameter."
+
+    let sError envs cont =
+        function
+        | SString msg :: irritants -> raise (SchemeRaise(SError(msg, irritants)))
+        | x -> x |> invalidParameter "'%s' invalid error parameter."
+
+    let isErrorObject envs cont =
+        function
+        | [ SError _ ] -> STrue |> cont
+        | _ -> SFalse |> cont
+
+    let sErrorObjectMessage envs cont =
+        function
+        | [ SError(msg, _) ] -> SString msg |> cont
+        | x -> x |> invalidParameter "'%s' invalid error-object-message parameter."
+
+    let sErrorObjectIrritants envs cont =
+        function
+        | [ SError(_, irritants) ] -> irritants |> toSList |> cont
+        | x -> x |> invalidParameter "'%s' invalid error-object-irritants parameter."
 
     let sDisplay envs cont =
         function
@@ -124,37 +226,3 @@ module Core =
 
             sprintf "Loaded '%s'." f |> SSymbol |> cont
         | x -> x |> invalidParameter "'%s' invalid load parameter."
-
-    let sRaise envs cont =
-        function
-        | [ obj ] -> raise (SchemeRaise obj)
-        | x -> x |> invalidParameter "'%s' invalid raise parameter."
-
-    let sWithExceptionHandler envs cont =
-        function
-        | [ handlerProc; thunkProc ] ->
-            try
-                Eval.apply envs cont [] thunkProc
-            with SchemeRaise obj ->
-                Eval.apply envs cont [ obj ] handlerProc
-        | x -> x |> invalidParameter "'%s' invalid with-exception-handler parameter."
-
-    let sError envs cont =
-        function
-        | SString msg :: irritants -> raise (SchemeRaise(SError(msg, irritants)))
-        | x -> x |> invalidParameter "'%s' invalid error parameter."
-
-    let isErrorObject envs cont =
-        function
-        | [ SError _ ] -> STrue |> cont
-        | _ -> SFalse |> cont
-
-    let sErrorObjectMessage envs cont =
-        function
-        | [ SError(msg, _) ] -> SString msg |> cont
-        | x -> x |> invalidParameter "'%s' invalid error-object-message parameter."
-
-    let sErrorObjectIrritants envs cont =
-        function
-        | [ SError(_, irritants) ] -> irritants |> toSList |> cont
-        | x -> x |> invalidParameter "'%s' invalid error-object-irritants parameter."

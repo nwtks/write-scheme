@@ -66,6 +66,33 @@ let cond () =
     |> should equal "((b 2) (c 3))"
 
 [<Fact>]
+let ``case`` () =
+    "(case (* 2 3)
+       ((2 3 5 7) 'prime)
+       ((1 4 6 8 9) 'composite))"
+    |> rep
+    |> should equal "composite"
+
+    "(case (car '(c d))
+       ((a) 'a)
+       ((b) 'b))"
+    |> rep
+    |> should equal "()"
+
+    "(case (car '(c d))
+       ((a e i o u) 'vowel)
+       ((w y) 'semivowel)
+       (else => (lambda (x) x)))"
+    |> rep
+    |> should equal "c"
+
+    // => recipient without else
+    "(case (* 2 3)
+       ((1 4 6 8 9) => (lambda (x) x)))"
+    |> rep
+    |> should equal "6"
+
+[<Fact>]
 let ``and`` () =
     "(and (= 2 2) (> 2 1))" |> rep |> should equal "#t"
     "(and (= 2 2) (< 2 1))" |> rep |> should equal "#f"
@@ -78,6 +105,18 @@ let ``or`` () =
     "(or (= 2 2) (< 2 1))" |> rep |> should equal "#t"
     "(or #f #f #f)" |> rep |> should equal "#f"
     "(or)" |> rep |> should equal "#f"
+
+[<Fact>]
+let ``when`` () =
+    "(when (= 1 1) 'result)" |> rep |> should equal "result"
+    "(when (= 1 1) 'first 'second)" |> rep |> should equal "second"
+    "(when (= 1 2) 'result)" |> rep |> should equal "()"
+
+[<Fact>]
+let ``unless`` () =
+    "(unless (= 1 2) 'result)" |> rep |> should equal "result"
+    "(unless (= 1 2) 'first 'second)" |> rep |> should equal "second"
+    "(unless (= 1 1) 'result)" |> rep |> should equal "()"
 
 [<Fact>]
 let ``let`` () =
@@ -183,6 +222,38 @@ let ``letrec*`` () =
     |> should equal "45"
 
 [<Fact>]
+let ``let-values`` () =
+    "(let-values (((a b) (values 1 2)))
+       (+ a b))"
+    |> rep
+    |> should equal "3"
+
+    "(let-values (((a b c) (values 1 2 3))
+                  ((d)     (values 4)))
+       (+ a b c d))"
+    |> rep
+    |> should equal "10"
+
+    "(let-values (((x) 42))
+       x)"
+    |> rep
+    |> should equal "42"
+
+[<Fact>]
+let ``values and call-with-values`` () =
+    "(call-with-values (lambda () (values 1 2)) +)" |> rep |> should equal "3"
+
+    "(call-with-values (lambda () (values 4 5))
+       (lambda (a b) b))"
+    |> rep
+    |> should equal "5"
+
+    "(call-with-values (lambda () 42)
+       (lambda (x) x))"
+    |> rep
+    |> should equal "42"
+
+[<Fact>]
 let ``begin`` () =
     let rep = repEnvs ()
     "(define x 0)" |> rep |> ignore
@@ -194,6 +265,115 @@ let ``begin`` () =
        (+ x 1)))"
     |> rep
     |> should equal "6"
+
+[<Fact>]
+let ``do`` () =
+    let rep = repEnvs ()
+
+    "(do ((vec (make-vector 5))
+          (i 0 (+ i 1)))
+         ((= i 5) vec)
+       (vector-set! vec i i))"
+    |> rep
+    |> should equal "#(0 1 2 3 4)"
+
+    "(let ((x '(1 3 5 7 9)))
+       (do ((x x (cdr x))
+            (sum 0 (+ sum (car x))))
+           ((null? x) sum)))"
+    |> rep
+    |> should equal "25"
+
+    "(do ((i 0 (+ i 1)))
+         ((= i 3)))"
+    |> rep
+    |> should equal "()"
+
+[<Fact>]
+let ``delay and force`` () =
+    let rep = repEnvs ()
+
+    "(force (delay (+ 1 2)))" |> rep |> should equal "3"
+
+    "(promise? 1)" |> rep |> should equal "#f"
+
+    "(force (make-promise 42))" |> rep |> should equal "42"
+
+    "(define count 0)" |> rep |> ignore
+    "(define p (delay (begin (set! count (+ count 1)) count)))" |> rep |> ignore
+    "(force p)" |> rep |> should equal "1"
+    "(force p)" |> rep |> should equal "1"
+    "count" |> rep |> should equal "1"
+
+    "(force (delay-force (delay (delay-force (delay 10)))))"
+    |> rep
+    |> should equal "10"
+
+[<Fact>]
+let ``parameterize`` () =
+    let rep = repEnvs ()
+
+    "(define radix (make-parameter 10))" |> rep |> ignore
+    "(radix)" |> rep |> should equal "10"
+
+    "(parameterize ((radix 16))
+       (radix))"
+    |> rep
+    |> should equal "16"
+
+    "(radix)" |> rep |> should equal "10"
+
+    "(define greet (make-parameter \"hello\"
+                     (lambda (x) (if (string? x) x \"default\"))))"
+    |> rep
+    |> ignore
+
+    "(parameterize ((greet 42))
+       (greet))"
+    |> rep
+    |> should equal "\"default\""
+
+    "(greet)" |> rep |> should equal "\"hello\""
+
+    "(parameterize ((radix 2))
+       (parameterize ((radix 8))
+         (radix)))"
+    |> rep
+    |> should equal "8"
+
+    "(radix)" |> rep |> should equal "10"
+
+[<Fact>]
+let ``guard`` () =
+    let rep = repEnvs ()
+
+    "(guard (condition
+             (else 'caught))
+       (+ 1 2))"
+    |> rep
+    |> should equal "3"
+
+    "(guard (condition
+             (else condition))
+       (raise 'error-happened))"
+    |> rep
+    |> should equal "error-happened"
+
+    "(guard (condition
+             ((eq? condition 'foo) 'matched-foo)
+             ((eq? condition 'bar) 'matched-bar)
+             (else 'fallback))
+       (raise 'bar))"
+    |> rep
+    |> should equal "matched-bar"
+
+    (fun () ->
+        "(guard (condition
+                 ((eq? condition 'foo) 'matched))
+           (raise 'bar))"
+        |> rep
+        |> ignore)
+    |> should throw typeof<System.Exception>
 
 [<Fact>]
 let ``quasiquote`` () =

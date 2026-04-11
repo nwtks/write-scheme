@@ -152,8 +152,6 @@ module Read =
                   sprintf "%c%s%s" c1 s2 s3 |> System.Double.Parse) ]
 
     let parseSymbol = pIdentifier |>> SSymbol
-    let parseChar = pCharacter |>> SChar
-    let parseString = pString |>> SString
 
     let parseBool =
         choice
@@ -162,7 +160,8 @@ module Read =
               stringCIReturn "#false" SFalse
               stringCIReturn "#f" SFalse ]
 
-    let parseRational = pRational |>> fun (x1, x2) -> newSRational x1 x2
+    let parseChar = pCharacter |>> SChar
+    let parseString = pString |>> SString
 
     let parseReal =
         choice
@@ -173,14 +172,14 @@ module Read =
               pstringCI "#d" >>. pDecimal10 |>> SReal
               pDecimal10 |>> SReal ]
 
-    let parseDatum, parseDatumRef = createParserForwardedToRef ()
-    let parseQuoted = pchar '\'' >>. parseDatum |>> SQuote
-    let parseQuasiquote = pchar '`' >>. parseDatum |>> SQuasiquote
-    let parseUnquoted = pchar ',' >>. parseDatum |>> SUnquote
-    let parseUnquoteSplicing = pstring ",@" >>. parseDatum |>> SUnquoteSplicing
+    let parseRational = pRational |>> fun (x1, x2) -> newSRational x1 x2
 
-    let parseList =
-        between (pchar '(') (pchar ')') (pIntertokenSpace >>. many (parseDatum .>> pIntertokenSpace) |>> toSList)
+    let parseDatum, parseDatumRef = createParserForwardedToRef ()
+
+    let parseVector =
+        pstring "#(" >>. pIntertokenSpace >>. many (parseDatum .>> pIntertokenSpace)
+        .>> pchar ')'
+        |>> (List.toArray >> SVector)
 
     let parseDotList =
         between
@@ -191,6 +190,14 @@ module Read =
                  (many1 (parseDatum .>> pIntertokenSpace1))
                  (pchar '.' >>. pIntertokenSpace1 >>. parseDatum .>> pIntertokenSpace)
                  (fun x1 x2 -> SPair(x1, x2)))
+
+    let parseList =
+        between (pchar '(') (pchar ')') (pIntertokenSpace >>. many (parseDatum .>> pIntertokenSpace) |>> toSList)
+
+    let parseQuoted = pchar '\'' >>. parseDatum |>> SQuote
+    let parseQuasiquote = pchar '`' >>. parseDatum |>> SQuasiquote
+    let parseUnquoteSplicing = pstring ",@" >>. parseDatum |>> SUnquoteSplicing
+    let parseUnquoted = pchar ',' >>. parseDatum |>> SUnquote
 
     let exprPositions =
         new System.Runtime.CompilerServices.ConditionalWeakTable<SExpression, Position>()
@@ -216,6 +223,7 @@ module Read =
               parseString
               attempt parseReal
               attempt parseRational
+              attempt parseVector
               attempt parseDotList
               parseList
               parseQuoted

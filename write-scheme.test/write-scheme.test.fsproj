@@ -3,28 +3,29 @@
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <IsPackable>false</IsPackable>
-    <GenerateProgramFile>false</GenerateProgramFile>
+    <CollectCoverage>true</CollectCoverage>
+    <CoverletOutputFormat>cobertura</CoverletOutputFormat>
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Builtin/LiteralTest.fs" />
-    <Compile Include="Builtin/SpecialFormTest.fs" />
-    <Compile Include="Builtin/MathTest.fs" />
-    <Compile Include="Builtin/ListTest.fs" />
-    <Compile Include="Builtin/CoreTest.fs" />
-    <Compile Include="Builtin/MacroTest.fs" />
-    <Compile Include="Program.fs" />
+    <Compile Include="LiteralTest.fs" />
+    <Compile Include="SpecialFormTest.fs" />
+    <Compile Include="MacroTest.fs" />
+    <Compile Include="CoreTest.fs" />
+    <Compile Include="MathTest.fs" />
+    <Compile Include="ListTest.fs" />
+    <Compile Include="VectorTest.fs" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.*" />
-    <PackageReference Include="FsUnit.xUnit" Version="4.*" />
-    <PackageReference Include="xunit" Version="2.4.*" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="2.*">
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.*" />
+    <PackageReference Include="FsUnit.xUnit" Version="7.*" />
+    <PackageReference Include="xunit.v3" Version="3.*" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.*">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="coverlet.msbuild" Version="6.*">
+    <PackageReference Include="coverlet.msbuild" Version="8.*">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>

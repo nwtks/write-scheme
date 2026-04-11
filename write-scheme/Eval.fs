@@ -25,18 +25,22 @@ module Eval =
         | SReal _
         | SString _
         | SChar _
+        | SError _
+        | SValues _
+        | SVector _
         | SPair _
         | SUnquote _
         | SUnquoteSplicing _
+        | SPromise _
+        | SParameter _
         | SSyntax _
         | SProcedure _
-        | SContinuation _
-        | SError _ as x -> x |> cont
+        | SContinuation _ as x -> x |> cont
         | SSymbol x -> (lookupEnvs envs x).Value |> cont
-        | SQuote x -> SList [ SSymbol "quote"; x ] |> matchEval envs cont
-        | SQuasiquote x -> SList [ SSymbol "quasiquote"; x ] |> matchEval envs cont
         | SList [] -> SEmpty |> cont
         | SList(operator :: operands) -> operator |> matchEval envs (apply envs cont operands)
+        | SQuote x -> SList [ SSymbol "quote"; x ] |> matchEval envs cont
+        | SQuasiquote x -> SList [ SSymbol "quasiquote"; x ] |> matchEval envs cont
 
     and mapEval envs cont fn acc =
         function
@@ -44,8 +48,16 @@ module Eval =
         | x :: xs -> x |> matchEval envs (fun a -> xs |> mapEval envs cont fn (a :: acc))
 
     and apply envs cont args =
-
         function
+        | SParameter(r, _) ->
+            match args with
+            | [] -> r.Value |> cont
+            | _ ->
+                args
+                |> toSList
+                |> Print.print
+                |> sprintf "'%s' invalid parameter object call."
+                |> failwith
         | SSyntax fn -> fn envs cont args
         | SProcedure fn -> mapEval envs cont fn [] args
         | SContinuation fn ->

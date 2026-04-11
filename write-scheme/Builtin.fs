@@ -12,6 +12,7 @@ module Builtin =
               "if", SSyntax sIf |> ref
               "set!", SSyntax sSet |> ref
               "cond", SSyntax sCond |> ref
+              "case", SSyntax sCase |> ref
               "and", SSyntax sAnd |> ref
               "or", SSyntax sOr |> ref
               "when", SSyntax sWhen |> ref
@@ -20,11 +21,21 @@ module Builtin =
               "let*", SSyntax sLetStar |> ref
               "letrec", SSyntax sLetRec |> ref
               "letrec*", SSyntax sLetRecStar |> ref
+              "let-values", SSyntax sLetValues |> ref
               "begin", SSyntax sBegin |> ref
+              "do", SSyntax sDo |> ref
+              "delay", SSyntax sDelay |> ref
+              "delay-force", SSyntax sDelayForce |> ref
+              "parameterize", SSyntax sParameterize |> ref
+              "guard", SSyntax sGuard |> ref
               "quasiquote", SSyntax sQuasiquote |> ref
+              "syntax-rules", SSyntax sSyntaxRules |> ref
               "define", SSyntax sDefine |> ref
               "define-syntax", SSyntax sDefineSyntax |> ref
-              "syntax-rules", SSyntax sSyntaxRules |> ref
+              "force", SProcedure sForce |> ref
+              "promise?", SProcedure isPromise |> ref
+              "make-promise", SProcedure sMakePromise |> ref
+              "make-parameter", SProcedure sMakeParameter |> ref
               "eqv?", SProcedure isEqv |> ref
               "eq?", SProcedure isEqv |> ref
               "equal?", SProcedure isEqual |> ref
@@ -54,17 +65,28 @@ module Builtin =
               "symbol?", SProcedure isSymbol |> ref
               "char?", SProcedure isChar |> ref
               "string?", SProcedure isString |> ref
+              "vector?", SProcedure isVector |> ref
+              "make-vector", SProcedure sMakeVector |> ref
+              "vector", SProcedure sVector |> ref
+              "vector-length", SProcedure sVectorLength |> ref
+              "vector-ref", SProcedure sVectorRef |> ref
+              "vector-set!", SProcedure sVectorSet |> ref
+              "vector->list", SProcedure sVectorToList |> ref
+              "list->vector", SProcedure sListToVector |> ref
+              "vector-fill!", SProcedure sVectorFill |> ref
               "procedure?", SProcedure isProcedure |> ref
               "apply", SProcedure sApply |> ref
               "map", SProcedure sMap |> ref
               "for-each", SProcedure sForEach |> ref
-              "call/cc", SProcedure sCallCC |> ref
               "call-with-current-continuation", SProcedure sCallCC |> ref
-              "display", SProcedure sDisplay |> ref
-              "load", SProcedure sLoad |> ref
-              "raise", SProcedure sRaise |> ref
+              "call/cc", SProcedure sCallCC |> ref
+              "values", SProcedure sValues |> ref
+              "call-with-values", SProcedure sCallWithValues |> ref
               "with-exception-handler", SProcedure sWithExceptionHandler |> ref
+              "raise", SProcedure sRaise |> ref
               "error", SProcedure sError |> ref
               "error-object?", SProcedure isErrorObject |> ref
               "error-object-message", SProcedure sErrorObjectMessage |> ref
-              "error-object-irritants", SProcedure sErrorObjectIrritants |> ref ]
+              "error-object-irritants", SProcedure sErrorObjectIrritants |> ref
+              "display", SProcedure sDisplay |> ref
+              "load", SProcedure sLoad |> ref ]

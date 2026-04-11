@@ -11,16 +11,20 @@ module Type =
         | SString of string
         | SChar of string
         | SSymbol of string
+        | SError of string * SExpression list
+        | SValues of SExpression list
         | SList of SExpression list
+        | SVector of SExpression array
         | SPair of SExpression list * SExpression
         | SQuote of SExpression
         | SQuasiquote of SExpression
         | SUnquote of SExpression
         | SUnquoteSplicing of SExpression
+        | SPromise of (bool * SExpression) ref
+        | SParameter of SExpression ref * SExpression option
         | SSyntax of (SEnv list -> SContinuation -> SExpression list -> SExpression)
         | SProcedure of (SEnv list -> SContinuation -> SExpression list -> SExpression)
         | SContinuation of SContinuation
-        | SError of string * SExpression list
 
     and SEnv = System.Collections.Generic.Dictionary<string, SExpression ref>
     and SContinuation = SExpression -> SExpression

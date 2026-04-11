@@ -94,3 +94,11 @@ let string () =
     "\"\\x003A;\"" |> rep |> should equal "\":\""
     "\"\\x3071;\"" |> rep |> should equal "\"ぱ\""
     "\"\\x1F600;\"" |> rep |> should equal "\"😀\""
+
+[<Fact>]
+let vector () =
+    "#()" |> rep |> should equal "#()"
+    "#(1 2 3)" |> rep |> should equal "#(1 2 3)"
+    "#(0 10 5)" |> rep |> should equal "#(0 10 5)"
+    "#(\"a\" \"b\" \"c\")" |> rep |> should equal "#(\"a\" \"b\" \"c\")"
+    "#(a b c)" |> rep |> should equal "#(a b c)"

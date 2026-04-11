@@ -9,6 +9,33 @@ let repEnvs () =
     WriteScheme.Repl.newEnvs () |> WriteScheme.Repl.rep
 
 [<Fact>]
+let ``eqv?`` () =
+    "(eqv? 'a 'a)" |> rep |> should equal "#t"
+    "(eqv? 'a 'b)" |> rep |> should equal "#f"
+    "(eqv? 2 2)" |> rep |> should equal "#t"
+    "(eqv? 2 3)" |> rep |> should equal "#f"
+    "(eqv? \"a\" \"a\")" |> rep |> should equal "#f"
+    "(let ((p \"a\")) (eqv? p p))" |> rep |> should equal "#t"
+    "(eqv? '() '())" |> rep |> should equal "#t"
+    "(eqv? 100000000 100000000)" |> rep |> should equal "#t"
+    "(eqv? (cons 1 2) (cons 1 2))" |> rep |> should equal "#f"
+    "(eqv? (lambda () 1) (lambda () 2))" |> rep |> should equal "#f"
+    "(let ((p (lambda (x) x))) (eqv? p p))" |> rep |> should equal "#t"
+    "(eqv? #f 'nil)" |> rep |> should equal "#f"
+
+[<Fact>]
+let ``equal?`` () =
+    "(equal? 'a 'a)" |> rep |> should equal "#t"
+    "(equal? '(a) '(a))" |> rep |> should equal "#t"
+    "(equal? 'a '(a))" |> rep |> should equal "#f"
+    "(equal? '(a (b) c) '(a (b) c))" |> rep |> should equal "#t"
+    "(equal? '(a b c) '(a (b) c))" |> rep |> should equal "#f"
+    "(equal? \"abc\" \"abc\")" |> rep |> should equal "#t"
+    "(equal? \"a\" \"abc\")" |> rep |> should equal "#f"
+    "(equal? 2 2)" |> rep |> should equal "#t"
+    "(equal? 3 2)" |> rep |> should equal "#f"
+
+[<Fact>]
 let ``not`` () =
     "(not #t)" |> rep |> should equal "#f"
     "(not 3)" |> rep |> should equal "#f"
@@ -85,23 +112,19 @@ let ``call-with-current-continuation`` () =
     "(list-length '(a b . c))" |> rep |> should equal "#f"
 
 [<Fact>]
-let ``with-exception-handler basic`` () =
+let ``with-exception-handler`` () =
     "(with-exception-handler
        (lambda (e) (+ e 100))
        (lambda () (raise 1)))"
     |> rep
     |> should equal "101"
 
-[<Fact>]
-let ``with-exception-handler no exception`` () =
     "(with-exception-handler
-       (lambda (e) 'error)
+       (lambda (e) (+ e 100))
        (lambda () 42))"
     |> rep
     |> should equal "42"
 
-[<Fact>]
-let ``with-exception-handler nested`` () =
     "(with-exception-handler
        (lambda (e) (+ e 100))
        (lambda ()
@@ -112,7 +135,7 @@ let ``with-exception-handler nested`` () =
     |> should equal "111"
 
 [<Fact>]
-let ``error and error-object`` () =
+let ``error and error-object?`` () =
     "(with-exception-handler
        (lambda (e)
          (list (error-object? e)
@@ -122,8 +145,6 @@ let ``error and error-object`` () =
     |> rep
     |> should equal "(#t \"bad value\" (1 2))"
 
-[<Fact>]
-let ``error-object? false for non-error`` () =
     "(with-exception-handler
        (lambda (e) (error-object? e))
        (lambda () (raise 42)))"
