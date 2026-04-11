@@ -234,6 +234,42 @@ module Macro =
             SSyntax transformer |> cont
         | x -> x |> invalidParameter "'%s' invalid syntax-rules parameter."
 
+    [<TailCall>]
+    let rec evalLetSyntaxTransformers envs cont body acc =
+        function
+        | [] -> body |> eachEval (acc |> List.rev |> Eval.extendEnvs envs) cont SEmpty
+        | (var, expr) :: rest ->
+            expr
+            |> Eval.eval envs (fun transformer ->
+                rest |> evalLetSyntaxTransformers envs cont body ((var, ref transformer) :: acc))
+
+    let sLetSyntax envs cont =
+        function
+        | SList bindings :: body -> bindings |> List.map eachBinding |> evalLetSyntaxTransformers envs cont body []
+        | x -> x |> invalidParameter "'%s' invalid let-syntax parameter."
+
+    [<TailCall>]
+    let rec evalLetRecSyntaxTransformers envs cont body =
+        function
+        | [], _ -> body |> eachEval envs cont SEmpty
+        | (_, expr) :: rest, r: SExpression ref :: restRefs ->
+            expr
+            |> Eval.eval envs (fun transformer ->
+                r.Value <- transformer
+                (rest, restRefs) |> evalLetRecSyntaxTransformers envs cont body)
+        | _ -> failwith "invalid letrec-syntax state"
+
+    let sLetRecSyntax envs cont =
+        function
+        | SList bindings :: body ->
+            let bindings' = bindings |> List.map eachBinding
+            let vars = bindings' |> List.map (fun (v, _) -> v, ref SEmpty)
+            let envs' = vars |> Eval.extendEnvs envs
+
+            (bindings', vars |> List.map snd)
+            |> evalLetRecSyntaxTransformers envs' cont body
+        | x -> x |> invalidParameter "'%s' invalid letrec-syntax parameter."
+
     let sDefineSyntax (envs: SEnv list) cont =
         function
         | [ SSymbol var; expr ] ->

@@ -390,6 +390,30 @@ let ``guard`` () =
     |> should throw typeof<System.Exception>
 
 [<Fact>]
+let ``let-syntax`` () =
+    "(let-syntax ((when (syntax-rules ()
+                          ((when test stmt1 stmt2 ...)
+                           (if test
+                               (begin stmt1 stmt2 ...))))))
+       (let ((x #t))
+         (when x (set! x 'now))
+         x))"
+    |> rep
+    |> should equal "now"
+
+[<Fact>]
+let ``letrec-syntax`` () =
+    "(letrec-syntax ((my-or (syntax-rules ()
+                              ((my-or) #f)
+                              ((my-or e) e)
+                              ((my-or e1 e2 ...)
+                               (let ((temp e1))
+                                 (if temp temp (my-or e2 ...)))))))
+       (my-or #f #f 1 2))"
+    |> rep
+    |> should equal "1"
+
+[<Fact>]
 let ``quasiquote`` () =
     "`(list ,(+ 1 2) 4)" |> rep |> should equal "(list 3 4)"
     "(let ((name 'a)) `(list ,name ',name))" |> rep |> should equal "(list a 'a)"
