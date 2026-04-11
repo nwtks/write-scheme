@@ -34,6 +34,7 @@ module Builtin =
               "quasiquote", SSyntax sQuasiquote |> ref
               "syntax-rules", SSyntax sSyntaxRules |> ref
               "define", SSyntax sDefine |> ref
+              "define-values", SSyntax sDefineValues |> ref
               "define-syntax", SSyntax sDefineSyntax |> ref
               "force", SProcedure sForce |> ref
               "promise?", SProcedure isPromise |> ref

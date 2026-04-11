@@ -446,3 +446,16 @@ let ``define`` () =
     "(add3 3)" |> rep |> should equal "6"
     "(define first car)" |> rep |> ignore
     "(first '(1 2))" |> rep |> should equal "1"
+
+[<Fact>]
+let ``define-values`` () =
+    let rep = repEnvs ()
+
+    "(define-values (x y) (values 1 2))" |> rep |> ignore
+    "(+ x y)" |> rep |> should equal "3"
+
+    "(define-values (a . b) (values 10 20 30))" |> rep |> ignore
+    "a" |> rep |> should equal "10"
+    "b" |> rep |> should equal "(20 30)"
+
+    "(define-values () (values))" |> rep |> ignore

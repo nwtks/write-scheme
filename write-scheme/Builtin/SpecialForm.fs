@@ -498,3 +498,30 @@ module SpecialForm =
         | SList(SSymbol var :: formals) :: body -> sLambda envs cont (SList formals :: body) |> define' var
         | SPair([ SSymbol var ], formal) :: body -> sLambda envs cont (formal :: body) |> define' var
         | x -> x |> invalidParameter "'%s' invalid define parameter."
+
+    [<TailCall>]
+    let rec bindDefineValues envs cont formals =
+        function
+        | [] -> formals |> cont
+        | (var, expr) :: xs ->
+            expr
+            |> Eval.eval envs (fun value ->
+                if envs.Head.ContainsKey var then
+                    envs.Head.[var].Value <- value
+                else
+                    envs.Head.Add(var, ref value)
+
+                xs |> bindDefineValues envs cont formals)
+
+    let sDefineValues envs cont =
+        function
+        | [ formals; expr ] ->
+            expr
+            |> Eval.eval envs (fun result ->
+                let vals =
+                    match result with
+                    | SValues vs -> vs
+                    | x -> [ x ]
+
+                formals |> zipFormals vals |> bindDefineValues envs cont formals)
+        | x -> x |> invalidParameter "'%s' invalid define-values parameter."
