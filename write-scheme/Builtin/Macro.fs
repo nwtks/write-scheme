@@ -7,13 +7,13 @@ open Type
 module Macro =
     type SBinding =
         | SingleB of SExpression
-        | EllipsisB of SExpression list
+        | EllipsisB of SBinding list
 
-    let mergeBindings (b1: Map<string, SBinding>) (b2: Map<string, SBinding>) =
+    let mergeBindings b1 b2 =
         Map.fold (fun acc k v -> Map.add k v acc) b1 b2
 
     [<TailCall>]
-    let rec loopPatternVars (literals: Set<string>) acc =
+    let rec loopPatternVars literals acc =
         function
         | [] -> acc
         | x :: xs ->
@@ -23,76 +23,117 @@ module Macro =
             | SSymbol s when Set.contains s literals -> loopPatternVars literals acc xs
             | SSymbol s -> loopPatternVars literals (s :: acc) xs
             | SList pats -> loopPatternVars literals acc (pats @ xs)
+            | SPair(pats, p) -> loopPatternVars literals acc (pats @ [ p ] @ xs)
+            | SVector pats -> loopPatternVars literals acc (Array.toList pats @ xs)
             | _ -> loopPatternVars literals acc xs
 
     let collectPatternVars literals x =
         [ x ] |> loopPatternVars literals [] |> List.distinct |> List.rev
 
+    let freeIdentifierEquals defEnvs id1 useEnvs id2 =
+        match id1, id2 with
+        | SSymbol s1, SSymbol s2 ->
+            let ref1 = Eval.tryLookupEnvs defEnvs s1
+            let ref2 = Eval.tryLookupEnvs useEnvs s2
+
+            match ref1, ref2 with
+            | Some r1, Some r2 -> LanguagePrimitives.PhysicalEquality r1 r2
+            | None, None -> s1 = s2
+            | _ -> false
+        | _ -> false
+
     [<TailCall>]
-    let rec matchOne (literals: Set<string>) (pat: SExpression) (inp: SExpression) : Map<string, SBinding> option =
-        match pat with
-        | SSymbol "_" -> Some Map.empty
-        | SSymbol "..." -> None
+    let rec matchOne defEnvs useEnvs literals inp cont =
+        function
+        | SSymbol "_" -> cont (Some Map.empty)
+        | SSymbol "..." -> cont None
         | SSymbol s when Set.contains s literals ->
-            match inp with
-            | SSymbol s' when s = s' -> Some Map.empty
-            | _ -> None
-        | SSymbol s -> Some(Map.ofList [ s, SingleB inp ])
+            if freeIdentifierEquals defEnvs (SSymbol s) useEnvs inp then
+                cont (Some Map.empty)
+            else
+                cont None
+        | SSymbol s -> cont (Some(Map.ofList [ s, SingleB inp ]))
         | SEmpty ->
             match inp with
-            | SEmpty -> Some Map.empty
-            | _ -> None
+            | SEmpty -> cont (Some Map.empty)
+            | _ -> cont None
         | SBool v ->
             match inp with
-            | SBool v' when v = v' -> Some Map.empty
-            | _ -> None
+            | SBool v' when v = v' -> cont (Some Map.empty)
+            | _ -> cont None
         | SRational(n1, d1) ->
             match inp with
-            | SRational(n2, d2) when n1 = n2 && d1 = d2 -> Some Map.empty
-            | _ -> None
+            | SRational(n2, d2) when n1 = n2 && d1 = d2 -> cont (Some Map.empty)
+            | _ -> cont None
         | SReal v ->
             match inp with
-            | SReal v' when v = v' -> Some Map.empty
-            | _ -> None
+            | SReal v' when v = v' -> cont (Some Map.empty)
+            | _ -> cont None
         | SString v ->
             match inp with
-            | SString v' when v = v' -> Some Map.empty
-            | _ -> None
+            | SString v' when v = v' -> cont (Some Map.empty)
+            | _ -> cont None
         | SChar v ->
             match inp with
-            | SChar v' when v = v' -> Some Map.empty
-            | _ -> None
+            | SChar v' when v = v' -> cont (Some Map.empty)
+            | _ -> cont None
         | SList patList ->
             match inp with
-            | SList inpList -> matchPatternList literals patList inpList
-            | _ -> None
-        | _ -> None
+            | SList inpList -> patList |> matchPatternList defEnvs useEnvs literals inpList cont
+            | _ -> cont None
+        | SPair(patList, patTail) ->
+            match inp with
+            | SPair(inpList, inpTail) ->
+                patList
+                |> matchPatternList defEnvs useEnvs literals inpList (function
+                    | Some b1 ->
+                        patTail
+                        |> matchOne defEnvs useEnvs literals inpTail (fun b2 ->
+                            Option.map (mergeBindings b1) b2 |> cont)
+                    | None -> cont None)
+            | SList inpList when inpList.Length >= patList.Length ->
+                patList
+                |> matchPatternList defEnvs useEnvs literals (List.take patList.Length inpList) (function
+                    | Some b1 ->
+                        patTail
+                        |> matchOne defEnvs useEnvs literals (toSList (List.skip patList.Length inpList)) (fun b2 ->
+                            Option.map (mergeBindings b1) b2 |> cont)
+                    | None -> cont None)
+            | _ -> cont None
+        | SVector patArray ->
+            match inp with
+            | SVector inpArray when patArray.Length = inpArray.Length ->
+                Array.toList patArray
+                |> matchPatternList defEnvs useEnvs literals (Array.toList inpArray) cont
+            | _ -> cont None
+        | _ -> cont None
 
-    and matchPatternList
-        (literals: Set<string>)
-        (pats: SExpression list)
-        (inps: SExpression list)
-        : Map<string, SBinding> option =
-        match pats with
-        | [ patE; SSymbol "..." ] -> matchEllipsis literals patE inps
+    and matchPatternList defEnvs useEnvs literals inps cont =
+        function
+        | [ patE; SSymbol "..." ] ->
+            inps
+            |> matchEllipsis defEnvs useEnvs literals cont patE (collectPatternVars literals patE) []
         | pat :: rest ->
             match inps with
             | inp :: restInps ->
-                matchOne literals pat inp
-                |> Option.bind (fun b1 -> matchPatternList literals rest restInps |> Option.map (mergeBindings b1))
-            | [] -> None
-        | [] -> if List.isEmpty inps then Some Map.empty else None
+                pat
+                |> matchOne defEnvs useEnvs literals inp (function
+                    | Some b1 ->
+                        rest
+                        |> matchPatternList defEnvs useEnvs literals restInps (fun b2 ->
+                            Option.map (mergeBindings b1) b2 |> cont)
+                    | None -> cont None)
+            | [] -> cont None
+        | [] ->
+            if List.isEmpty inps then
+                cont (Some Map.empty)
+            else
+                cont None
 
-    and matchEllipsis
-        (literals: Set<string>)
-        (patE: SExpression)
-        (inps: SExpression list)
-        : Map<string, SBinding> option =
-        let vars = collectPatternVars literals patE
-        let results = inps |> List.map (matchOne literals patE)
-
-        if results |> List.forall Option.isSome then
-            let allBindings = results |> List.map Option.get
+    and matchEllipsis defEnvs useEnvs literals cont pat vars results =
+        function
+        | [] ->
+            let allBindings = results |> List.rev |> List.map Option.get
 
             let merged =
                 vars
@@ -102,15 +143,20 @@ module Macro =
                             allBindings
                             |> List.map (fun b ->
                                 match Map.tryFind var b with
-                                | Some(SingleB v) -> v
-                                | _ -> SEmpty)
+                                | Some b' -> b'
+                                | None -> SingleB SEmpty)
 
                         Map.add var (EllipsisB values) acc)
                     Map.empty
 
-            Some merged
-        else
-            None
+            cont (Some merged)
+        | inp :: restInps ->
+            pat
+            |> matchOne defEnvs useEnvs literals inp (function
+                | Some b ->
+                    restInps
+                    |> matchEllipsis defEnvs useEnvs literals cont pat vars (Some b :: results)
+                | None -> cont None)
 
     [<TailCall>]
     let rec loopTemplateVars acc =
@@ -125,13 +171,14 @@ module Macro =
             | SUnquote x
             | SUnquoteSplicing x -> loopTemplateVars acc (x :: xs)
             | SPair(elems, x) -> loopTemplateVars acc (elems @ x :: xs)
+            | SVector elements -> loopTemplateVars acc (Array.toList elements @ xs)
             | _ -> loopTemplateVars acc xs
 
     let collectTemplateVars x =
         [ x ] |> loopTemplateVars [] |> List.distinct |> List.rev
 
     [<TailCall>]
-    let rec renameTemplate (toRename: Map<string, string>) expr cont =
+    let rec renameTemplate toRename expr cont =
         match expr with
         | SSymbol s ->
             match Map.tryFind s toRename with
@@ -173,6 +220,11 @@ module Macro =
                     expandTemplate (fun expandedX -> SPair(expandedXs, expandedX) |> cont) bindings x)
                 bindings
                 xs
+        | SVector elements ->
+            expandTemplateList
+                (fun expandedElems -> SVector(List.toArray expandedElems) |> cont)
+                bindings
+                (Array.toList elements)
         | x -> x |> cont
 
     and expandTemplateList cont bindings =
@@ -215,7 +267,7 @@ module Macro =
         else
             let localBindings =
                 ellipsisVars
-                |> List.fold (fun acc (v, values) -> Map.add v (SingleB values.[i]) acc) bindings
+                |> List.fold (fun acc (v, values) -> Map.add v values.[i] acc) bindings
 
             expandTemplate
                 (fun res -> expandEllipsis cont bindings tmpl ellipsisVars count (i + 1) (res :: acc))
@@ -227,30 +279,32 @@ module Macro =
         function
         | [] -> failwith "no matching syntax-rules pattern"
         | (patBody, template) :: rest ->
-            match matchPatternList literalSet patBody args with
-            | Some bindings ->
-                let patternVars = collectPatternVars literalSet (SList patBody) |> Set.ofList
+            patBody
+            |> matchPatternList defEnvs useEnvs literalSet args (function
+                | Some bindings ->
+                    let patternVars = collectPatternVars literalSet (SList patBody) |> Set.ofList
 
-                let templateVars =
-                    collectTemplateVars template
-                    |> List.filter (fun s -> not (Set.contains s patternVars || Set.contains s literalSet || s = "..."))
-                    |> List.distinct
+                    let templateVars =
+                        collectTemplateVars template
+                        |> List.filter (fun s ->
+                            not (Set.contains s patternVars || Set.contains s literalSet || s = "..."))
+                        |> List.distinct
 
-                let expansionId = Type.getNextExpansionId ()
-                let rename (s: string) = sprintf "%s#%d" s expansionId
-                let renameMap = templateVars |> List.map (fun s -> s, rename s) |> Map.ofList
-                let renamedTemplate = renameTemplate renameMap template id
+                    let expansionId = Type.getNextExpansionId ()
+                    let rename (s: string) = sprintf "%s#%d" s expansionId
+                    let renameMap = templateVars |> List.map (fun s -> s, rename s) |> Map.ofList
+                    let renamedTemplate = renameTemplate renameMap template id
 
-                let definitions =
-                    templateVars
-                    |> List.choose (fun s ->
-                        match Eval.tryLookupEnvs defEnvs s with
-                        | Some v -> Some(rename s, v)
-                        | None -> None)
+                    let definitions =
+                        templateVars
+                        |> List.choose (fun s ->
+                            match Eval.tryLookupEnvs defEnvs s with
+                            | Some v -> Some(rename s, v)
+                            | None -> None)
 
-                let extendedEnvs = Eval.extendEnvs useEnvs definitions
-                expandTemplate (Eval.eval extendedEnvs cont) bindings renamedTemplate
-            | None -> trySyntaxRules defEnvs useEnvs cont literalSet args rest
+                    let extendedEnvs = Eval.extendEnvs useEnvs definitions
+                    expandTemplate (Eval.eval extendedEnvs cont) bindings renamedTemplate
+                | None -> trySyntaxRules defEnvs useEnvs cont literalSet args rest)
 
     let sSyntaxRules envs cont =
         let parseLiterals =

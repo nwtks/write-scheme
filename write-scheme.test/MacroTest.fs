@@ -144,3 +144,72 @@ let ``syntax-rules hygiene preservation`` () =
        (my-if #t 1 2))"
     |> rep
     |> should equal "1"
+
+[<Fact>]
+let ``nested ellipsis`` () =
+    let rep = repEnvs ()
+
+    "(define-syntax nested
+        (syntax-rules ()
+            ((_ ((x ...) ...))
+              (list (list x ...) ...))))"
+    |> rep
+    |> ignore
+
+    "(nested ((1 2) (3 4)))" |> rep |> should equal "((1 2) (3 4))"
+
+[<Fact>]
+let ``deeply nested ellipsis`` () =
+    let rep = repEnvs ()
+
+    "(define-syntax nested-3
+        (syntax-rules ()
+            ((_ (((x ...) ...) ...))
+              (list (list (list x ...) ...) ...))))"
+    |> rep
+    |> ignore
+
+    "(nested-3 (((1 2) (3 4)) ((5 6) (7 8))))"
+    |> rep
+    |> should equal "(((1 2) (3 4)) ((5 6) (7 8)))"
+
+[<Fact>]
+let ``literal matching with shadowing`` () =
+    let rep = repEnvs ()
+
+    "(define-syntax check-lit
+        (syntax-rules (lit)
+            ((_ lit) #t)
+            ((_ _) #f)))"
+    |> rep
+    |> ignore
+
+    "(check-lit lit)" |> rep |> should equal "#t"
+
+    // Shadowing 'lit' should make it NOT match the literal in the macro
+    "(let ((lit 1)) (check-lit lit))" |> rep |> should equal "#f"
+
+[<Fact>]
+let ``dot pair pattern`` () =
+    let rep = repEnvs ()
+
+    "(define-syntax my-dot
+        (syntax-rules ()
+            ((_ (a . b)) (list a 'b))))"
+    |> rep
+    |> ignore
+
+    "(my-dot (1 . 2))" |> rep |> should equal "(1 2)"
+    "(my-dot (1 2 3))" |> rep |> should equal "(1 (2 3))"
+
+[<Fact>]
+let ``vector pattern`` () =
+    let rep = repEnvs ()
+
+    "(define-syntax my-vector
+        (syntax-rules ()
+            ((_ #(x y)) (list y x))))"
+    |> rep
+    |> ignore
+
+    "(my-vector #(1 2))" |> rep |> should equal "(2 1)"
