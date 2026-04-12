@@ -31,16 +31,16 @@ module Math =
             else
                 SFalse
 
-    let compareNumber pred1 pred2 envs cont =
+    let compareNumber pred1 pred2 cont =
         function
         | [] -> STrue |> cont
         | x :: xs -> xs |> compare pred1 pred2 x |> cont
 
-    let equalNumber envs cont args = compareNumber (=) (=) envs cont args
-    let lessNumber envs cont args = compareNumber (<) (<) envs cont args
-    let greaterNumber envs cont args = compareNumber (>) (>) envs cont args
-    let lessEqualNumber envs cont args = compareNumber (<=) (<=) envs cont args
-    let greaterEqualNumber envs cont args = compareNumber (>=) (>=) envs cont args
+    let equalNumber envs cont args = compareNumber (=) (=) cont args
+    let lessNumber envs cont args = compareNumber (<) (<) cont args
+    let greaterNumber envs cont args = compareNumber (>) (>) cont args
+    let lessEqualNumber envs cont args = compareNumber (<=) (<=) cont args
+    let greaterEqualNumber envs cont args = compareNumber (>=) (>=) cont args
 
     let isZero envs cont =
         function
@@ -57,7 +57,7 @@ module Math =
         | [ x ] -> lessNumber envs cont [ x; SZero ]
         | _ -> SFalse |> cont
 
-    let calc op1 op2 ident1 ident2 envs cont =
+    let calc op1 op2 ident1 ident2 cont =
         let op x y =
             match x, y with
             | SRational(a1, a2), SRational(b1, b2) -> op1 a1 a2 b1 b2
@@ -78,12 +78,11 @@ module Math =
             (fun n1 n2 -> n1 + n2 |> SReal)
             0I
             0.0
-            envs
             cont
             args
 
     let multiplyNumber envs cont args =
-        calc (fun a1 a2 b1 b2 -> newSRational (a1 * b1) (a2 * b2)) (fun n1 n2 -> n1 * n2 |> SReal) 1I 1.0 envs cont args
+        calc (fun a1 a2 b1 b2 -> newSRational (a1 * b1) (a2 * b2)) (fun n1 n2 -> n1 * n2 |> SReal) 1I 1.0 cont args
 
     let subtractNumber envs cont args =
         calc
@@ -91,9 +90,8 @@ module Math =
             (fun n1 n2 -> n1 - n2 |> SReal)
             0I
             0.0
-            envs
             cont
             args
 
     let divideNumber envs cont args =
-        calc (fun a1 a2 b1 b2 -> newSRational (a1 * b2) (a2 * b1)) (fun n1 n2 -> n1 / n2 |> SReal) 1I 1.0 envs cont args
+        calc (fun a1 a2 b1 b2 -> newSRational (a1 * b2) (a2 * b1)) (fun n1 n2 -> n1 / n2 |> SReal) 1I 1.0 cont args

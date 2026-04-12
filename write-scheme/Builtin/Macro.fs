@@ -45,46 +45,46 @@ module Macro =
     [<TailCall>]
     let rec matchOne defEnvs useEnvs literals ellipsis inp cont =
         function
-        | SSymbol "_" -> cont (Some Map.empty)
-        | SSymbol s when s = ellipsis -> cont None
+        | SSymbol "_" -> Map.empty |> Some |> cont
+        | SSymbol s when s = ellipsis -> None |> cont
         | SSymbol s when Set.contains s literals ->
             if freeIdentifierEquals defEnvs (SSymbol s) useEnvs inp then
-                cont (Some Map.empty)
+                Map.empty |> Some |> cont
             else
-                cont None
-        | SSymbol s -> cont (Some(Map.ofList [ s, SingleB inp ]))
+                None |> cont
+        | SSymbol s -> Map.ofList [ s, SingleB inp ] |> Some |> cont
         | SEmpty ->
             match inp with
-            | SEmpty -> cont (Some Map.empty)
-            | _ -> cont None
+            | SEmpty -> Map.empty |> Some |> cont
+            | _ -> None |> cont
         | SBool v ->
             match inp with
-            | SBool v' when v = v' -> cont (Some Map.empty)
-            | _ -> cont None
+            | SBool v' when v = v' -> Map.empty |> Some |> cont
+            | _ -> None |> cont
         | SRational(n1, d1) ->
             match inp with
-            | SRational(n2, d2) when n1 = n2 && d1 = d2 -> cont (Some Map.empty)
-            | _ -> cont None
+            | SRational(n2, d2) when n1 = n2 && d1 = d2 -> Map.empty |> Some |> cont
+            | _ -> None |> cont
         | SReal v ->
             match inp with
-            | SReal v' when v = v' -> cont (Some Map.empty)
-            | _ -> cont None
+            | SReal v' when v = v' -> Map.empty |> Some |> cont
+            | _ -> None |> cont
         | SString v ->
             match inp with
-            | SString v' when v = v' -> cont (Some Map.empty)
-            | _ -> cont None
+            | SString v' when v = v' -> Map.empty |> Some |> cont
+            | _ -> None |> cont
         | SChar v ->
             match inp with
-            | SChar v' when v = v' -> cont (Some Map.empty)
-            | _ -> cont None
+            | SChar v' when v = v' -> Map.empty |> Some |> cont
+            | _ -> None |> cont
         | SList [ SSymbol ell; SSymbol s ] when ell = ellipsis && s = ellipsis ->
             match inp with
-            | SSymbol s' when s' = ellipsis -> cont (Some Map.empty)
-            | _ -> cont None
+            | SSymbol s' when s' = ellipsis -> Map.empty |> Some |> cont
+            | _ -> None |> cont
         | SList patList ->
             match inp with
             | SList inpList -> patList |> matchPatternList defEnvs useEnvs literals ellipsis inpList cont
-            | _ -> cont None
+            | _ -> None |> cont
         | SPair(patList, patTail) ->
             match inp with
             | SPair(inpList, inpTail) ->
@@ -94,7 +94,7 @@ module Macro =
                         patTail
                         |> matchOne defEnvs useEnvs literals ellipsis inpTail (fun b2 ->
                             Option.map (mergeBindings b1) b2 |> cont)
-                    | None -> cont None)
+                    | None -> None |> cont)
             | SList inpList when inpList.Length >= patList.Length ->
                 patList
                 |> matchPatternList defEnvs useEnvs literals ellipsis (List.take patList.Length inpList) (function
@@ -107,15 +107,15 @@ module Macro =
                             ellipsis
                             (inpList |> List.skip patList.Length |> toSList)
                             (fun b2 -> Option.map (mergeBindings b1) b2 |> cont)
-                    | None -> cont None)
-            | _ -> cont None
+                    | None -> None |> cont)
+            | _ -> None |> cont
         | SVector patArray ->
             match inp with
             | SVector inpArray when patArray.Length = inpArray.Length ->
                 Array.toList patArray
                 |> matchPatternList defEnvs useEnvs literals ellipsis (Array.toList inpArray) cont
-            | _ -> cont None
-        | _ -> cont None
+            | _ -> None |> cont
+        | _ -> None |> cont
 
     and [<TailCall>] matchPatternList defEnvs useEnvs literals ellipsis inps cont pats =
         let dotIdx =
@@ -134,7 +134,7 @@ module Macro =
             let inpCount = inps.Length
 
             if inpCount < prefixCount + suffixCount then
-                cont None
+                None |> cont
             else
                 let prefixInps = inps |> List.take prefixCount
                 let suffixInps = inps |> List.skip (inpCount - suffixCount)
@@ -159,13 +159,13 @@ module Macro =
                                     literals
                                     ellipsis
                                     (function
-                                    | Some b3 -> Some(mergeBindings (mergeBindings b1 b2) b3) |> cont
-                                    | None -> cont None)
+                                    | Some b3 -> mergeBindings (mergeBindings b1 b2) b3 |> Some |> cont
+                                    | None -> None |> cont)
                                     ellipsisPat
                                     vars
                                     []
-                            | None -> cont None)
-                    | None -> cont None)
+                            | None -> None |> cont)
+                    | None -> None |> cont)
         | _ ->
             match pats with
             | pat :: rest ->
@@ -177,41 +177,40 @@ module Macro =
                             rest
                             |> matchPatternList defEnvs useEnvs literals ellipsis restInps (fun b2 ->
                                 Option.map (mergeBindings b1) b2 |> cont)
-                        | None -> cont None)
-                | [] -> cont None
+                        | None -> None |> cont)
+                | [] -> None |> cont
             | [] ->
                 if List.isEmpty inps then
-                    cont (Some Map.empty)
+                    Map.empty |> Some |> cont
                 else
-                    cont None
+                    None |> cont
 
     and [<TailCall>] matchEllipsis defEnvs useEnvs literals ellipsis cont pat vars results =
         function
         | [] ->
             let allBindings = results |> List.rev |> List.map Option.get
 
-            let merged =
-                vars
-                |> List.fold
-                    (fun acc var ->
-                        let values =
-                            allBindings
-                            |> List.map (fun b ->
-                                match Map.tryFind var b with
-                                | Some b' -> b'
-                                | None -> SingleB SEmpty)
+            vars
+            |> List.fold
+                (fun acc var ->
+                    let values =
+                        allBindings
+                        |> List.map (fun b ->
+                            match Map.tryFind var b with
+                            | Some b' -> b'
+                            | None -> SingleB SEmpty)
 
-                        Map.add var (EllipsisB values) acc)
-                    Map.empty
-
-            cont (Some merged)
+                    Map.add var (EllipsisB values) acc)
+                Map.empty
+            |> Some
+            |> cont
         | inp :: restInps ->
             pat
             |> matchOne defEnvs useEnvs literals ellipsis inp (function
                 | Some b ->
                     restInps
                     |> matchEllipsis defEnvs useEnvs literals ellipsis cont pat vars (Some b :: results)
-                | None -> cont None)
+                | None -> None |> cont)
 
     [<TailCall>]
     let rec loopTemplateVars ellipsis acc =
@@ -243,8 +242,7 @@ module Macro =
         | SPair(carElements, cdr) ->
             renameTemplateList toRename carElements (fun resCar ->
                 renameTemplate toRename cdr (fun resCdr -> SPair(resCar, resCdr) |> cont))
-        | SVector elements ->
-            renameTemplateList toRename (Array.toList elements) (fun res -> res |> List.toArray |> SVector |> cont)
+        | SVector elements -> renameTemplateList toRename (Array.toList elements) (List.toArray >> SVector >> cont)
         | SQuote x -> renameTemplate toRename x (SQuote >> cont)
         | SQuasiquote x -> renameTemplate toRename x (SQuasiquote >> cont)
         | SUnquote x -> renameTemplate toRename x (SUnquote >> cont)
@@ -283,21 +281,15 @@ module Macro =
         | SVector elements ->
             elements
             |> Array.toList
-            |> expandTemplateList
-                ellipsis
-                isRaw
-                (fun expandedElems -> expandedElems |> List.toArray |> SVector |> cont)
-                bindings
+            |> expandTemplateList ellipsis isRaw (List.toArray >> SVector >> cont) bindings
         | x -> x |> cont
 
     and [<TailCall>] expandTemplateList ellipsis isRaw cont bindings =
         function
         | [] -> [] |> cont
         | tmpl :: SSymbol s :: rest when not isRaw && s = ellipsis ->
-            let vars = collectTemplateVars ellipsis tmpl
-
             let ellipsisVars =
-                vars
+                collectTemplateVars ellipsis tmpl
                 |> List.choose (fun v ->
                     match Map.tryFind v bindings with
                     | Some(EllipsisB values) -> Some(v, values)
@@ -352,6 +344,13 @@ module Macro =
                 (fun res -> expandEllipsis ellipsis cont bindings tmpl ellipsisVars count (i + 1) (res :: acc))
                 localBindings
 
+    let private nextExpansionId = new System.Threading.ThreadLocal<int>(fun () -> 0)
+
+    let getNextExpansionId () =
+        let id = nextExpansionId.Value
+        nextExpansionId.Value <- id + 1
+        id
+
     [<TailCall>]
     let rec trySyntaxRules defEnvs useEnvs cont ellipsis literalSet args =
         function
@@ -361,7 +360,7 @@ module Macro =
             |> matchPatternList defEnvs useEnvs literalSet ellipsis args (function
                 | Some bindings ->
                     let patternVars =
-                        collectPatternVars literalSet ellipsis (SList patBody) |> Set.ofList
+                        collectPatternVars literalSet ellipsis (toSList patBody) |> Set.ofList
 
                     let templateVars =
                         collectTemplateVars ellipsis template
@@ -369,7 +368,7 @@ module Macro =
                             not (Set.contains s patternVars || Set.contains s literalSet || s = ellipsis))
                         |> List.distinct
 
-                    let expansionId = Type.getNextExpansionId ()
+                    let expansionId = getNextExpansionId ()
                     let rename s = sprintf "%s#%d" s expansionId
                     let renameMap = templateVars |> List.map (fun s -> s, rename s) |> Map.ofList
                     let renamedTemplate = renameTemplate renameMap template id
@@ -431,7 +430,7 @@ module Macro =
     [<TailCall>]
     let rec evalLetSyntaxTransformers envs cont body acc =
         function
-        | [] -> body |> eachEval (acc |> List.rev |> Eval.extendEnvs envs) cont SEmpty
+        | [] -> body |> Eval.eachEval (acc |> List.rev |> Eval.extendEnvs envs) cont SEmpty
         | (var, expr) :: rest ->
             expr
             |> Eval.eval envs (fun transformer ->
@@ -445,7 +444,7 @@ module Macro =
     [<TailCall>]
     let rec evalLetRecSyntaxTransformers envs cont body =
         function
-        | [], _ -> body |> eachEval envs cont SEmpty
+        | [], _ -> body |> Eval.eachEval envs cont SEmpty
         | (_, expr) :: rest, r: SExpression ref :: restRefs ->
             expr
             |> Eval.eval envs (fun transformer ->
@@ -467,10 +466,8 @@ module Macro =
     let sDefineSyntax (envs: SEnv list) cont =
         function
         | [ SSymbol var; expr ] ->
-            envs.Head.TryAdd(var, ref SEmpty) |> ignore
-
             expr
             |> Eval.eval envs (fun x ->
-                envs.Head.[var].Value <- x
+                Eval.defineEnvVar envs var x
                 var |> SSymbol |> cont)
         | x -> x |> invalidParameter "'%s' invalid define-syntax parameter."

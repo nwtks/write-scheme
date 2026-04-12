@@ -34,6 +34,10 @@ let ``equal?`` () =
     "(equal? \"a\" \"abc\")" |> rep |> should equal "#f"
     "(equal? 2 2)" |> rep |> should equal "#t"
     "(equal? 3 2)" |> rep |> should equal "#f"
+    "(equal? '#(1 2 3) '#(1 2 3))" |> rep |> should equal "#t"
+    "(equal? '#(1 2 3) '#(1 2 4))" |> rep |> should equal "#f"
+    "(equal? (values 1 2) (values 1 2))" |> rep |> should equal "#t"
+    "(equal? (values 1 2) (values 1 3))" |> rep |> should equal "#f"
 
 [<Fact>]
 let ``not`` () =

@@ -7,6 +7,7 @@ open Type
 module List =
     let isPair envs cont =
         function
+        | [ SList [] ] -> SFalse |> cont
         | [ SList _ ]
         | [ SPair _ ] -> STrue |> cont
         | _ -> SFalse |> cont

@@ -20,14 +20,13 @@ module Core =
                 thunk
                 |> Eval.apply
                     envs
-                    (fun result ->
-                        match result with
-                        | SPromise r2 ->
-                            r.Value <- r2.Value
-                            sForce envs cont [ SPromise r ]
-                        | value ->
-                            r.Value <- (true, value)
-                            value |> cont)
+                    (function
+                    | SPromise r2 ->
+                        r.Value <- r2.Value
+                        sForce envs cont [ SPromise r ]
+                    | value ->
+                        r.Value <- true, value
+                        value |> cont)
                     []
         | [ x ] -> x |> cont
         | x -> x |> invalidParameter "'%s' invalid force parameter."
@@ -51,9 +50,48 @@ module Core =
         | [ a; b ] -> (a, b) |> eqv |> toSBool |> cont
         | _ -> SFalse |> cont
 
+    [<TailCall>]
+    let rec loopEqual =
+        function
+        | [] -> true
+        | (a, b) :: xs ->
+            match a, b with
+            | SList la, SList lb ->
+                if la.Length <> lb.Length then
+                    false
+                else
+                    List.zip la lb @ xs |> loopEqual
+            | SPair(la, ra), SPair(lb, rb) ->
+                if la.Length <> lb.Length then
+                    false
+                else
+                    List.zip la lb @ (ra, rb) :: xs |> loopEqual
+            | SVector va, SVector vb ->
+                if va.Length <> vb.Length then
+                    false
+                else
+                    let rec add i acc =
+                        if i < 0 then acc else add (i - 1) ((va.[i], vb.[i]) :: acc)
+
+                    add (va.Length - 1) xs |> loopEqual
+            | SValues va, SValues vb ->
+                if va.Length <> vb.Length then
+                    false
+                else
+                    List.zip va vb @ xs |> loopEqual
+            | SQuote a', SQuote b' -> (a', b') :: xs |> loopEqual
+            | SUnquote a', SUnquote b' -> (a', b') :: xs |> loopEqual
+            | SBool a', SBool b' -> a' = b' && loopEqual xs
+            | SRational(a1, a2), SRational(b1, b2) -> a1 = b1 && a2 = b2 && loopEqual xs
+            | SReal a', SReal b' -> a' = b' && loopEqual xs
+            | SString a', SString b' -> a' = b' && loopEqual xs
+            | SChar a', SChar b' -> a' = b' && loopEqual xs
+            | SSymbol a', SSymbol b' -> a' = b' && loopEqual xs
+            | a', b' -> a' = b' && loopEqual xs
+
     let isEqual envs cont =
         function
-        | [ a; b ] -> (a, b) |> equal |> toSBool |> cont
+        | [ a; b ] -> [ a, b ] |> loopEqual |> toSBool |> cont
         | _ -> SFalse |> cont
 
     let sNot envs cont =
@@ -271,7 +309,6 @@ module Core =
     let sLoad envs cont =
         function
         | [ SString f ] ->
-            System.IO.File.ReadAllText(f) |> Read.read |> Eval.eval envs cont |> ignore
-
+            System.IO.File.ReadAllText f |> Read.read |> Eval.eval envs cont |> ignore
             sprintf "Loaded '%s'." f |> SSymbol |> cont
         | x -> x |> invalidParameter "'%s' invalid load parameter."

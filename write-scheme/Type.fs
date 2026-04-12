@@ -11,12 +11,12 @@ module Type =
         | SString of string
         | SChar of string
         | SSymbol of string
-        | SError of string * SExpression list
-        | SValues of SExpression list
         | SList of SExpression list
-        | SVector of SExpression array
         | SPair of SExpression list * SExpression
+        | SVector of SExpression array
+        | SValues of SExpression list
         | SRecord of typeId: int * typeName: string * fields: SExpression ref array
+        | SError of string * SExpression list
         | SQuote of SExpression
         | SQuasiquote of SExpression
         | SUnquote of SExpression
@@ -56,30 +56,12 @@ module Type =
             let x1', x2' = if x2.Sign < 0 then -x1, -x2 else x1, x2
             SRational(x1' / gcd, x2' / gcd)
 
-    let mutable private nextRecordTypeId = 0
-
-    let getNextRecordTypeId () =
-        let id = nextRecordTypeId
-        nextRecordTypeId <- nextRecordTypeId + 1
-        id
-
-    let mutable private nextExpansionId = 0
-
-    let getNextExpansionId () =
-        let id = nextExpansionId
-        nextExpansionId <- nextExpansionId + 1
-        id
-
     type Winder =
         { Id: int
           Before: SExpression
           After: SExpression }
 
-    let nextWinderId = ref 0
-    let currentWinders = ref ([]: Winder list)
-
-    type SavedParameter =
-        { Ref: SExpression ref
-          SavedValue: SExpression ref }
+    let nextWinderId = new System.Threading.ThreadLocal<int>(fun () -> 0)
+    let currentWinders = new System.Threading.ThreadLocal<Winder list>(fun () -> [])
 
     exception SchemeRaise of SExpression

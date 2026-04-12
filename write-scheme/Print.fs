@@ -18,13 +18,13 @@ module Print =
         | SString x -> x.Replace("\"", "\\\"") |> sprintf "\"%s\""
         | SChar x -> sprintf "#\\%s" x
         | SSymbol x -> x
+        | SList xs -> xs |> printList |> sprintf "(%s)"
+        | SPair(x1, x2) -> sprintf "(%s . %s)" (printList x1) (print x2)
+        | SVector xs -> xs |> Array.map print |> String.concat " " |> sprintf "#(%s)"
+        | SValues xs -> xs |> List.map print |> String.concat " " |> sprintf "(values %s)"
+        | SRecord(_, typeName, _) -> sprintf "#<%s>" typeName
         | SError(msg, []) -> sprintf "#<error \"%s\">" msg
         | SError(msg, irritants) -> sprintf "#<error \"%s\" %s>" msg (printList irritants)
-        | SValues xs -> xs |> List.map print |> String.concat " " |> sprintf "(values %s)"
-        | SList xs -> xs |> printList |> sprintf "(%s)"
-        | SVector xs -> xs |> Array.map print |> String.concat " " |> sprintf "#(%s)"
-        | SPair(x1, x2) -> sprintf "(%s . %s)" (printList x1) (print x2)
-        | SRecord(_, typeName, _) -> sprintf "#<%s>" typeName
         | SQuote x -> print x |> sprintf "'%s"
         | SQuasiquote x -> print x |> sprintf "`%s"
         | SUnquote x -> print x |> sprintf ",%s"

@@ -10,10 +10,40 @@ module SpecialForm =
         | [ x ] -> x |> cont
         | x -> x |> invalidParameter "'%s' invalid quote parameter."
 
+    let zipFormals args =
+        let zipVarArg vars args' =
+            let varsLen = List.length vars
+            let argsLen = List.length args'
+
+            if argsLen < varsLen then
+                sprintf "%d parameters requires, but %d." varsLen argsLen |> failwith
+
+            List.zip vars (args' |> List.take varsLen)
+            |> List.map (function
+                | SSymbol var, expr -> var, expr
+                | x, _ -> Print.print x |> sprintf "'%s' not symbol." |> failwith)
+
+        let argsExpr =
+            function
+            | [] -> SEmpty
+            | [ x ] -> x
+            | xs -> xs |> toSList |> SQuote
+
+        function
+        | SSymbol var -> [ var, args |> argsExpr ]
+        | SEmpty -> []
+        | SList vars -> zipVarArg vars args
+        | SPair(vars, SSymbol var) ->
+            let varsLen = List.length vars
+
+            zipVarArg vars (args |> List.take varsLen)
+            @ [ var, args |> List.skip varsLen |> argsExpr ]
+        | x -> Print.print x |> sprintf "'%s' not symbol." |> failwith
+
     [<TailCall>]
     let rec bindArgs envs cont body acc =
         function
-        | [] -> body |> eachEval (List.rev acc |> Eval.extendEnvs envs) cont SEmpty
+        | [] -> body |> Eval.eachEval (acc |> List.rev |> Eval.extendEnvs envs) cont SEmpty
         | (var, expr) :: xs ->
             expr
             |> Eval.eval envs (fun a -> xs |> bindArgs envs cont body ((var, ref a) :: acc))
@@ -51,10 +81,11 @@ module SpecialForm =
     let rec sCond envs cont =
         function
         | [] -> SEmpty |> cont
-        | [ SList(SSymbol "else" :: exprs) ] -> eachEval envs cont SEmpty exprs
+        | [ SList(SSymbol "else" :: exprs) ] -> exprs |> Eval.eachEval envs cont SEmpty
         | SList [ test; SSymbol "=>"; expr ] :: clauses ->
             testCond envs cont (fun a -> [ expr; SQuote a ] |> toSList |> Eval.eval envs cont) clauses test
-        | SList(test :: exprs) :: clauses -> testCond envs cont (fun a -> exprs |> eachEval envs cont a) clauses test
+        | SList(test :: exprs) :: clauses ->
+            testCond envs cont (fun a -> exprs |> Eval.eachEval envs cont a) clauses test
         | x -> x |> invalidParameter "'%s' invalid cond parameter."
 
     and [<TailCall>] testCond envs cont conseq clauses test =
@@ -68,7 +99,7 @@ module SpecialForm =
         function
         | [] -> SEmpty |> cont
         | [ SList [ SSymbol "else"; SSymbol "=>"; expr ] ] -> [ expr; SQuote key ] |> toSList |> Eval.eval envs cont
-        | [ SList(SSymbol "else" :: exprs) ] -> exprs |> eachEval envs cont SEmpty
+        | [ SList(SSymbol "else" :: exprs) ] -> exprs |> Eval.eachEval envs cont SEmpty
         | SList [ SList datums; SSymbol "=>"; expr ] :: clauses ->
             if datums |> List.exists (fun d -> eqv (key, d)) then
                 [ expr; SQuote key ] |> toSList |> Eval.eval envs cont
@@ -76,7 +107,7 @@ module SpecialForm =
                 clauses |> testCase envs cont key
         | SList(SList datums :: exprs) :: clauses ->
             if datums |> List.exists (fun d -> eqv (key, d)) then
-                exprs |> eachEval envs cont SEmpty
+                exprs |> Eval.eachEval envs cont SEmpty
             else
                 clauses |> testCase envs cont key
         | x -> x |> invalidParameter "'%s' invalid case parameter."
@@ -117,7 +148,7 @@ module SpecialForm =
             test
             |> Eval.eval envs (function
                 | SBool false -> SEmpty |> cont
-                | _ -> exprs |> eachEval envs cont SEmpty)
+                | _ -> exprs |> Eval.eachEval envs cont SEmpty)
         | x -> x |> invalidParameter "'%s' invalid when parameter."
 
     let sUnless envs cont =
@@ -125,14 +156,14 @@ module SpecialForm =
         | test :: exprs ->
             test
             |> Eval.eval envs (function
-                | SBool false -> exprs |> eachEval envs cont SEmpty
+                | SBool false -> exprs |> Eval.eachEval envs cont SEmpty
                 | _ -> SEmpty |> cont)
         | x -> x |> invalidParameter "'%s' invalid unless parameter."
 
     [<TailCall>]
     let rec bindLet envs cont body acc =
         function
-        | [] -> body |> eachEval (List.rev acc |> Eval.extendEnvs envs) cont SEmpty
+        | [] -> body |> Eval.eachEval (acc |> List.rev |> Eval.extendEnvs envs) cont SEmpty
         | (var, expr) :: xs ->
             expr
             |> Eval.eval envs (fun a -> xs |> bindLet envs cont body ((var, ref a) :: acc))
@@ -157,10 +188,10 @@ module SpecialForm =
     [<TailCall>]
     let rec bindLetStar envs cont body =
         function
-        | [] -> body |> eachEval envs cont SEmpty
+        | [] -> body |> Eval.eachEval envs cont SEmpty
         | (var, expr) :: xs ->
             expr
-            |> Eval.eval envs (fun a -> xs |> bindLetStar ([ var, ref a ] |> Eval.extendEnvs envs) cont body)
+            |> Eval.eval envs (fun v -> xs |> bindLetStar ([ var, ref v ] |> Eval.extendEnvs envs) cont body)
 
     let sLetStar envs cont =
         function
@@ -170,11 +201,11 @@ module SpecialForm =
     [<TailCall>]
     let rec bindLetRecExpr envs cont body =
         function
-        | [] -> body |> eachEval envs cont SEmpty
+        | [] -> body |> Eval.eachEval envs cont SEmpty
         | (var, expr) :: xs ->
             expr
             |> Eval.eval envs (fun a ->
-                envs.Head.[var].Value <- a
+                Eval.defineEnvVar envs var a
                 xs |> bindLetRecExpr envs cont body)
 
     let sLetRec envs cont =
@@ -194,7 +225,7 @@ module SpecialForm =
     let rec bindLetRecStarExpr envs cont body =
         function
         | [], _
-        | _, [] -> body |> eachEval envs cont SEmpty
+        | _, [] -> body |> Eval.eachEval envs cont SEmpty
         | (_, expr) :: xs, r: SExpression ref :: rs ->
             expr
             |> Eval.eval envs (fun v ->
@@ -222,8 +253,8 @@ module SpecialForm =
     [<TailCall>]
     let rec bindLetValues envs cont body acc =
         function
-        | [] -> body |> eachEval (List.rev acc |> Eval.extendEnvs envs) cont SEmpty
-        | (vars: string list, expr) :: xs ->
+        | [] -> body |> Eval.eachEval (acc |> List.rev |> Eval.extendEnvs envs) cont SEmpty
+        | (vars, expr) :: xs ->
             expr
             |> Eval.eval envs (fun v ->
                 let vals =
@@ -242,8 +273,8 @@ module SpecialForm =
     [<TailCall>]
     let rec bindLetStarValues envs cont body =
         function
-        | [] -> body |> eachEval envs cont SEmpty
-        | (vars: string list, expr) :: xs ->
+        | [] -> body |> Eval.eachEval envs cont SEmpty
+        | (vars, expr) :: xs ->
             expr
             |> Eval.eval envs (fun v ->
                 let vals =
@@ -251,8 +282,11 @@ module SpecialForm =
                     | SValues vs -> vs
                     | single -> [ single ]
 
-                let bindings = List.zip vars vals |> List.map (fun (vr, vl) -> vr, ref vl)
-                let nextEnvs = bindings |> Eval.extendEnvs envs
+                let nextEnvs =
+                    List.zip vars vals
+                    |> List.map (fun (vr, vl) -> vr, ref vl)
+                    |> Eval.extendEnvs envs
+
                 xs |> bindLetStarValues nextEnvs cont body)
 
     let sLetStarValues envs cont =
@@ -260,7 +294,7 @@ module SpecialForm =
         | SList bindings :: body -> bindings |> List.map eachValuesBinding |> bindLetStarValues envs cont body
         | x -> x |> invalidParameter "'%s' invalid let*-values parameter."
 
-    let sBegin envs cont = eachEval envs cont SEmpty
+    let sBegin envs cont = Eval.eachEval envs cont SEmpty
 
     [<TailCall>]
     let rec loopDo envs cont test exprs commands bindings loopEnvs =
@@ -268,20 +302,22 @@ module SpecialForm =
         |> Eval.eval loopEnvs (function
             | SBool false ->
                 commands
-                |> eachEval
+                |> Eval.eachEval
                     loopEnvs
                     (fun _ -> bindings |> evalDoStep envs cont test exprs commands bindings loopEnvs [])
                     SEmpty
             | testResult ->
                 match exprs with
                 | [] -> SEmpty |> cont
-                | _ -> exprs |> eachEval loopEnvs cont testResult)
+                | _ -> exprs |> Eval.eachEval loopEnvs cont testResult)
 
     and [<TailCall>] evalDoStep envs cont test exprs commands bindings loopEnvs acc =
         function
         | [] ->
-            let nextEnvs = Eval.extendEnvs envs (List.rev acc)
-            loopDo envs cont test exprs commands bindings nextEnvs
+            acc
+            |> List.rev
+            |> Eval.extendEnvs envs
+            |> loopDo envs cont test exprs commands bindings
         | (var, _, Some step) :: xs ->
             step
             |> Eval.eval loopEnvs (fun v ->
@@ -297,8 +333,10 @@ module SpecialForm =
     let rec initDoVariables envs cont test exprs commands bindings acc =
         function
         | [] ->
-            let initialEnvs = Eval.extendEnvs envs (List.rev acc)
-            loopDo envs cont test exprs commands bindings initialEnvs
+            acc
+            |> List.rev
+            |> Eval.extendEnvs envs
+            |> loopDo envs cont test exprs commands bindings
         | (var, init, _) :: xs ->
             init
             |> Eval.eval envs (fun v ->
@@ -332,6 +370,10 @@ module SpecialForm =
             SPromise(ref (false, SSyntax thunk)) |> cont
         | x -> x |> invalidParameter "'%s' invalid delay-force parameter."
 
+    type SavedParameter =
+        { Ref: SExpression ref
+          SavedValue: SExpression ref }
+
     let eachParamBinding =
         function
         | SList [ param; expr ] -> param, expr
@@ -363,7 +405,7 @@ module SpecialForm =
             currentWinders.Value <- winder :: currentWinders.Value
 
             body
-            |> eachEval
+            |> Eval.eachEval
                 envs
                 (fun res ->
                     let nextCur =
@@ -391,7 +433,7 @@ module SpecialForm =
                         | None -> setAndContinue envs cont body saved acc xs r v
                     | x -> Print.print x |> sprintf "'%s' is not a parameter object." |> failwith))
 
-    and [<TailCall>] setAndContinue envs cont body saved acc xs (r: SExpression ref) newVal =
+    and [<TailCall>] setAndContinue envs cont body saved acc xs r newVal =
         let old = r.Value
         r.Value <- newVal
         let s = { Ref = r; SavedValue = ref old }
@@ -408,7 +450,7 @@ module SpecialForm =
             let savedWinders = currentWinders.Value
 
             try
-                body |> eachEval envs cont SEmpty
+                body |> Eval.eachEval envs cont SEmpty
             with SchemeRaise obj ->
                 let hasElse =
                     match List.tryLast clauses with
@@ -419,10 +461,11 @@ module SpecialForm =
                     if hasElse then
                         clauses
                     else
-                        clauses @ [ SList [ SSymbol "else"; SList [ SSymbol "raise"; SQuote obj ] ] ]
+                        clauses
+                        @ [ toSList [ SSymbol "else"; toSList [ SSymbol "raise"; SQuote obj ] ] ]
 
                 doWind envs currentWinders.Value savedWinders (fun _ ->
-                    let envs' = Eval.extendEnvs envs [ var, ref obj ]
+                    let envs' = [ var, ref obj ] |> Eval.extendEnvs envs
                     finalClauses |> sCond envs' cont)
         | x -> x |> invalidParameter "'%s' invalid guard parameter."
 
@@ -441,16 +484,16 @@ module SpecialForm =
     and [<TailCall>] replaceQuasiquoteList envs cont n next xs =
         let cons x b =
             match b with
-            | SEmpty -> [ x ] |> SList
-            | SList ys -> x :: ys |> SList
+            | SEmpty -> [ x ] |> toSList
+            | SList ys -> x :: ys |> toSList
             | y -> SPair([ x ], y)
 
         let join a b =
             match a, b with
             | SEmpty, SEmpty -> SEmpty
-            | SList xs, SEmpty -> SList xs
-            | SEmpty, SList ys -> SList ys
-            | SList xs, SList ys -> xs @ ys |> SList
+            | SList xs, SEmpty -> toSList xs
+            | SEmpty, SList ys -> toSList ys
+            | SList xs, SList ys -> xs @ ys |> toSList
             | x, y -> SPair([ x ], y)
 
         match xs with
@@ -497,19 +540,17 @@ module SpecialForm =
             if n = 0 then
                 x |> Eval.matchEval envs next
             else
-                x |> replaceQuasiquote envs cont (n - 1) (fun r -> r |> SUnquote |> next)
+                x |> replaceQuasiquote envs cont (n - 1) (SUnquote >> next)
         | SUnquoteSplicing x
         | SList [ SSymbol "unquote-splicing"; x ] ->
             if n = 0 then
                 x |> Eval.matchEval envs next
             else
-                x
-                |> replaceQuasiquote envs cont (n - 1) (fun r -> r |> SUnquoteSplicing |> next)
+                x |> replaceQuasiquote envs cont (n - 1) (SUnquoteSplicing >> next)
         | SQuasiquote x
-        | SList [ SSymbol "quasiquote"; x ] ->
-            x |> replaceQuasiquote envs cont (n + 1) (fun r -> r |> SQuasiquote |> next)
+        | SList [ SSymbol "quasiquote"; x ] -> x |> replaceQuasiquote envs cont (n + 1) (SQuasiquote >> next)
         | SQuote x
-        | SList [ SSymbol "quote"; x ] -> x |> replaceQuasiquote envs cont n (fun r -> r |> SQuote |> next)
+        | SList [ SSymbol "quote"; x ] -> x |> replaceQuasiquote envs cont n (SQuote >> next)
         | x -> x |> next
 
     let sQuasiquote envs cont =
@@ -519,15 +560,13 @@ module SpecialForm =
 
     let sDefine (envs: SEnv list) cont =
         let define' var =
-            envs.Head.TryAdd(var, ref SEmpty) |> ignore
-
             Eval.eval envs (fun x ->
-                envs.Head.[var].Value <- x
+                Eval.defineEnvVar envs var x
                 var |> SSymbol |> cont)
 
         function
         | [ SSymbol var; expr ] -> expr |> define' var
-        | SList(SSymbol var :: formals) :: body -> sLambda envs cont (SList formals :: body) |> define' var
+        | SList(SSymbol var :: formals) :: body -> sLambda envs cont (toSList formals :: body) |> define' var
         | SPair([ SSymbol var ], formal) :: body -> sLambda envs cont (formal :: body) |> define' var
         | x -> x |> invalidParameter "'%s' invalid define parameter."
 
@@ -538,11 +577,7 @@ module SpecialForm =
         | (var, expr) :: xs ->
             expr
             |> Eval.eval envs (fun value ->
-                if envs.Head.ContainsKey var then
-                    envs.Head.[var].Value <- value
-                else
-                    envs.Head.Add(var, ref value)
-
+                Eval.defineEnvVar envs var value
                 xs |> bindDefineValues envs cont formals)
 
     let sDefineValues envs cont =
@@ -558,16 +593,18 @@ module SpecialForm =
                 formals |> zipFormals vals |> bindDefineValues envs cont formals)
         | x -> x |> invalidParameter "'%s' invalid define-values parameter."
 
-    let sDefineRecordType (envs: SEnv list) cont =
-        let defineVal var valExpr =
-            if envs.Head.ContainsKey var then
-                envs.Head.[var].Value <- valExpr
-            else
-                envs.Head.Add(var, ref valExpr)
+    let private nextRecordTypeId = new System.Threading.ThreadLocal<int>(fun () -> 0)
 
+    let getNextRecordTypeId () =
+        let id = nextRecordTypeId.Value
+        nextRecordTypeId.Value <- id + 1
+        id
+
+    let sDefineRecordType (envs: SEnv list) cont =
         function
         | SSymbol name :: SList(SSymbol ctorName :: ctorFields) :: SSymbol predName :: restSpecs ->
-            let typeId = Type.getNextRecordTypeId ()
+            let defineVal var valExpr = Eval.defineEnvVar envs var valExpr
+            let typeId = getNextRecordTypeId ()
 
             let fieldSpecs =
                 restSpecs
@@ -615,7 +652,7 @@ module SpecialForm =
             |> List.iteri (fun idx (_, aName, mNameOpt) ->
                 let accessorProc _ cont' =
                     function
-                    | [ SRecord(tid, _, fs) ] when tid = typeId -> (fs: SExpression ref array).[idx].Value |> cont'
+                    | [ SRecord(tid, _, fs) ] when tid = typeId -> fs.[idx].Value |> cont'
                     | [ x ] -> failwithf "Accessor %s expected %s, but got %s" aName name (Print.print x)
                     | _ -> failwithf "Accessor %s requires 1 argument" aName
 
@@ -626,7 +663,7 @@ module SpecialForm =
                     let modifierProc _ cont' =
                         function
                         | [ SRecord(tid, _, fs); v ] when tid = typeId ->
-                            (fs: SExpression ref array).[idx].Value <- v
+                            fs.[idx].Value <- v
                             SUnspecified |> cont'
                         | [ x; _ ] -> failwithf "Modifier %s expected %s, but got %s" mName name (Print.print x)
                         | _ -> failwithf "Modifier %s requires 2 arguments" mName
