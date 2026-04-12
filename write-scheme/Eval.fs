@@ -15,6 +15,14 @@ module Eval =
         | Some x -> x
         | None -> sprintf "No binding for '%s'." symbol |> failwith
 
+    let tryLookupEnvs envs symbol =
+        let lookup (env: SEnv) =
+            match env.TryGetValue symbol with
+            | true, x -> Some x
+            | _ -> None
+
+        List.tryPick lookup envs
+
     [<TailCall>]
     let rec matchEval envs cont expr =
         match expr with

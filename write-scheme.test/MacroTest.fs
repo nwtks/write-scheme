@@ -104,3 +104,43 @@ let ``syntax-error`` () =
 
     (fun () -> "(check-positive -1)" |> rep |> ignore)
     |> should throw typeof<WriteScheme.Type.SchemeRaise>
+
+[<Fact>]
+let ``syntax-rules hygiene shadowing`` () =
+    let rep = repEnvs ()
+
+    "(define-syntax swap-hygiene!
+       (syntax-rules ()
+         ((swap-hygiene! a b)
+          (let ((tmp a))
+            (set! a b)
+            (set! b tmp)))))"
+    |> rep
+    |> ignore
+
+    "(define x 1)" |> rep |> ignore
+    "(define y 2)" |> rep |> ignore
+
+    "(let ((tmp 5))
+       (swap-hygiene! x y)
+       tmp)"
+    |> rep
+    |> should equal "5"
+
+    "x" |> rep |> should equal "2"
+    "y" |> rep |> should equal "1"
+
+[<Fact>]
+let ``syntax-rules hygiene preservation`` () =
+    let rep = repEnvs ()
+
+    "(define-syntax my-if
+       (syntax-rules ()
+         ((my-if t a b) (if t a b))))"
+    |> rep
+    |> ignore
+
+    "(let ((if #f))
+       (my-if #t 1 2))"
+    |> rep
+    |> should equal "1"

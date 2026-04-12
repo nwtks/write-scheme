@@ -131,6 +131,31 @@ module Macro =
         [ x ] |> loopTemplateVars [] |> List.distinct |> List.rev
 
     [<TailCall>]
+    let rec renameTemplate (toRename: Map<string, string>) expr cont =
+        match expr with
+        | SSymbol s ->
+            match Map.tryFind s toRename with
+            | Some s' -> SSymbol s' |> cont
+            | None -> SSymbol s |> cont
+        | SList elements -> renameTemplateList toRename elements (toSList >> cont)
+        | SPair(carElements, cdr) ->
+            renameTemplateList toRename carElements (fun resCar ->
+                renameTemplate toRename cdr (fun resCdr -> SPair(resCar, resCdr) |> cont))
+        | SVector elements ->
+            renameTemplateList toRename (Array.toList elements) (fun res -> SVector(List.toArray res) |> cont)
+        | SQuote x -> renameTemplate toRename x (SQuote >> cont)
+        | SQuasiquote x -> renameTemplate toRename x (SQuasiquote >> cont)
+        | SUnquote x -> renameTemplate toRename x (SUnquote >> cont)
+        | SUnquoteSplicing x -> renameTemplate toRename x (SUnquoteSplicing >> cont)
+        | x -> x |> cont
+
+    and renameTemplateList toRename exprs cont =
+        match exprs with
+        | [] -> [] |> cont
+        | x :: xs ->
+            renameTemplate toRename x (fun resX -> renameTemplateList toRename xs (fun resXs -> resX :: resXs |> cont))
+
+    [<TailCall>]
     let rec expandTemplate cont bindings =
         function
         | SSymbol s ->
@@ -198,13 +223,34 @@ module Macro =
                 tmpl
 
     [<TailCall>]
-    let rec trySyntaxRules envs cont literalSet args =
+    let rec trySyntaxRules defEnvs useEnvs cont literalSet args =
         function
         | [] -> failwith "no matching syntax-rules pattern"
         | (patBody, template) :: rest ->
             match matchPatternList literalSet patBody args with
-            | Some bindings -> expandTemplate (Eval.eval envs cont) bindings template
-            | None -> trySyntaxRules envs cont literalSet args rest
+            | Some bindings ->
+                let patternVars = collectPatternVars literalSet (SList patBody) |> Set.ofList
+
+                let templateVars =
+                    collectTemplateVars template
+                    |> List.filter (fun s -> not (Set.contains s patternVars || Set.contains s literalSet || s = "..."))
+                    |> List.distinct
+
+                let expansionId = Type.getNextExpansionId ()
+                let rename (s: string) = sprintf "%s#%d" s expansionId
+                let renameMap = templateVars |> List.map (fun s -> s, rename s) |> Map.ofList
+                let renamedTemplate = renameTemplate renameMap template id
+
+                let definitions =
+                    templateVars
+                    |> List.choose (fun s ->
+                        match Eval.tryLookupEnvs defEnvs s with
+                        | Some v -> Some(rename s, v)
+                        | None -> None)
+
+                let extendedEnvs = Eval.extendEnvs useEnvs definitions
+                expandTemplate (Eval.eval extendedEnvs cont) bindings renamedTemplate
+            | None -> trySyntaxRules defEnvs useEnvs cont literalSet args rest
 
     let sSyntaxRules envs cont =
         let parseLiterals =
@@ -229,7 +275,7 @@ module Macro =
             let parsedRules = rules |> List.map parseRule
 
             let transformer envs' cont' args =
-                trySyntaxRules envs' cont' literalSet args parsedRules
+                trySyntaxRules envs envs' cont' literalSet args parsedRules
 
             SSyntax transformer |> cont
         | x -> x |> invalidParameter "'%s' invalid syntax-rules parameter."

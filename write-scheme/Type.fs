@@ -63,4 +63,11 @@ module Type =
         nextRecordTypeId <- nextRecordTypeId + 1
         id
 
+    let mutable private nextExpansionId = 0
+
+    let getNextExpansionId () =
+        let id = nextExpansionId
+        nextExpansionId <- nextExpansionId + 1
+        id
+
     exception SchemeRaise of SExpression
