@@ -39,16 +39,31 @@ dotnet test
 | `quote`, `'` | Quotation |
 | `quasiquote`, `` ` `` | Quasiquotation (`unquote` `,` / `unquote-splicing` `,@`) |
 | `lambda` | Closure creation (variadic `. rest` supported) |
-| `define` | Variable / procedure definition |
-| `define-syntax` | Syntax definition |
-| `syntax-rules` | Hygienic macros (in development) |
 | `set!` | Variable assignment |
 | `if` | Conditional branching |
-| `cond` | Multi-way conditional (`else`, `=>` supported) |
+| `cond`, `case` | Multi-way conditional (`else`, `=>` supported) |
 | `and`, `or` | Short-circuit evaluation |
 | `when`, `unless` | Conditional execution |
 | `let`, `let*`, `letrec`, `letrec*` | Local bindings |
+| `let-values`, `let*-values` | Binding multiple values in a local scope |
 | `begin` | Sequential execution |
+| `do` | Iteration with variable updates |
+| `delay`, `delay-force` | Lazy evaluation (promises) |
+| `parameterize` | Dynamic binding of parameters |
+| `guard` | Exception handling with condition matching |
+| `let-syntax`, `letrec-syntax` | Local macro bindings |
+| `syntax-rules` | Hygienic macros (R7RS compliant: flexible ellipsis positions, custom ellipsis symbols, and escaping support) |
+| `syntax-error` | Signalling a syntax error at expansion time |
+| `define` | Variable / procedure definition |
+| `define-values` | Binding multiple values returned by an expression |
+| `define-syntax` | Syntax definition |
+| `define-record-type` | R7RS record type definition |
+
+### Performance & Reliability
+
+- **Stack-Safe Evaluator**: The core evaluator uses a Jump-based Continuation-Passing Style (CPS) to ensure that Deep recursion (including tail calls) works indefinitely without consuming stack frames.
+- **First-Class Continuations**: Full support for `call/cc` enabled by the CPS architecture.
+- **Robust Exception Handling**: R7RS `guard` and `with-exception-handler` integrated with the CPS flow for predictable and safe error management.
 
 ### Built-in Procedures
 
@@ -64,17 +79,26 @@ dotnet test
 #### List Operations
 `cons`, `car`, `cdr`, `pair?`, `null?`, `list?`, `list`, `append`
 
+#### Vector Operations
+`vector?`, `make-vector`, `vector`, `vector-length`, `vector-ref`, `vector-set!`, `vector->list`, `list->vector`, `vector-fill!`
+
 #### Type Predicates
-`symbol?`, `char?`, `string?`, `procedure?`
+`boolean?`, `number?`, `symbol?`, `char?`, `string?`, `procedure?`
 
 #### Higher-Order Functions
 `apply`, `map`, `for-each`
 
-#### Continuations
-`call/cc`, `call-with-current-continuation`
+#### Continuations & Control
+`call/cc`, `call-with-current-continuation`, `values`, `call-with-values`, `dynamic-wind`
+
+#### Lazy Evaluation
+`delay`, `delay-force`, `force`, `promise?`, `make-promise`
 
 #### Exception Handling
 `with-exception-handler`, `raise`, `error`, `error-object?`, `error-object-message`, `error-object-irritants`
+
+#### Parameters
+`make-parameter`, `parameterize`
 
 #### I/O
 `display`, `load`
