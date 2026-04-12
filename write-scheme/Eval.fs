@@ -51,12 +51,12 @@ module Eval =
         | SQuote x -> SList [ SSymbol "quote"; x ] |> matchEval envs cont
         | SQuasiquote x -> SList [ SSymbol "quasiquote"; x ] |> matchEval envs cont
 
-    and mapEval envs cont fn acc =
+    and [<TailCall>] mapEval envs cont fn acc =
         function
         | [] -> List.rev acc |> fn envs cont
         | x :: xs -> x |> matchEval envs (fun a -> xs |> mapEval envs cont fn (a :: acc))
 
-    and apply envs cont args =
+    and [<TailCall>] apply envs cont args =
         function
         | SParameter(r, converterOpt) ->
             match args with

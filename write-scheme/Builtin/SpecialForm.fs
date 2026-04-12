@@ -18,7 +18,7 @@ module SpecialForm =
             expr
             |> Eval.eval envs (fun a -> xs |> bindArgs envs cont body ((var, ref a) :: acc))
 
-    and closure captureEnvs formals body envs cont args =
+    and [<TailCall>] closure captureEnvs formals body envs cont args =
         formals |> zipFormals args |> bindArgs (envs @ captureEnvs) cont body []
 
     let sLambda envs cont =
@@ -51,16 +51,16 @@ module SpecialForm =
     let rec sCond envs cont =
         function
         | [] -> SEmpty |> cont
-        | [ SList(SSymbol "else" :: exprs) ] -> exprs |> eachEval envs cont SEmpty
+        | [ SList(SSymbol "else" :: exprs) ] -> eachEval envs cont SEmpty exprs
         | SList [ test; SSymbol "=>"; expr ] :: clauses ->
-            test
-            |> testCond envs cont (fun a -> [ expr; SQuote a ] |> toSList |> Eval.eval envs cont) clauses
-        | SList(test :: exprs) :: clauses -> test |> testCond envs cont (fun a -> exprs |> eachEval envs cont a) clauses
+            testCond envs cont (fun a -> [ expr; SQuote a ] |> toSList |> Eval.eval envs cont) clauses test
+        | SList(test :: exprs) :: clauses -> testCond envs cont (fun a -> exprs |> eachEval envs cont a) clauses test
         | x -> x |> invalidParameter "'%s' invalid cond parameter."
 
-    and testCond envs cont conseq clauses =
-        Eval.eval envs (function
-            | SBool false -> clauses |> sCond envs cont
+    and [<TailCall>] testCond envs cont conseq clauses test =
+        test
+        |> Eval.matchEval envs (function
+            | SBool false -> sCond envs cont clauses
             | x -> conseq x)
 
     [<TailCall>]
@@ -277,7 +277,7 @@ module SpecialForm =
                 | [] -> SEmpty |> cont
                 | _ -> exprs |> eachEval loopEnvs cont testResult)
 
-    and evalDoStep envs cont test exprs commands bindings loopEnvs acc =
+    and [<TailCall>] evalDoStep envs cont test exprs commands bindings loopEnvs acc =
         function
         | [] ->
             let nextEnvs = Eval.extendEnvs envs (List.rev acc)
@@ -391,7 +391,7 @@ module SpecialForm =
                         | None -> setAndContinue envs cont body saved acc xs r v
                     | x -> Print.print x |> sprintf "'%s' is not a parameter object." |> failwith))
 
-    and setAndContinue envs cont body saved acc xs (r: SExpression ref) newVal =
+    and [<TailCall>] setAndContinue envs cont body saved acc xs (r: SExpression ref) newVal =
         let old = r.Value
         r.Value <- newVal
         let s = { Ref = r; SavedValue = ref old }
@@ -430,89 +430,91 @@ module SpecialForm =
     let rec replaceQuasiquote envs cont n next =
         function
         | SEmpty -> SEmpty |> next
-        | SList xs -> xs |> replaceQuasiquoteList envs cont n |> next
+        | SList xs -> xs |> replaceQuasiquoteList envs cont n next
         | SPair(x1, x2) ->
-            match x1 |> replaceQuasiquoteList envs cont n with
-            | SList ys -> SPair(ys, x2 |> replaceQuasiquoteDatum envs cont n) |> next
-            | _ -> x2 |> replaceQuasiquoteDatum envs cont n |> next
-        | x -> x |> replaceQuasiquoteDatum envs cont n |> next
+            x1
+            |> replaceQuasiquoteList envs cont n (function
+                | SList ys -> x2 |> replaceQuasiquoteDatum envs cont n (fun y2 -> SPair(ys, y2) |> next)
+                | _ -> x2 |> replaceQuasiquoteDatum envs cont n next)
+        | x -> x |> replaceQuasiquoteDatum envs cont n next
 
-    and replaceQuasiquoteList envs cont n =
-        let cons x =
-            function
-            | SEmpty -> [ x ] |> toSList
-            | SList ys -> x :: ys |> toSList
-            | y -> [ x; y ] |> toSList
+    and [<TailCall>] replaceQuasiquoteList envs cont n next xs =
+        let cons x b =
+            match b with
+            | SEmpty -> [ x ] |> SList
+            | SList ys -> x :: ys |> SList
+            | y -> SPair([ x ], y)
 
-        let join =
-            function
+        let join a b =
+            match a, b with
             | SEmpty, SEmpty -> SEmpty
-            | SList xs, SEmpty -> xs |> toSList
-            | SEmpty, SList ys -> ys |> toSList
-            | SList xs, SList ys -> xs @ ys |> toSList
-            | x, y -> [ x; y ] |> toSList
+            | SList xs, SEmpty -> SList xs
+            | SEmpty, SList ys -> SList ys
+            | SList xs, SList ys -> xs @ ys |> SList
+            | x, y -> SPair([ x ], y)
 
-        function
-        | [] -> SEmpty
-        | SUnquote x :: xs
-        | SList [ SSymbol "unquote"; x ] :: xs ->
+        match xs with
+        | [] -> next SEmpty
+        | SUnquote x :: rest
+        | SList [ SSymbol "unquote"; x ] :: rest ->
             if n = 0 then
                 x
-                |> Eval.eval envs (fun a -> xs |> toSList |> replaceQuasiquote envs cont n (fun b -> cons a b |> cont))
+                |> Eval.matchEval envs (fun a -> rest |> replaceQuasiquoteList envs cont n (fun b -> cons a b |> next))
             else
                 x
                 |> replaceQuasiquote envs cont (n - 1) (fun a ->
-                    xs |> toSList |> replaceQuasiquote envs cont n (fun b -> cons (SUnquote a) b))
-        | SUnquoteSplicing x :: xs
-        | SList [ SSymbol "unquote-splicing"; x ] :: xs ->
+                    rest |> replaceQuasiquoteList envs cont n (fun b -> cons (SUnquote a) b |> next))
+        | SUnquoteSplicing x :: rest
+        | SList [ SSymbol "unquote-splicing"; x ] :: rest ->
             if n = 0 then
                 x
-                |> Eval.eval envs (fun a ->
-                    xs |> toSList |> replaceQuasiquote envs cont n (fun b -> join (a, b) |> cont))
+                |> Eval.matchEval envs (fun a -> rest |> replaceQuasiquoteList envs cont n (fun b -> join a b |> next))
             else
                 x
                 |> replaceQuasiquote envs cont (n - 1) (fun a ->
-                    xs
-                    |> toSList
-                    |> replaceQuasiquote envs cont n (fun b -> cons (SUnquoteSplicing a) b))
-        | SQuasiquote x :: xs
-        | SList [ SSymbol "quasiquote"; x ] :: xs ->
+                    rest
+                    |> replaceQuasiquoteList envs cont n (fun b -> cons (SUnquoteSplicing a) b |> next))
+        | SQuasiquote x :: rest
+        | SList [ SSymbol "quasiquote"; x ] :: rest ->
             x
             |> replaceQuasiquote envs cont (n + 1) (fun a ->
-                xs |> toSList |> replaceQuasiquote envs cont n (fun b -> cons (SQuasiquote a) b))
-        | SQuote x :: xs
-        | SList [ SSymbol "quote"; x ] :: xs ->
+                rest
+                |> replaceQuasiquoteList envs cont n (fun b -> cons (SQuasiquote a) b |> next))
+        | SQuote x :: rest
+        | SList [ SSymbol "quote"; x ] :: rest ->
             x
             |> replaceQuasiquote envs cont n (fun a ->
-                xs |> toSList |> replaceQuasiquote envs cont n (fun b -> cons (SQuote a) b))
-        | x :: xs ->
+                rest |> replaceQuasiquoteList envs cont n (fun b -> cons (SQuote a) b |> next))
+        | x :: rest ->
             x
             |> replaceQuasiquote envs cont n (fun a ->
-                xs |> toSList |> replaceQuasiquote envs cont n (fun b -> cons a b))
+                rest |> replaceQuasiquoteList envs cont n (fun b -> cons a b |> next))
 
-    and replaceQuasiquoteDatum envs cont n =
+    and [<TailCall>] replaceQuasiquoteDatum envs cont n next =
         function
         | SUnquote x
         | SList [ SSymbol "unquote"; x ] ->
             if n = 0 then
-                x |> Eval.eval envs cont
+                x |> Eval.matchEval envs next
             else
-                x |> replaceQuasiquote envs cont (n - 1) SUnquote
+                x |> replaceQuasiquote envs cont (n - 1) (fun r -> r |> SUnquote |> next)
         | SUnquoteSplicing x
         | SList [ SSymbol "unquote-splicing"; x ] ->
             if n = 0 then
-                x |> Eval.eval envs cont
+                x |> Eval.matchEval envs next
             else
-                x |> replaceQuasiquote envs cont (n - 1) SUnquoteSplicing
+                x
+                |> replaceQuasiquote envs cont (n - 1) (fun r -> r |> SUnquoteSplicing |> next)
         | SQuasiquote x
-        | SList [ SSymbol "quasiquote"; x ] -> x |> replaceQuasiquote envs cont (n + 1) SQuasiquote
+        | SList [ SSymbol "quasiquote"; x ] ->
+            x |> replaceQuasiquote envs cont (n + 1) (fun r -> r |> SQuasiquote |> next)
         | SQuote x
-        | SList [ SSymbol "quote"; x ] -> x |> replaceQuasiquote envs cont n SQuote
-        | x -> x
+        | SList [ SSymbol "quote"; x ] -> x |> replaceQuasiquote envs cont n (fun r -> r |> SQuote |> next)
+        | x -> x |> next
 
     let sQuasiquote envs cont =
         function
-        | [ x ] -> x |> replaceQuasiquote envs cont 0 id
+        | [ x ] -> x |> replaceQuasiquote envs cont 0 cont
         | x -> x |> invalidParameter "'%s' invalid quasiquote parameter."
 
     let sDefine (envs: SEnv list) cont =

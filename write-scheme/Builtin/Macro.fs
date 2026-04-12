@@ -113,7 +113,7 @@ module Macro =
             | _ -> cont None
         | _ -> cont None
 
-    and matchPatternList defEnvs useEnvs literals ellipsis inps cont pats =
+    and [<TailCall>] matchPatternList defEnvs useEnvs literals ellipsis inps cont pats =
         let dotIdx =
             pats
             |> List.tryFindIndex (function
@@ -181,7 +181,7 @@ module Macro =
                 else
                     cont None
 
-    and matchEllipsis defEnvs useEnvs literals ellipsis cont pat vars results =
+    and [<TailCall>] matchEllipsis defEnvs useEnvs literals ellipsis cont pat vars results =
         function
         | [] ->
             let allBindings = results |> List.rev |> List.map Option.get
@@ -247,7 +247,7 @@ module Macro =
         | SUnquoteSplicing x -> renameTemplate toRename x (SUnquoteSplicing >> cont)
         | x -> x |> cont
 
-    and renameTemplateList toRename exprs cont =
+    and [<TailCall>] renameTemplateList toRename exprs cont =
         match exprs with
         | [] -> [] |> cont
         | x :: xs ->
@@ -282,7 +282,7 @@ module Macro =
                 bindings
         | x -> x |> cont
 
-    and expandTemplateList ellipsis cont bindings =
+    and [<TailCall>] expandTemplateList ellipsis cont bindings =
         function
         | [] -> [] |> cont
         | tmpl :: SSymbol s :: rest when s = ellipsis ->
@@ -320,7 +320,7 @@ module Macro =
                     |> expandTemplateList ellipsis (fun expandedRest -> expandedTmpl :: expandedRest |> cont) bindings)
                 bindings
 
-    and expandEllipsis ellipsis cont bindings tmpl ellipsisVars count i acc =
+    and [<TailCall>] expandEllipsis ellipsis cont bindings tmpl ellipsisVars count i acc =
         if i >= count then
             List.rev acc |> cont
         else
