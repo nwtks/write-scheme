@@ -253,3 +253,39 @@ let ``custom ellipsis with literals`` () =
 
     (fun () -> "(let ((lit 0)) (check-lit lit 1 2 3))" |> rep |> ignore)
     |> should throw typeof<System.Exception>
+
+[<Fact>]
+let ``ellipsis escape in template`` () =
+    let rep = repEnvs ()
+
+    "(define-syntax escape-test
+        (syntax-rules ()
+            ((_) '(a (... ...)))))"
+    |> rep
+    |> ignore
+
+    "(escape-test)" |> rep |> should endWith " ...)"
+
+[<Fact>]
+let ``ellipsis escape in pattern`` () =
+    let rep = repEnvs ()
+
+    "(define-syntax match-escape
+        (syntax-rules ()
+            ((_ (... ...)) 'matched-ellipsis)))"
+    |> rep
+    |> ignore
+
+    "(match-escape ...)" |> rep |> should startWith "matched-ellipsis"
+
+[<Fact>]
+let ``ellipsis literal template`` () =
+    let rep = repEnvs ()
+
+    "(define-syntax lit-tmpl
+        (syntax-rules ()
+            ((_ x ...) (quote (... (x ...))))))"
+    |> rep
+    |> ignore
+
+    "(lit-tmpl 1 2 3)" |> rep |> should equal "(x ...)"

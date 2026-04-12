@@ -77,6 +77,10 @@ module Macro =
             match inp with
             | SChar v' when v = v' -> cont (Some Map.empty)
             | _ -> cont None
+        | SList [ SSymbol ell; SSymbol s ] when ell = ellipsis && s = ellipsis ->
+            match inp with
+            | SSymbol s' when s' = ellipsis -> cont (Some Map.empty)
+            | _ -> cont None
         | SList patList ->
             match inp with
             | SList inpList -> patList |> matchPatternList defEnvs useEnvs literals ellipsis inpList cont
@@ -254,38 +258,42 @@ module Macro =
             renameTemplate toRename x (fun resX -> renameTemplateList toRename xs (fun resXs -> resX :: resXs |> cont))
 
     [<TailCall>]
-    let rec expandTemplate ellipsis cont bindings =
+    let rec expandTemplate ellipsis isRaw cont bindings =
         function
         | SSymbol s ->
             match Map.tryFind s bindings with
             | Some(SingleB v) -> v |> cont
             | _ -> SSymbol s |> cont
-        | SList elems -> elems |> expandTemplateList ellipsis (toSList >> cont) bindings
-        | SQuote x -> x |> expandTemplate ellipsis (SQuote >> cont) bindings
-        | SQuasiquote x -> x |> expandTemplate ellipsis (SQuasiquote >> cont) bindings
-        | SUnquote x -> x |> expandTemplate ellipsis (SUnquote >> cont) bindings
-        | SUnquoteSplicing x -> x |> expandTemplate ellipsis (SUnquoteSplicing >> cont) bindings
+        | SList [ SSymbol ell; tmpl ] when not isRaw && ell = ellipsis ->
+            tmpl |> expandTemplate ellipsis true cont bindings
+        | SList elems -> elems |> expandTemplateList ellipsis isRaw (toSList >> cont) bindings
+        | SQuote x -> x |> expandTemplate ellipsis isRaw (SQuote >> cont) bindings
+        | SQuasiquote x -> x |> expandTemplate ellipsis isRaw (SQuasiquote >> cont) bindings
+        | SUnquote x -> x |> expandTemplate ellipsis isRaw (SUnquote >> cont) bindings
+        | SUnquoteSplicing x -> x |> expandTemplate ellipsis isRaw (SUnquoteSplicing >> cont) bindings
         | SPair(xs, x) ->
             xs
             |> expandTemplateList
                 ellipsis
+                isRaw
                 (fun expandedXs ->
                     x
-                    |> expandTemplate ellipsis (fun expandedX -> SPair(expandedXs, expandedX) |> cont) bindings)
+                    |> expandTemplate ellipsis isRaw (fun expandedX -> SPair(expandedXs, expandedX) |> cont) bindings)
                 bindings
         | SVector elements ->
             elements
             |> Array.toList
             |> expandTemplateList
                 ellipsis
+                isRaw
                 (fun expandedElems -> expandedElems |> List.toArray |> SVector |> cont)
                 bindings
         | x -> x |> cont
 
-    and [<TailCall>] expandTemplateList ellipsis cont bindings =
+    and [<TailCall>] expandTemplateList ellipsis isRaw cont bindings =
         function
         | [] -> [] |> cont
-        | tmpl :: SSymbol s :: rest when s = ellipsis ->
+        | tmpl :: SSymbol s :: rest when not isRaw && s = ellipsis ->
             let vars = collectTemplateVars ellipsis tmpl
 
             let ellipsisVars =
@@ -296,7 +304,7 @@ module Macro =
                     | _ -> None)
 
             match ellipsisVars with
-            | [] -> rest |> expandTemplateList ellipsis cont bindings
+            | [] -> rest |> expandTemplateList ellipsis isRaw cont bindings
             | (_, firstValues) :: _ ->
                 let count = firstValues.Length
 
@@ -304,7 +312,11 @@ module Macro =
                     ellipsis
                     (fun expanded ->
                         rest
-                        |> expandTemplateList ellipsis (fun expandedRest -> expanded @ expandedRest |> cont) bindings)
+                        |> expandTemplateList
+                            ellipsis
+                            isRaw
+                            (fun expandedRest -> expanded @ expandedRest |> cont)
+                            bindings)
                     bindings
                     tmpl
                     ellipsisVars
@@ -315,9 +327,14 @@ module Macro =
             tmpl
             |> expandTemplate
                 ellipsis
+                isRaw
                 (fun expandedTmpl ->
                     rest
-                    |> expandTemplateList ellipsis (fun expandedRest -> expandedTmpl :: expandedRest |> cont) bindings)
+                    |> expandTemplateList
+                        ellipsis
+                        isRaw
+                        (fun expandedRest -> expandedTmpl :: expandedRest |> cont)
+                        bindings)
                 bindings
 
     and [<TailCall>] expandEllipsis ellipsis cont bindings tmpl ellipsisVars count i acc =
@@ -331,6 +348,7 @@ module Macro =
             tmpl
             |> expandTemplate
                 ellipsis
+                false
                 (fun res -> expandEllipsis ellipsis cont bindings tmpl ellipsisVars count (i + 1) (res :: acc))
                 localBindings
 
@@ -366,7 +384,7 @@ module Macro =
                     let extendedEnvs = Eval.extendEnvs useEnvs definitions
 
                     renamedTemplate
-                    |> expandTemplate ellipsis (Eval.eval extendedEnvs cont) bindings
+                    |> expandTemplate ellipsis false (Eval.eval extendedEnvs cont) bindings
                 | None -> rest |> trySyntaxRules defEnvs useEnvs cont ellipsis literalSet args)
 
     let sSyntaxRules envs cont =
