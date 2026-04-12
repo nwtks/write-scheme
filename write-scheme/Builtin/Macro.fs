@@ -13,22 +13,22 @@ module Macro =
         Map.fold (fun acc k v -> Map.add k v acc) b1 b2
 
     [<TailCall>]
-    let rec loopPatternVars literals acc =
+    let rec loopPatternVars literals ellipsis acc =
         function
         | [] -> acc
         | x :: xs ->
             match x with
-            | SSymbol "_" -> loopPatternVars literals acc xs
-            | SSymbol "..." -> loopPatternVars literals acc xs
-            | SSymbol s when Set.contains s literals -> loopPatternVars literals acc xs
-            | SSymbol s -> loopPatternVars literals (s :: acc) xs
-            | SList pats -> loopPatternVars literals acc (pats @ xs)
-            | SPair(pats, p) -> loopPatternVars literals acc (pats @ [ p ] @ xs)
-            | SVector pats -> loopPatternVars literals acc (Array.toList pats @ xs)
-            | _ -> loopPatternVars literals acc xs
+            | SSymbol "_" -> loopPatternVars literals ellipsis acc xs
+            | SSymbol s when s = ellipsis -> loopPatternVars literals ellipsis acc xs
+            | SSymbol s when Set.contains s literals -> loopPatternVars literals ellipsis acc xs
+            | SSymbol s -> loopPatternVars literals ellipsis (s :: acc) xs
+            | SList pats -> loopPatternVars literals ellipsis acc (pats @ xs)
+            | SPair(pats, p) -> loopPatternVars literals ellipsis acc (pats @ [ p ] @ xs)
+            | SVector pats -> loopPatternVars literals ellipsis acc (Array.toList pats @ xs)
+            | _ -> loopPatternVars literals ellipsis acc xs
 
-    let collectPatternVars literals x =
-        [ x ] |> loopPatternVars literals [] |> List.distinct |> List.rev
+    let collectPatternVars literals ellipsis x =
+        [ x ] |> loopPatternVars literals ellipsis [] |> List.distinct |> List.rev
 
     let freeIdentifierEquals defEnvs id1 useEnvs id2 =
         match id1, id2 with
@@ -43,10 +43,10 @@ module Macro =
         | _ -> false
 
     [<TailCall>]
-    let rec matchOne defEnvs useEnvs literals inp cont =
+    let rec matchOne defEnvs useEnvs literals ellipsis inp cont =
         function
         | SSymbol "_" -> cont (Some Map.empty)
-        | SSymbol "..." -> cont None
+        | SSymbol s when s = ellipsis -> cont None
         | SSymbol s when Set.contains s literals ->
             if freeIdentifierEquals defEnvs (SSymbol s) useEnvs inp then
                 cont (Some Map.empty)
@@ -79,58 +79,109 @@ module Macro =
             | _ -> cont None
         | SList patList ->
             match inp with
-            | SList inpList -> patList |> matchPatternList defEnvs useEnvs literals inpList cont
+            | SList inpList -> patList |> matchPatternList defEnvs useEnvs literals ellipsis inpList cont
             | _ -> cont None
         | SPair(patList, patTail) ->
             match inp with
             | SPair(inpList, inpTail) ->
                 patList
-                |> matchPatternList defEnvs useEnvs literals inpList (function
+                |> matchPatternList defEnvs useEnvs literals ellipsis inpList (function
                     | Some b1 ->
                         patTail
-                        |> matchOne defEnvs useEnvs literals inpTail (fun b2 ->
+                        |> matchOne defEnvs useEnvs literals ellipsis inpTail (fun b2 ->
                             Option.map (mergeBindings b1) b2 |> cont)
                     | None -> cont None)
             | SList inpList when inpList.Length >= patList.Length ->
                 patList
-                |> matchPatternList defEnvs useEnvs literals (List.take patList.Length inpList) (function
+                |> matchPatternList defEnvs useEnvs literals ellipsis (List.take patList.Length inpList) (function
                     | Some b1 ->
                         patTail
-                        |> matchOne defEnvs useEnvs literals (toSList (List.skip patList.Length inpList)) (fun b2 ->
-                            Option.map (mergeBindings b1) b2 |> cont)
+                        |> matchOne
+                            defEnvs
+                            useEnvs
+                            literals
+                            ellipsis
+                            (inpList |> List.skip patList.Length |> toSList)
+                            (fun b2 -> Option.map (mergeBindings b1) b2 |> cont)
                     | None -> cont None)
             | _ -> cont None
         | SVector patArray ->
             match inp with
             | SVector inpArray when patArray.Length = inpArray.Length ->
                 Array.toList patArray
-                |> matchPatternList defEnvs useEnvs literals (Array.toList inpArray) cont
+                |> matchPatternList defEnvs useEnvs literals ellipsis (Array.toList inpArray) cont
             | _ -> cont None
         | _ -> cont None
 
-    and matchPatternList defEnvs useEnvs literals inps cont =
-        function
-        | [ patE; SSymbol "..." ] ->
-            inps
-            |> matchEllipsis defEnvs useEnvs literals cont patE (collectPatternVars literals patE) []
-        | pat :: rest ->
-            match inps with
-            | inp :: restInps ->
-                pat
-                |> matchOne defEnvs useEnvs literals inp (function
-                    | Some b1 ->
-                        rest
-                        |> matchPatternList defEnvs useEnvs literals restInps (fun b2 ->
-                            Option.map (mergeBindings b1) b2 |> cont)
-                    | None -> cont None)
-            | [] -> cont None
-        | [] ->
-            if List.isEmpty inps then
-                cont (Some Map.empty)
-            else
-                cont None
+    and matchPatternList defEnvs useEnvs literals ellipsis inps cont pats =
+        let dotIdx =
+            pats
+            |> List.tryFindIndex (function
+                | SSymbol s when s = ellipsis -> true
+                | _ -> false)
 
-    and matchEllipsis defEnvs useEnvs literals cont pat vars results =
+        match dotIdx with
+        | Some i when i > 0 ->
+            let prefix = pats |> List.take (i - 1)
+            let ellipsisPat = pats.[i - 1]
+            let suffix = pats |> List.skip (i + 1)
+            let prefixCount = prefix.Length
+            let suffixCount = suffix.Length
+            let inpCount = inps.Length
+
+            if inpCount < prefixCount + suffixCount then
+                cont None
+            else
+                let prefixInps = inps |> List.take prefixCount
+                let suffixInps = inps |> List.skip (inpCount - suffixCount)
+
+                let ellipsisInps =
+                    inps
+                    |> List.skip prefixCount
+                    |> List.take (inpCount - prefixCount - suffixCount)
+
+                prefix
+                |> matchPatternList defEnvs useEnvs literals ellipsis prefixInps (function
+                    | Some b1 ->
+                        suffix
+                        |> matchPatternList defEnvs useEnvs literals ellipsis suffixInps (function
+                            | Some b2 ->
+                                let vars = collectPatternVars literals ellipsis ellipsisPat
+
+                                ellipsisInps
+                                |> matchEllipsis
+                                    defEnvs
+                                    useEnvs
+                                    literals
+                                    ellipsis
+                                    (function
+                                    | Some b3 -> Some(mergeBindings (mergeBindings b1 b2) b3) |> cont
+                                    | None -> cont None)
+                                    ellipsisPat
+                                    vars
+                                    []
+                            | None -> cont None)
+                    | None -> cont None)
+        | _ ->
+            match pats with
+            | pat :: rest ->
+                match inps with
+                | inp :: restInps ->
+                    pat
+                    |> matchOne defEnvs useEnvs literals ellipsis inp (function
+                        | Some b1 ->
+                            rest
+                            |> matchPatternList defEnvs useEnvs literals ellipsis restInps (fun b2 ->
+                                Option.map (mergeBindings b1) b2 |> cont)
+                        | None -> cont None)
+                | [] -> cont None
+            | [] ->
+                if List.isEmpty inps then
+                    cont (Some Map.empty)
+                else
+                    cont None
+
+    and matchEllipsis defEnvs useEnvs literals ellipsis cont pat vars results =
         function
         | [] ->
             let allBindings = results |> List.rev |> List.map Option.get
@@ -152,30 +203,30 @@ module Macro =
             cont (Some merged)
         | inp :: restInps ->
             pat
-            |> matchOne defEnvs useEnvs literals inp (function
+            |> matchOne defEnvs useEnvs literals ellipsis inp (function
                 | Some b ->
                     restInps
-                    |> matchEllipsis defEnvs useEnvs literals cont pat vars (Some b :: results)
+                    |> matchEllipsis defEnvs useEnvs literals ellipsis cont pat vars (Some b :: results)
                 | None -> cont None)
 
     [<TailCall>]
-    let rec loopTemplateVars acc =
+    let rec loopTemplateVars ellipsis acc =
         function
         | [] -> acc
         | x :: xs ->
             match x with
-            | SSymbol s -> loopTemplateVars (s :: acc) xs
-            | SList elems -> loopTemplateVars acc (elems @ xs)
+            | SSymbol s -> loopTemplateVars ellipsis (s :: acc) xs
+            | SList elems -> loopTemplateVars ellipsis acc (elems @ xs)
             | SQuote x
             | SQuasiquote x
             | SUnquote x
-            | SUnquoteSplicing x -> loopTemplateVars acc (x :: xs)
-            | SPair(elems, x) -> loopTemplateVars acc (elems @ x :: xs)
-            | SVector elements -> loopTemplateVars acc (Array.toList elements @ xs)
-            | _ -> loopTemplateVars acc xs
+            | SUnquoteSplicing x -> loopTemplateVars ellipsis acc (x :: xs)
+            | SPair(elems, x) -> loopTemplateVars ellipsis acc (elems @ x :: xs)
+            | SVector elements -> loopTemplateVars ellipsis acc (Array.toList elements @ xs)
+            | _ -> loopTemplateVars ellipsis acc xs
 
-    let collectTemplateVars x =
-        [ x ] |> loopTemplateVars [] |> List.distinct |> List.rev
+    let collectTemplateVars ellipsis x =
+        [ x ] |> loopTemplateVars ellipsis [] |> List.distinct |> List.rev
 
     [<TailCall>]
     let rec renameTemplate toRename expr cont =
@@ -189,7 +240,7 @@ module Macro =
             renameTemplateList toRename carElements (fun resCar ->
                 renameTemplate toRename cdr (fun resCdr -> SPair(resCar, resCdr) |> cont))
         | SVector elements ->
-            renameTemplateList toRename (Array.toList elements) (fun res -> SVector(List.toArray res) |> cont)
+            renameTemplateList toRename (Array.toList elements) (fun res -> res |> List.toArray |> SVector |> cont)
         | SQuote x -> renameTemplate toRename x (SQuote >> cont)
         | SQuasiquote x -> renameTemplate toRename x (SQuasiquote >> cont)
         | SUnquote x -> renameTemplate toRename x (SUnquote >> cont)
@@ -203,35 +254,39 @@ module Macro =
             renameTemplate toRename x (fun resX -> renameTemplateList toRename xs (fun resXs -> resX :: resXs |> cont))
 
     [<TailCall>]
-    let rec expandTemplate cont bindings =
+    let rec expandTemplate ellipsis cont bindings =
         function
         | SSymbol s ->
             match Map.tryFind s bindings with
             | Some(SingleB v) -> v |> cont
             | _ -> SSymbol s |> cont
-        | SList elems -> expandTemplateList (toSList >> cont) bindings elems
-        | SQuote x -> expandTemplate (SQuote >> cont) bindings x
-        | SQuasiquote x -> expandTemplate (SQuasiquote >> cont) bindings x
-        | SUnquote x -> expandTemplate (SUnquote >> cont) bindings x
-        | SUnquoteSplicing x -> expandTemplate (SUnquoteSplicing >> cont) bindings x
+        | SList elems -> elems |> expandTemplateList ellipsis (toSList >> cont) bindings
+        | SQuote x -> x |> expandTemplate ellipsis (SQuote >> cont) bindings
+        | SQuasiquote x -> x |> expandTemplate ellipsis (SQuasiquote >> cont) bindings
+        | SUnquote x -> x |> expandTemplate ellipsis (SUnquote >> cont) bindings
+        | SUnquoteSplicing x -> x |> expandTemplate ellipsis (SUnquoteSplicing >> cont) bindings
         | SPair(xs, x) ->
-            expandTemplateList
-                (fun (expandedXs: SExpression list) ->
-                    expandTemplate (fun expandedX -> SPair(expandedXs, expandedX) |> cont) bindings x)
+            xs
+            |> expandTemplateList
+                ellipsis
+                (fun expandedXs ->
+                    x
+                    |> expandTemplate ellipsis (fun expandedX -> SPair(expandedXs, expandedX) |> cont) bindings)
                 bindings
-                xs
         | SVector elements ->
-            expandTemplateList
-                (fun expandedElems -> SVector(List.toArray expandedElems) |> cont)
+            elements
+            |> Array.toList
+            |> expandTemplateList
+                ellipsis
+                (fun expandedElems -> expandedElems |> List.toArray |> SVector |> cont)
                 bindings
-                (Array.toList elements)
         | x -> x |> cont
 
-    and expandTemplateList cont bindings =
+    and expandTemplateList ellipsis cont bindings =
         function
         | [] -> [] |> cont
-        | tmpl :: SSymbol "..." :: rest ->
-            let vars = collectTemplateVars tmpl
+        | tmpl :: SSymbol s :: rest when s = ellipsis ->
+            let vars = collectTemplateVars ellipsis tmpl
 
             let ellipsisVars =
                 vars
@@ -241,13 +296,15 @@ module Macro =
                     | _ -> None)
 
             match ellipsisVars with
-            | [] -> expandTemplateList cont bindings rest
+            | [] -> rest |> expandTemplateList ellipsis cont bindings
             | (_, firstValues) :: _ ->
                 let count = firstValues.Length
 
                 expandEllipsis
+                    ellipsis
                     (fun expanded ->
-                        expandTemplateList (fun expandedRest -> expanded @ expandedRest |> cont) bindings rest)
+                        rest
+                        |> expandTemplateList ellipsis (fun expandedRest -> expanded @ expandedRest |> cont) bindings)
                     bindings
                     tmpl
                     ellipsisVars
@@ -255,13 +312,15 @@ module Macro =
                     0
                     []
         | tmpl :: rest ->
-            expandTemplate
+            tmpl
+            |> expandTemplate
+                ellipsis
                 (fun expandedTmpl ->
-                    expandTemplateList (fun expandedRest -> expandedTmpl :: expandedRest |> cont) bindings rest)
+                    rest
+                    |> expandTemplateList ellipsis (fun expandedRest -> expandedTmpl :: expandedRest |> cont) bindings)
                 bindings
-                tmpl
 
-    and expandEllipsis cont bindings tmpl ellipsisVars count i acc =
+    and expandEllipsis ellipsis cont bindings tmpl ellipsisVars count i acc =
         if i >= count then
             List.rev acc |> cont
         else
@@ -269,29 +328,31 @@ module Macro =
                 ellipsisVars
                 |> List.fold (fun acc (v, values) -> Map.add v values.[i] acc) bindings
 
-            expandTemplate
-                (fun res -> expandEllipsis cont bindings tmpl ellipsisVars count (i + 1) (res :: acc))
+            tmpl
+            |> expandTemplate
+                ellipsis
+                (fun res -> expandEllipsis ellipsis cont bindings tmpl ellipsisVars count (i + 1) (res :: acc))
                 localBindings
-                tmpl
 
     [<TailCall>]
-    let rec trySyntaxRules defEnvs useEnvs cont literalSet args =
+    let rec trySyntaxRules defEnvs useEnvs cont ellipsis literalSet args =
         function
         | [] -> failwith "no matching syntax-rules pattern"
         | (patBody, template) :: rest ->
             patBody
-            |> matchPatternList defEnvs useEnvs literalSet args (function
+            |> matchPatternList defEnvs useEnvs literalSet ellipsis args (function
                 | Some bindings ->
-                    let patternVars = collectPatternVars literalSet (SList patBody) |> Set.ofList
+                    let patternVars =
+                        collectPatternVars literalSet ellipsis (SList patBody) |> Set.ofList
 
                     let templateVars =
-                        collectTemplateVars template
+                        collectTemplateVars ellipsis template
                         |> List.filter (fun s ->
-                            not (Set.contains s patternVars || Set.contains s literalSet || s = "..."))
+                            not (Set.contains s patternVars || Set.contains s literalSet || s = ellipsis))
                         |> List.distinct
 
                     let expansionId = Type.getNextExpansionId ()
-                    let rename (s: string) = sprintf "%s#%d" s expansionId
+                    let rename s = sprintf "%s#%d" s expansionId
                     let renameMap = templateVars |> List.map (fun s -> s, rename s) |> Map.ofList
                     let renamedTemplate = renameTemplate renameMap template id
 
@@ -303,8 +364,10 @@ module Macro =
                             | None -> None)
 
                     let extendedEnvs = Eval.extendEnvs useEnvs definitions
-                    expandTemplate (Eval.eval extendedEnvs cont) bindings renamedTemplate
-                | None -> trySyntaxRules defEnvs useEnvs cont literalSet args rest)
+
+                    renamedTemplate
+                    |> expandTemplate ellipsis (Eval.eval extendedEnvs cont) bindings
+                | None -> rest |> trySyntaxRules defEnvs useEnvs cont ellipsis literalSet args)
 
     let sSyntaxRules envs cont =
         let parseLiterals =
@@ -324,12 +387,20 @@ module Macro =
             | x -> Print.print x |> sprintf "'%s' invalid syntax-rules clause." |> failwith
 
         function
+        | SSymbol ell :: literals :: rules ->
+            let literalSet = parseLiterals literals
+            let parsedRules = rules |> List.map parseRule
+
+            let transformer envs' cont' args =
+                trySyntaxRules envs envs' cont' ell literalSet args parsedRules
+
+            SSyntax transformer |> cont
         | literals :: rules ->
             let literalSet = parseLiterals literals
             let parsedRules = rules |> List.map parseRule
 
             let transformer envs' cont' args =
-                trySyntaxRules envs envs' cont' literalSet args parsedRules
+                trySyntaxRules envs envs' cont' "..." literalSet args parsedRules
 
             SSyntax transformer |> cont
         | x -> x |> invalidParameter "'%s' invalid syntax-rules parameter."

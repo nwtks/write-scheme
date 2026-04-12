@@ -213,3 +213,43 @@ let ``vector pattern`` () =
     |> ignore
 
     "(my-vector #(1 2))" |> rep |> should equal "(2 1)"
+
+[<Fact>]
+let ``ellipsis in middle of pattern`` () =
+    let rep = repEnvs ()
+
+    "(define-syntax head-tail
+        (syntax-rules ()
+            ((_ (h ... t1 t2)) (list (list h ...) t1 t2))))"
+    |> rep
+    |> ignore
+
+    "(head-tail (1 2 3 4 5))" |> rep |> should equal "((1 2 3) 4 5)"
+    "(head-tail (1 2))" |> rep |> should equal "(() 1 2)"
+
+[<Fact>]
+let ``custom ellipsis support`` () =
+    let rep = repEnvs ()
+
+    "(define-syntax my-list
+        (syntax-rules ::: ()
+            ((_ x :::) (list x :::))))"
+    |> rep
+    |> ignore
+
+    "(my-list 1 2 3)" |> rep |> should equal "(1 2 3)"
+
+[<Fact>]
+let ``custom ellipsis with literals`` () =
+    let rep = repEnvs ()
+
+    "(define-syntax check-lit
+        (syntax-rules ::: (lit)
+            ((_ lit x :::) (list x :::))))"
+    |> rep
+    |> ignore
+
+    "(check-lit lit 1 2 3)" |> rep |> should equal "(1 2 3)"
+
+    (fun () -> "(let ((lit 0)) (check-lit lit 1 2 3))" |> rep |> ignore)
+    |> should throw typeof<System.Exception>
