@@ -70,4 +70,16 @@ module Type =
         nextExpansionId <- nextExpansionId + 1
         id
 
+    type Winder =
+        { Id: int
+          Before: SExpression
+          After: SExpression }
+
+    let nextWinderId = ref 0
+    let currentWinders = ref ([]: Winder list)
+
+    type SavedParameter =
+        { Ref: SExpression ref
+          SavedValue: SExpression ref }
+
     exception SchemeRaise of SExpression

@@ -341,12 +341,39 @@ module SpecialForm =
     let rec bindParameterize envs cont body saved acc =
         function
         | [] ->
-            let savedValues = List.rev saved
+            let id = nextWinderId.Value
+            nextWinderId.Value <- id + 1
+            let savedRev = List.rev saved
 
-            try
-                body |> eachEval envs cont SEmpty
-            finally
-                savedValues |> List.iter (fun (r: SExpression ref, old) -> r.Value <- old)
+            let swapThunk =
+                SProcedure(fun _ cont' _ ->
+                    savedRev
+                    |> List.iter (fun s ->
+                        let tmp = s.Ref.Value
+                        s.Ref.Value <- s.SavedValue.Value
+                        s.SavedValue.Value <- tmp)
+
+                    SUnspecified |> cont')
+
+            let winder =
+                { Id = id
+                  Before = swapThunk
+                  After = swapThunk }
+
+            currentWinders.Value <- winder :: currentWinders.Value
+
+            body
+            |> eachEval
+                envs
+                (fun res ->
+                    let nextCur =
+                        match currentWinders.Value with
+                        | h :: t when h.Id = id -> t
+                        | xs -> xs
+
+                    currentWinders.Value <- nextCur
+                    swapThunk |> Eval.apply envs (fun _ -> cont res) [])
+                SEmpty
         | (param, expr) :: xs ->
             param
             |> Eval.eval envs (fun p ->
@@ -367,7 +394,8 @@ module SpecialForm =
     and setAndContinue envs cont body saved acc xs (r: SExpression ref) newVal =
         let old = r.Value
         r.Value <- newVal
-        xs |> bindParameterize envs cont body ((r, old) :: saved) acc
+        let s = { Ref = r; SavedValue = ref old }
+        xs |> bindParameterize envs cont body (s :: saved) acc
 
     let sParameterize envs cont =
         function

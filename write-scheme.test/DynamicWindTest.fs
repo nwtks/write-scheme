@@ -63,3 +63,35 @@ let ``dynamic-wind with exception handler`` () =
     |> ignore
 
     "path" |> rep |> should equal "(out error in)"
+
+[<Fact>]
+let ``parameterize basic`` () =
+    let rep = repEnvs ()
+
+    "(define p (make-parameter 0))" |> rep |> ignore
+    "(parameterize ((p 1)) (p))" |> rep |> should equal "1"
+    "(p)" |> rep |> should equal "0"
+
+[<Fact>]
+let ``parameterize with call/cc`` () =
+    let rep = repEnvs ()
+
+    "(define p (make-parameter 0))" |> rep |> ignore
+    "(define c #f)" |> rep |> ignore
+
+    "(define (test)
+        (parameterize ((p 1))
+            (call/cc (lambda (k) (set! c k)))
+            (p)))"
+    |> rep
+    |> ignore
+
+    "(test)" |> rep |> should equal "1"
+    "(p)" |> rep |> should equal "0"
+
+    "(c #t)" |> rep |> should equal "1"
+    "(p)" |> rep |> should equal "0"
+
+    "(p 2)" |> rep |> ignore
+    "(c #t)" |> rep |> should equal "1"
+    "(p)" |> rep |> should equal "2"

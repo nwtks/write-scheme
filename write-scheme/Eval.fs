@@ -58,9 +58,22 @@ module Eval =
 
     and apply envs cont args =
         function
-        | SParameter(r, _) ->
+        | SParameter(r, converterOpt) ->
             match args with
             | [] -> r.Value |> cont
+            | [ v ] ->
+                match converterOpt with
+                | Some converter ->
+                    converter
+                    |> apply
+                        envs
+                        (fun converted ->
+                            r.Value <- converted
+                            converted |> cont)
+                        [ v ]
+                | None ->
+                    r.Value <- v
+                    v |> cont
             | _ ->
                 args
                 |> toSList

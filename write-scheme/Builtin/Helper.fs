@@ -8,14 +8,6 @@ module Helper =
     let invalidParameter fmt =
         toSList >> Print.print >> sprintf fmt >> failwith
 
-    type Winder =
-        { Id: int
-          Before: SExpression
-          After: SExpression }
-
-    let nextWinderId = ref 0
-    let currentWinders = ref ([]: Winder list)
-
     [<TailCall>]
     let rec eachEval envs cont acc =
         function

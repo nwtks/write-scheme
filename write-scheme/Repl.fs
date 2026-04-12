@@ -18,5 +18,5 @@ module Repl =
         try
             repl' envs "Welcome"
         with x ->
-            WriteScheme.Builtins.Helper.currentWinders.Value <- []
+            Type.currentWinders.Value <- []
             x.Message |> repl' envs
