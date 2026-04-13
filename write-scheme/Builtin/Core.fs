@@ -225,17 +225,16 @@ module Core =
     let sDynamicWind envs cont =
         function
         | [ inProc; bodyProc; outProc ] ->
-            let id = nextWinderId.Value
-            nextWinderId.Value <- id + 1
+            let id = Context.getNextWinderId envs
 
             inProc
             |> Eval.apply
                 envs
                 (fun _ ->
                     let winder =
-                        { Id = id
-                          Before = inProc
-                          After = outProc }
+                        { id = id
+                          before = inProc
+                          after = outProc }
 
                     currentWinders.Value <- winder :: currentWinders.Value
 
@@ -245,7 +244,7 @@ module Core =
                         (fun res ->
                             let nextCur =
                                 match currentWinders.Value with
-                                | h :: t when h.Id = id -> t
+                                | h :: t when h.id = id -> t
                                 | _ -> currentWinders.Value
 
                             currentWinders.Value <- nextCur

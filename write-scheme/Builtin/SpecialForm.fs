@@ -43,13 +43,15 @@ module SpecialForm =
     [<TailCall>]
     let rec bindArgs envs cont body acc =
         function
-        | [] -> body |> Eval.eachEval (acc |> List.rev |> Eval.extendEnvs envs) cont SEmpty
+        | [] -> body |> Eval.eachEval (acc |> List.rev |> Context.extendEnvs envs) cont SEmpty
         | (var, expr) :: xs ->
             expr
             |> Eval.eval envs (fun a -> xs |> bindArgs envs cont body ((var, ref a) :: acc))
 
     and [<TailCall>] closure captureEnvs formals body envs cont args =
-        formals |> zipFormals args |> bindArgs (envs @ captureEnvs) cont body []
+        formals
+        |> zipFormals args
+        |> bindArgs (Context.mergeEnvs envs captureEnvs) cont body []
 
     let sLambda envs cont =
         function
@@ -73,7 +75,7 @@ module SpecialForm =
         | [ SSymbol var; expr ] ->
             expr
             |> Eval.eval envs (fun x ->
-                (Eval.lookupEnvs envs var).Value <- x
+                (Context.lookupEnvs envs var).Value <- x
                 x |> cont)
         | x -> x |> invalidParameter "'%s' invalid set! parameter."
 
@@ -163,7 +165,7 @@ module SpecialForm =
     [<TailCall>]
     let rec bindLet envs cont body acc =
         function
-        | [] -> body |> Eval.eachEval (acc |> List.rev |> Eval.extendEnvs envs) cont SEmpty
+        | [] -> body |> Eval.eachEval (acc |> List.rev |> Context.extendEnvs envs) cont SEmpty
         | (var, expr) :: xs ->
             expr
             |> Eval.eval envs (fun a -> xs |> bindLet envs cont body ((var, ref a) :: acc))
@@ -191,7 +193,7 @@ module SpecialForm =
         | [] -> body |> Eval.eachEval envs cont SEmpty
         | (var, expr) :: xs ->
             expr
-            |> Eval.eval envs (fun v -> xs |> bindLetStar ([ var, ref v ] |> Eval.extendEnvs envs) cont body)
+            |> Eval.eval envs (fun v -> xs |> bindLetStar ([ var, ref v ] |> Context.extendEnvs envs) cont body)
 
     let sLetStar envs cont =
         function
@@ -205,7 +207,7 @@ module SpecialForm =
         | (var, expr) :: xs ->
             expr
             |> Eval.eval envs (fun a ->
-                Eval.defineEnvVar envs var a
+                Context.defineEnvVar envs var a
                 xs |> bindLetRecExpr envs cont body)
 
     let sLetRec envs cont =
@@ -213,7 +215,7 @@ module SpecialForm =
             bindings
             |> List.map (function
                 | var, _ -> var, ref SEmpty)
-            |> Eval.extendEnvs envs
+            |> Context.extendEnvs envs
 
         function
         | SList bindings :: body ->
@@ -237,7 +239,7 @@ module SpecialForm =
             function
             | var, _ ->
                 let r = ref SEmpty
-                [ var, r ] |> Eval.extendEnvs envs', r :: refs
+                [ var, r ] |> Context.extendEnvs envs', r :: refs
 
         let bindRef bindings =
             let envs', refs = bindings |> List.fold eachRef (envs, [])
@@ -253,7 +255,7 @@ module SpecialForm =
     [<TailCall>]
     let rec bindLetValues envs cont body acc =
         function
-        | [] -> body |> Eval.eachEval (acc |> List.rev |> Eval.extendEnvs envs) cont SEmpty
+        | [] -> body |> Eval.eachEval (acc |> List.rev |> Context.extendEnvs envs) cont SEmpty
         | (vars, expr) :: xs ->
             expr
             |> Eval.eval envs (fun v ->
@@ -285,7 +287,7 @@ module SpecialForm =
                 let nextEnvs =
                     List.zip vars vals
                     |> List.map (fun (vr, vl) -> vr, ref vl)
-                    |> Eval.extendEnvs envs
+                    |> Context.extendEnvs envs
 
                 xs |> bindLetStarValues nextEnvs cont body)
 
@@ -316,7 +318,7 @@ module SpecialForm =
         | [] ->
             acc
             |> List.rev
-            |> Eval.extendEnvs envs
+            |> Context.extendEnvs envs
             |> loopDo envs cont test exprs commands bindings
         | (var, _, Some step) :: xs ->
             step
@@ -324,7 +326,7 @@ module SpecialForm =
                 xs
                 |> evalDoStep envs cont test exprs commands bindings loopEnvs ((var, ref v) :: acc))
         | (var, _, None) :: xs ->
-            let v = (Eval.lookupEnvs loopEnvs var).Value
+            let v = (Context.lookupEnvs loopEnvs var).Value
 
             xs
             |> evalDoStep envs cont test exprs commands bindings loopEnvs ((var, ref v) :: acc)
@@ -335,7 +337,7 @@ module SpecialForm =
         | [] ->
             acc
             |> List.rev
-            |> Eval.extendEnvs envs
+            |> Context.extendEnvs envs
             |> loopDo envs cont test exprs commands bindings
         | (var, init, _) :: xs ->
             init
@@ -383,8 +385,7 @@ module SpecialForm =
     let rec bindParameterize envs cont body saved acc =
         function
         | [] ->
-            let id = nextWinderId.Value
-            nextWinderId.Value <- id + 1
+            let id = Context.getNextWinderId envs
             let savedRev = List.rev saved
 
             let swapThunk =
@@ -398,9 +399,9 @@ module SpecialForm =
                     SUnspecified |> cont')
 
             let winder =
-                { Id = id
-                  Before = swapThunk
-                  After = swapThunk }
+                { id = id
+                  before = swapThunk
+                  after = swapThunk }
 
             currentWinders.Value <- winder :: currentWinders.Value
 
@@ -410,7 +411,7 @@ module SpecialForm =
                 (fun res ->
                     let nextCur =
                         match currentWinders.Value with
-                        | h :: t when h.Id = id -> t
+                        | h :: t when h.id = id -> t
                         | xs -> xs
 
                     currentWinders.Value <- nextCur
@@ -465,7 +466,7 @@ module SpecialForm =
                         @ [ toSList [ SSymbol "else"; toSList [ SSymbol "raise"; SQuote obj ] ] ]
 
                 doWind envs currentWinders.Value savedWinders (fun _ ->
-                    let envs' = [ var, ref obj ] |> Eval.extendEnvs envs
+                    let envs' = [ var, ref obj ] |> Context.extendEnvs envs
                     finalClauses |> sCond envs' cont)
         | x -> x |> invalidParameter "'%s' invalid guard parameter."
 
@@ -558,10 +559,10 @@ module SpecialForm =
         | [ x ] -> x |> replaceQuasiquote envs cont 0 cont
         | x -> x |> invalidParameter "'%s' invalid quasiquote parameter."
 
-    let sDefine (envs: SEnv list) cont =
+    let sDefine envs cont =
         let define' var =
             Eval.eval envs (fun x ->
-                Eval.defineEnvVar envs var x
+                Context.defineEnvVar envs var x
                 var |> SSymbol |> cont)
 
         function
@@ -577,7 +578,7 @@ module SpecialForm =
         | (var, expr) :: xs ->
             expr
             |> Eval.eval envs (fun value ->
-                Eval.defineEnvVar envs var value
+                Context.defineEnvVar envs var value
                 xs |> bindDefineValues envs cont formals)
 
     let sDefineValues envs cont =
@@ -593,18 +594,11 @@ module SpecialForm =
                 formals |> zipFormals vals |> bindDefineValues envs cont formals)
         | x -> x |> invalidParameter "'%s' invalid define-values parameter."
 
-    let private nextRecordTypeId = new System.Threading.ThreadLocal<int>(fun () -> 0)
-
-    let getNextRecordTypeId () =
-        let id = nextRecordTypeId.Value
-        nextRecordTypeId.Value <- id + 1
-        id
-
-    let sDefineRecordType (envs: SEnv list) cont =
+    let sDefineRecordType envs cont =
         function
         | SSymbol name :: SList(SSymbol ctorName :: ctorFields) :: SSymbol predName :: restSpecs ->
-            let defineVal var valExpr = Eval.defineEnvVar envs var valExpr
-            let typeId = getNextRecordTypeId ()
+            let defineVal var valExpr = Context.defineEnvVar envs var valExpr
+            let typeId = Context.getNextRecordTypeId envs
 
             let fieldSpecs =
                 restSpecs

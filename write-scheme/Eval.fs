@@ -3,24 +3,6 @@ namespace WriteScheme
 open Type
 
 module Eval =
-    let extendEnvs envs bindings = (Map.ofList bindings |> ref) :: envs
-
-    let defineEnvVar (envs: SEnv list) var value =
-        let env = envs.Head
-
-        match Map.tryFind var env.Value with
-        | Some r -> r.Value <- value
-        | None -> env.Value <- Map.add var (ref value) env.Value
-
-    let tryLookupEnvs envs symbol =
-        let lookup (env: SEnv) = Map.tryFind symbol env.Value
-        List.tryPick lookup envs
-
-    let lookupEnvs envs symbol =
-        match tryLookupEnvs envs symbol with
-        | Some x -> x
-        | None -> sprintf "No binding for '%s'." symbol |> failwith
-
     [<TailCall>]
     let rec matchEval envs cont =
         function
@@ -44,7 +26,7 @@ module Eval =
         | SSyntax _
         | SProcedure _
         | SContinuation _ as x -> x |> cont
-        | SSymbol x -> (lookupEnvs envs x).Value |> cont
+        | SSymbol x -> (Context.lookupEnvs envs x).Value |> cont
         | SList [] -> SEmpty |> cont
         | SList(operator :: operands) -> operator |> matchEval envs (apply envs cont operands)
         | SQuote x -> SList [ SSymbol "quote"; x ] |> matchEval envs cont

@@ -9,6 +9,7 @@
     <Compile Include="Type.fs" />
     <Compile Include="Print.fs" />
     <Compile Include="Read.fs" />
+    <Compile Include="Context.fs" />
     <Compile Include="Eval.fs" />
     <Compile Include="Builtin/Helper.fs" />
     <Compile Include="Builtin/SpecialForm.fs" />

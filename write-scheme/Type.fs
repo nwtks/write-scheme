@@ -24,12 +24,18 @@ module Type =
         | SUnquoteSplicing of SExpression
         | SPromise of (bool * SExpression) ref
         | SParameter of SExpression ref * SExpression option
-        | SSyntax of (SEnv list -> SContinuation -> SExpression list -> SExpression)
-        | SProcedure of (SEnv list -> SContinuation -> SExpression list -> SExpression)
+        | SSyntax of (Context -> SContinuation -> SExpression list -> SExpression)
+        | SProcedure of (Context -> SContinuation -> SExpression list -> SExpression)
         | SContinuation of SContinuation
 
-    and SEnv = Map<string, SExpression ref> ref
     and SContinuation = SExpression -> SExpression
+    and Environment = Map<string, SExpression ref> ref
+
+    and Context =
+        { environments: Environment list
+          mutable nextExpansionId: int
+          mutable nextRecordTypeId: int
+          mutable nextWinderId: int }
 
     let STrue = SBool true
     let SFalse = SBool false
@@ -54,11 +60,10 @@ module Type =
             SRational(x1' / gcd, x2' / gcd)
 
     type Winder =
-        { Id: int
-          Before: SExpression
-          After: SExpression }
+        { id: int
+          before: SExpression
+          after: SExpression }
 
-    let nextWinderId = new System.Threading.ThreadLocal<int>(fun () -> 0)
     let currentWinders = new System.Threading.ThreadLocal<Winder list>(fun () -> [])
 
     exception SchemeRaise of SExpression

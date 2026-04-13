@@ -39,12 +39,9 @@ module Helper =
         else
             match sList, tList with
             | [], [] -> List.rev accS, List.rev accT
-            | h1 :: _, h2 :: _ when h1.Id = h2.Id -> List.rev accS, List.rev accT
+            | h1 :: _, h2 :: _ when h1.id = h2.id -> List.rev accS, List.rev accT
             | h1 :: t1, h2 :: t2 -> loopDiffWinders t1 t2 (lenS - 1) (lenT - 1) (h1 :: accS) (h2 :: accT)
             | _ -> List.rev accS, List.rev accT
-
-    let diffWinders src tgt =
-        loopDiffWinders src tgt (List.length src) (List.length tgt) [] []
 
     [<TailCall>]
     let rec runWindLeaves envs cont cur =
@@ -53,12 +50,12 @@ module Helper =
         | head :: rest ->
             let nextCur =
                 match cur with
-                | h :: t when h.Id = head.Id -> t
+                | h :: t when h.id = head.id -> t
                 | _ -> cur
 
             currentWinders.Value <- nextCur
 
-            head.After
+            head.after
             |> Eval.apply envs (fun _ -> rest |> runWindLeaves envs cont nextCur) []
 
     [<TailCall>]
@@ -66,7 +63,7 @@ module Helper =
         function
         | [] -> cont cur
         | head :: rest ->
-            head.Before
+            head.before
             |> Eval.apply
                 envs
                 (fun _ ->
@@ -76,7 +73,9 @@ module Helper =
                 []
 
     let doWind envs src tgt next =
-        let leaves, enters = diffWinders src tgt
+        let leaves, enters =
+            loopDiffWinders src tgt (List.length src) (List.length tgt) [] []
+
         let entersRev = List.rev enters
 
         leaves

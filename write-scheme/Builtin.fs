@@ -5,8 +5,8 @@ open WriteScheme.Builtins
 
 module Builtin =
     let builtin =
-        Eval.extendEnvs
-            []
+        Context.extendEnvs
+            Context.empty
             [ "quote", SSyntax sQuote |> ref
               "lambda", SSyntax sLambda |> ref
               "if", SSyntax sIf |> ref

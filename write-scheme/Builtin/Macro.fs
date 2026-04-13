@@ -33,8 +33,8 @@ module Macro =
     let freeIdentifierEquals defEnvs id1 useEnvs id2 =
         match id1, id2 with
         | SSymbol s1, SSymbol s2 ->
-            let ref1 = Eval.tryLookupEnvs defEnvs s1
-            let ref2 = Eval.tryLookupEnvs useEnvs s2
+            let ref1 = Context.tryLookupEnvs defEnvs s1
+            let ref2 = Context.tryLookupEnvs useEnvs s2
 
             match ref1, ref2 with
             | Some r1, Some r2 -> LanguagePrimitives.PhysicalEquality r1 r2
@@ -344,13 +344,6 @@ module Macro =
                 (fun res -> expandEllipsis ellipsis cont bindings tmpl ellipsisVars count (i + 1) (res :: acc))
                 localBindings
 
-    let private nextExpansionId = new System.Threading.ThreadLocal<int>(fun () -> 0)
-
-    let getNextExpansionId () =
-        let id = nextExpansionId.Value
-        nextExpansionId.Value <- id + 1
-        id
-
     [<TailCall>]
     let rec trySyntaxRules defEnvs useEnvs cont ellipsis literalSet args =
         function
@@ -368,7 +361,7 @@ module Macro =
                             not (Set.contains s patternVars || Set.contains s literalSet || s = ellipsis))
                         |> List.distinct
 
-                    let expansionId = getNextExpansionId ()
+                    let expansionId = Context.getNextExpansionId useEnvs
                     let rename s = sprintf "%s#%d" s expansionId
                     let renameMap = templateVars |> List.map (fun s -> s, rename s) |> Map.ofList
                     let renamedTemplate = renameTemplate renameMap template id
@@ -376,11 +369,11 @@ module Macro =
                     let definitions =
                         templateVars
                         |> List.choose (fun s ->
-                            match Eval.tryLookupEnvs defEnvs s with
+                            match Context.tryLookupEnvs defEnvs s with
                             | Some v -> Some(rename s, v)
                             | None -> None)
 
-                    let extendedEnvs = Eval.extendEnvs useEnvs definitions
+                    let extendedEnvs = Context.extendEnvs useEnvs definitions
 
                     renamedTemplate
                     |> expandTemplate ellipsis false (Eval.eval extendedEnvs cont) bindings
@@ -430,7 +423,7 @@ module Macro =
     [<TailCall>]
     let rec evalLetSyntaxTransformers envs cont body acc =
         function
-        | [] -> body |> Eval.eachEval (acc |> List.rev |> Eval.extendEnvs envs) cont SEmpty
+        | [] -> body |> Eval.eachEval (acc |> List.rev |> Context.extendEnvs envs) cont SEmpty
         | (var, expr) :: rest ->
             expr
             |> Eval.eval envs (fun transformer ->
@@ -457,17 +450,17 @@ module Macro =
         | SList bindings :: body ->
             let bindings' = bindings |> List.map eachBinding
             let vars = bindings' |> List.map (fun (v, _) -> v, ref SEmpty)
-            let envs' = vars |> Eval.extendEnvs envs
+            let envs' = vars |> Context.extendEnvs envs
 
             (bindings', vars |> List.map snd)
             |> evalLetRecSyntaxTransformers envs' cont body
         | x -> x |> invalidParameter "'%s' invalid letrec-syntax parameter."
 
-    let sDefineSyntax (envs: SEnv list) cont =
+    let sDefineSyntax envs cont =
         function
         | [ SSymbol var; expr ] ->
             expr
             |> Eval.eval envs (fun x ->
-                Eval.defineEnvVar envs var x
+                Context.defineEnvVar envs var x
                 var |> SSymbol |> cont)
         | x -> x |> invalidParameter "'%s' invalid define-syntax parameter."

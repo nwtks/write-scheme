@@ -4,7 +4,7 @@ module Repl =
     let rep envs =
         Read.read >> Eval.eval envs id >> Print.print
 
-    let newEnvs () = Eval.extendEnvs Builtin.builtin []
+    let newEnvs () = Context.extendEnvs Builtin.builtin []
 
     [<TailCall>]
     let rec repl' envs output =
