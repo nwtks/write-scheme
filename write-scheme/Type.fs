@@ -8,6 +8,7 @@ module Type =
         | SBool of bool
         | SRational of bigint * bigint
         | SReal of float
+        | SComplex of System.Numerics.Complex
         | SString of string
         | SChar of string
         | SSymbol of string
@@ -27,17 +28,13 @@ module Type =
         | SProcedure of (SEnv list -> SContinuation -> SExpression list -> SExpression)
         | SContinuation of SContinuation
 
-    and SEnv = System.Collections.Generic.Dictionary<string, SExpression ref>
+    and SEnv = Map<string, SExpression ref> ref
     and SContinuation = SExpression -> SExpression
 
     let STrue = SBool true
     let SFalse = SBool false
 
     let SZero = SRational(0I, 1I)
-
-    let SPositiveInfinity = SReal System.Double.PositiveInfinity
-    let SNegativeInfinity = SReal System.Double.NegativeInfinity
-    let SNaN = SReal System.Double.NaN
 
     let toSBool x = if x then STrue else SFalse
 

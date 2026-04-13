@@ -46,6 +46,16 @@ module Builtin =
               "eq?", SProcedure isEqv |> ref
               "equal?", SProcedure isEqual |> ref
               "number?", SProcedure isNumber |> ref
+              "complex?", SProcedure isComplex |> ref
+              "real?", SProcedure isReal |> ref
+              "rational?", SProcedure isRational |> ref
+              "integer?", SProcedure isInteger |> ref
+              "exact?", SProcedure isExact |> ref
+              "inexact?", SProcedure isInexact |> ref
+              "exact-integer?", SProcedure isExactInteger |> ref
+              "finite?", SProcedure isFinite |> ref
+              "infinite?", SProcedure isInfinite |> ref
+              "nan?", SProcedure isNaN |> ref
               "=", SProcedure equalNumber |> ref
               "<", SProcedure lessNumber |> ref
               ">", SProcedure greaterNumber |> ref
@@ -54,10 +64,18 @@ module Builtin =
               "zero?", SProcedure isZero |> ref
               "positive?", SProcedure isPositive |> ref
               "negative?", SProcedure isNegative |> ref
+              "odd?", SProcedure isOdd |> ref
+              "even?", SProcedure isEven |> ref
               "+", SProcedure addNumber |> ref
               "*", SProcedure multiplyNumber |> ref
               "-", SProcedure subtractNumber |> ref
               "/", SProcedure divideNumber |> ref
+              "make-rectangular", SProcedure makeRectangular |> ref
+              "make-polar", SProcedure makePolar |> ref
+              "real-part", SProcedure realPart |> ref
+              "imag-part", SProcedure imagPart |> ref
+              "magnitude", SProcedure magnitude |> ref
+              "angle", SProcedure angle |> ref
               "not", SProcedure sNot |> ref
               "boolean?", SProcedure isBoolean |> ref
               "pair?", SProcedure isPair |> ref

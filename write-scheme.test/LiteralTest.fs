@@ -54,6 +54,13 @@ let number () =
     "#d11/2" |> rep |> should equal "11/2"
     "#o11/2" |> rep |> should equal "9/2"
     "#b11/10" |> rep |> should equal "3/2"
+    "1+2i" |> rep |> should equal "1+2i"
+    "+1-2i" |> rep |> should equal "1-2i"
+    "1.5-2.5i" |> rep |> should equal "1.5-2.5i"
+    "+i" |> rep |> should equal "0+1i"
+    "-i" |> rep |> should equal "0-1i"
+    "+inf.0+nan.0i" |> rep |> should equal "+inf.0+nan.0i"
+    "3.0@0" |> rep |> should equal "3+0i"
 
 [<Fact>]
 let bool () =

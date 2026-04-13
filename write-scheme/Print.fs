@@ -3,6 +3,17 @@ namespace WriteScheme
 open Type
 
 module Print =
+    let formatFloat x isImaginary =
+        if System.Double.IsNaN x then
+            "+nan.0"
+        elif System.Double.IsPositiveInfinity x then
+            "+inf.0"
+        elif System.Double.IsNegativeInfinity x then
+            "-inf.0"
+        else
+            let s = string x
+            if isImaginary && x >= 0.0 then "+" + s else s
+
     let rec print =
         function
         | SUnspecified -> "#<unspecified>"
@@ -10,11 +21,8 @@ module Print =
         | SBool true -> "#t"
         | SBool false -> "#f"
         | SRational(x1, x2) -> if x2 = 1I then string x1 else sprintf "%A/%A" x1 x2
-        | SReal x ->
-            if System.Double.IsNaN x then "+nan.0"
-            elif System.Double.IsPositiveInfinity x then "+inf.0"
-            elif System.Double.IsNegativeInfinity x then "-inf.0"
-            else string x
+        | SReal x -> formatFloat x false
+        | SComplex x -> sprintf "%s%si" (formatFloat x.Real false) (formatFloat x.Imaginary true)
         | SString x -> x.Replace("\"", "\\\"") |> sprintf "\"%s\""
         | SChar x -> sprintf "#\\%s" x
         | SSymbol x -> x

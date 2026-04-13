@@ -70,10 +70,10 @@ module Core =
                 if va.Length <> vb.Length then
                     false
                 else
-                    let rec add i acc =
-                        if i < 0 then acc else add (i - 1) ((va.[i], vb.[i]) :: acc)
+                    let rec zip i acc =
+                        if i < 0 then acc else zip (i - 1) ((va.[i], vb.[i]) :: acc)
 
-                    add (va.Length - 1) xs |> loopEqual
+                    zip (va.Length - 1) xs |> loopEqual
             | SValues va, SValues vb ->
                 if va.Length <> vb.Length then
                     false
@@ -84,6 +84,7 @@ module Core =
             | SBool a', SBool b' -> a' = b' && loopEqual xs
             | SRational(a1, a2), SRational(b1, b2) -> a1 = b1 && a2 = b2 && loopEqual xs
             | SReal a', SReal b' -> a' = b' && loopEqual xs
+            | SComplex a', SComplex b' -> a' = b' && loopEqual xs
             | SString a', SString b' -> a' = b' && loopEqual xs
             | SChar a', SChar b' -> a' = b' && loopEqual xs
             | SSymbol a', SSymbol b' -> a' = b' && loopEqual xs

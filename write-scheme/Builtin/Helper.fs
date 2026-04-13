@@ -19,6 +19,7 @@ module Helper =
         | SBool a, SBool b -> a = b
         | SRational(a1, a2), SRational(b1, b2) -> a1 = b1 && a2 = b2
         | SReal a, SReal b -> a = b
+        | SComplex a, SComplex b -> a = b
         | SChar a, SChar b -> a = b
         | SSymbol a, SSymbol b -> a = b
         | SQuote a, SQuote b -> (a, b) |> eqv

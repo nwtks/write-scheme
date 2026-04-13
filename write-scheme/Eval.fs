@@ -3,20 +3,17 @@ namespace WriteScheme
 open Type
 
 module Eval =
-    let extendEnvs envs bindings = (Map.ofList bindings |> SEnv) :: envs
+    let extendEnvs envs bindings = (Map.ofList bindings |> ref) :: envs
 
     let defineEnvVar (envs: SEnv list) var value =
-        if envs.Head.ContainsKey var then
-            envs.Head.[var].Value <- value
-        else
-            envs.Head.Add(var, ref value)
+        let env = envs.Head
+
+        match Map.tryFind var env.Value with
+        | Some r -> r.Value <- value
+        | None -> env.Value <- Map.add var (ref value) env.Value
 
     let tryLookupEnvs envs symbol =
-        let lookup (env: SEnv) =
-            match env.TryGetValue symbol with
-            | true, x -> Some x
-            | _ -> None
-
+        let lookup (env: SEnv) = Map.tryFind symbol env.Value
         List.tryPick lookup envs
 
     let lookupEnvs envs symbol =
@@ -32,6 +29,7 @@ module Eval =
         | SBool _
         | SRational _
         | SReal _
+        | SComplex _
         | SString _
         | SChar _
         | SPair _

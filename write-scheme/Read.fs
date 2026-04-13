@@ -163,14 +163,45 @@ module Read =
     let parseChar = pCharacter |>> SChar
     let parseString = pString |>> SString
 
-    let parseReal =
+    let pRealDouble =
         choice
-            [ stringCIReturn "+inf.0" SPositiveInfinity
-              stringCIReturn "-inf.0" SNegativeInfinity
-              stringCIReturn "+nan.0" SNaN
-              stringCIReturn "-nan.0" SNaN
-              pstringCI "#d" >>. pDecimal10 |>> SReal
-              pDecimal10 |>> SReal ]
+            [ stringCIReturn "+inf.0" System.Double.PositiveInfinity
+              stringCIReturn "-inf.0" System.Double.NegativeInfinity
+              stringCIReturn "+nan.0" System.Double.NaN
+              stringCIReturn "-nan.0" System.Double.NaN
+              pstringCI "#d" >>. pDecimal10
+              pDecimal10 ]
+
+    let parseReal = pRealDouble |>> SReal
+
+    let pFloatNum =
+        choice
+            [ attempt pRealDouble
+              attempt pRational |>> fun (x1, x2) -> float x1 / float x2 ]
+
+    let parseComplex =
+        choice
+            [ attempt (
+                  pipe3 pFloatNum (pchar '@') pFloatNum (fun r _ i ->
+                      System.Numerics.Complex.FromPolarCoordinates(r, i) |> SComplex)
+              )
+              attempt (pipe2 pFloatNum (pFloatNum .>> pchar 'i') (fun r i -> System.Numerics.Complex(r, i) |> SComplex))
+              attempt (
+                  pipe2
+                      pFloatNum
+                      (pstringCI "+i" >>. notFollowedBy (anyOf "nN") >>% 1.0
+                       <|> (pstringCI "-i" >>. notFollowedBy (anyOf "nN") >>% -1.0))
+                      (fun r i -> System.Numerics.Complex(r, i) |> SComplex)
+              )
+              attempt (pFloatNum .>> pchar 'i' |>> fun i -> System.Numerics.Complex(0.0, i) |> SComplex)
+              attempt (
+                  pstringCI "+i" >>. notFollowedBy (anyOf "nN")
+                  >>% (System.Numerics.Complex(0.0, 1.0) |> SComplex)
+              )
+              attempt (
+                  pstringCI "-i" >>. notFollowedBy (anyOf "nN")
+                  >>% (System.Numerics.Complex(0.0, -1.0) |> SComplex)
+              ) ]
 
     let parseRational = pRational |>> fun (x1, x2) -> newSRational x1 x2
 
@@ -221,6 +252,7 @@ module Read =
             [ parseBool
               parseChar
               parseString
+              attempt parseComplex
               attempt parseReal
               attempt parseRational
               attempt parseVector
