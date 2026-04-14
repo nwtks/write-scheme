@@ -4,7 +4,7 @@ open WriteScheme
 open Type
 
 [<AutoOpen>]
-module DynamicWind =
+module Promise =
     let isPromise envs cont =
         function
         | [ SPromise _ ] -> STrue |> cont
@@ -36,11 +36,3 @@ module DynamicWind =
         | [ SPromise _ as p ] -> p |> cont
         | [ x ] -> SPromise(ref (true, x)) |> cont
         | x -> x |> invalidParameter "'%s' invalid make-promise parameter."
-
-    let sMakeParameter envs cont =
-        function
-        | [ init ] -> SParameter(ref init, None) |> cont
-        | [ init; converter ] ->
-            converter
-            |> Eval.apply envs (fun converted -> SParameter(ref converted, Some converter) |> cont) [ init ]
-        | x -> x |> invalidParameter "'%s' invalid make-parameter parameter."

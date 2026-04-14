@@ -12,13 +12,14 @@
     <Compile Include="Context.fs" />
     <Compile Include="Eval.fs" />
     <Compile Include="Builtin/Helper.fs" />
+    <Compile Include="Builtin/Promise.fs" />
+    <Compile Include="Builtin/SavedParameter.fs" />
     <Compile Include="Builtin/SpecialForm.fs" />
     <Compile Include="Builtin/Macro.fs" />
     <Compile Include="Builtin/Core.fs" />
     <Compile Include="Builtin/Math.fs" />
     <Compile Include="Builtin/List.fs" />
     <Compile Include="Builtin/Vector.fs" />
-    <Compile Include="Builtin/DynamicWind.fs" />
     <Compile Include="Builtin/Procedure.fs" />
     <Compile Include="Builtin/Exception.fs" />
     <Compile Include="Builtin.fs" />
