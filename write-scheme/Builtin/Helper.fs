@@ -48,12 +48,7 @@ module Helper =
         function
         | [] -> cont cur
         | head :: rest ->
-            let nextCur =
-                match cur with
-                | h :: t when h.id = head.id -> t
-                | _ -> cur
-
-            currentWinders.Value <- nextCur
+            let nextCur = Context.leaveWinder envs cur head.id
 
             head.after
             |> Eval.apply envs (fun _ -> rest |> runWindLeaves envs cont nextCur) []
@@ -67,16 +62,17 @@ module Helper =
             |> Eval.apply
                 envs
                 (fun _ ->
-                    let nextCur = head :: cur
-                    currentWinders.Value <- nextCur
+                    let nextCur = Context.enterWinder envs cur head
                     rest |> runWindEnters envs cont nextCur)
                 []
 
-    let doWind envs src tgt next =
+    let doWind envs cont tgt =
+        let src = envs.currentWinders.Value
+
         let leaves, enters =
             loopDiffWinders src tgt (List.length src) (List.length tgt) [] []
 
         let entersRev = List.rev enters
 
         leaves
-        |> runWindLeaves envs (fun cur -> entersRev |> runWindEnters envs next cur) src
+        |> runWindLeaves envs (fun cur -> entersRev |> runWindEnters envs cont cur) src

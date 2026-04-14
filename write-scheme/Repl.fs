@@ -18,5 +18,5 @@ module Repl =
         try
             repl' envs "Welcome"
         with x ->
-            Type.currentWinders.Value <- []
+            Context.setWinders envs []
             x.Message |> repl' envs

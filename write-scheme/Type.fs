@@ -31,11 +31,17 @@ module Type =
     and SContinuation = SExpression -> SExpression
     and Environment = Map<string, SExpression ref> ref
 
+    and Winder =
+        { id: int
+          before: SExpression
+          after: SExpression }
+
     and Context =
         { environments: Environment list
           mutable nextExpansionId: int
           mutable nextRecordTypeId: int
-          mutable nextWinderId: int }
+          currentWinders: Winder list ref
+          nextWinderId: int ref }
 
     let STrue = SBool true
     let SFalse = SBool false
@@ -58,12 +64,5 @@ module Type =
             let gcd = bigint.GreatestCommonDivisor(abs x1, abs x2)
             let x1', x2' = if x2.Sign < 0 then -x1, -x2 else x1, x2
             SRational(x1' / gcd, x2' / gcd)
-
-    type Winder =
-        { id: int
-          before: SExpression
-          after: SExpression }
-
-    let currentWinders = new System.Threading.ThreadLocal<Winder list>(fun () -> [])
 
     exception SchemeRaise of SExpression

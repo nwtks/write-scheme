@@ -192,15 +192,13 @@ module Core =
     let sCallCC envs cont =
         function
         | [ proc ] ->
-            let capturedWinders = currentWinders.Value
+            let capturedWinders = envs.currentWinders.Value
 
             let wrappedCont arg =
-                let sourceWinders = currentWinders.Value
-
-                if sourceWinders = capturedWinders then
+                if envs.currentWinders.Value = capturedWinders then
                     cont arg
                 else
-                    doWind envs sourceWinders capturedWinders (fun _ -> cont arg)
+                    doWind envs (fun _ -> cont arg) capturedWinders
 
             proc |> Eval.apply envs cont [ SContinuation wrappedCont ]
         | x -> x |> invalidParameter "'%s' invalid call/cc parameter."
@@ -236,18 +234,13 @@ module Core =
                           before = inProc
                           after = outProc }
 
-                    currentWinders.Value <- winder :: currentWinders.Value
+                    Context.pushWinder envs winder
 
                     bodyProc
                     |> Eval.apply
                         envs
                         (fun res ->
-                            let nextCur =
-                                match currentWinders.Value with
-                                | h :: t when h.id = id -> t
-                                | _ -> currentWinders.Value
-
-                            currentWinders.Value <- nextCur
+                            Context.popWinder envs id
                             outProc |> Eval.apply envs (fun _ -> cont res) [])
                         [])
                 []
@@ -256,16 +249,13 @@ module Core =
     let sWithExceptionHandler envs cont =
         function
         | [ handlerProc; thunkProc ] ->
-            let savedWinders = currentWinders.Value
+            let savedWinders = envs.currentWinders.Value
 
             try
                 thunkProc |> Eval.apply envs cont []
             with SchemeRaise obj ->
                 handlerProc
-                |> Eval.apply
-                    envs
-                    (fun res -> doWind envs currentWinders.Value savedWinders (fun _ -> cont res))
-                    [ SQuote obj ]
+                |> Eval.apply envs (fun res -> doWind envs (fun _ -> cont res) savedWinders) [ SQuote obj ]
         | x -> x |> invalidParameter "'%s' invalid with-exception-handler parameter."
 
     let sRaise envs cont =

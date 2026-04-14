@@ -403,18 +403,13 @@ module SpecialForm =
                   before = swapThunk
                   after = swapThunk }
 
-            currentWinders.Value <- winder :: currentWinders.Value
+            Context.pushWinder envs winder
 
             body
             |> Eval.eachEval
                 envs
                 (fun res ->
-                    let nextCur =
-                        match currentWinders.Value with
-                        | h :: t when h.id = id -> t
-                        | xs -> xs
-
-                    currentWinders.Value <- nextCur
+                    Context.popWinder envs id
                     swapThunk |> Eval.apply envs (fun _ -> cont res) [])
                 SEmpty
         | (param, expr) :: xs ->
@@ -448,7 +443,7 @@ module SpecialForm =
     let sGuard envs cont =
         function
         | SList(SSymbol var :: clauses) :: body ->
-            let savedWinders = currentWinders.Value
+            let savedWinders = envs.currentWinders.Value
 
             try
                 body |> Eval.eachEval envs cont SEmpty
@@ -465,9 +460,12 @@ module SpecialForm =
                         clauses
                         @ [ toSList [ SSymbol "else"; toSList [ SSymbol "raise"; SQuote obj ] ] ]
 
-                doWind envs currentWinders.Value savedWinders (fun _ ->
-                    let envs' = [ var, ref obj ] |> Context.extendEnvs envs
-                    finalClauses |> sCond envs' cont)
+                doWind
+                    envs
+                    (fun _ ->
+                        let envs' = [ var, ref obj ] |> Context.extendEnvs envs
+                        finalClauses |> sCond envs' cont)
+                    savedWinders
         | x -> x |> invalidParameter "'%s' invalid guard parameter."
 
     [<TailCall>]
