@@ -162,6 +162,11 @@ module Builtin =
               "vector-set!", SProcedure sVectorSet |> ref
               "vector->list", SProcedure sVectorToList |> ref
               "list->vector", SProcedure sListToVector |> ref
+              "vector->string", SProcedure sVectorToString |> ref
+              "string->vector", SProcedure sStringToVector |> ref
+              "vector-copy", SProcedure sVectorCopy |> ref
+              "vector-copy!", SProcedure sVectorCopyBang |> ref
+              "vector-append", SProcedure sVectorAppend |> ref
               "vector-fill!", SProcedure sVectorFill |> ref
               "bytevector?", SProcedure isByteVector |> ref
               "make-bytevector", SProcedure sMakeByteVector |> ref
@@ -175,7 +180,9 @@ module Builtin =
               "procedure?", SProcedure isProcedure |> ref
               "apply", SProcedure sApply |> ref
               "map", SProcedure sMap |> ref
+              "vector-map", SProcedure sVectorMap |> ref
               "for-each", SProcedure sForEach |> ref
+              "vector-for-each", SProcedure sVectorForEach |> ref
               "call-with-current-continuation", SProcedure sCallCC |> ref
               "call/cc", SProcedure sCallCC |> ref
               "values", SProcedure sValues |> ref

@@ -57,6 +57,67 @@ let ``list->vector`` () =
     "(list->vector '())" |> rep |> should equal "#()"
 
 [<Fact>]
+let ``vector->list with bounds`` () =
+    "(vector->list '#(a b c d) 1)" |> rep |> should equal "(b c d)"
+    "(vector->list '#(a b c d) 1 3)" |> rep |> should equal "(b c)"
+
+[<Fact>]
+let ``vector-fill! with bounds`` () =
+    "(let ((v (vector 1 2 3 4))) (vector-fill! v 0 1) v)"
+    |> rep
+    |> should equal "#(1 0 0 0)"
+
+    "(let ((v (vector 1 2 3 4))) (vector-fill! v 0 1 3) v)"
+    |> rep
+    |> should equal "#(1 0 0 4)"
+
+[<Fact>]
+let ``vector->string`` () =
+    "(vector->string '#(#\\a #\\b #\\c))" |> rep |> should equal "\"abc\""
+
+    "(vector->string '#(#\\a #\\b #\\c #\\d #\\e) 1)"
+    |> rep
+    |> should equal "\"bcde\""
+
+    "(vector->string '#(#\\a #\\b #\\c #\\d #\\e) 1 4)"
+    |> rep
+    |> should equal "\"bcd\""
+
+[<Fact>]
+let ``string->vector`` () =
+    "(string->vector \"abc\")" |> rep |> should equal "#(#\\a #\\b #\\c)"
+    "(string->vector \"abcde\" 1)" |> rep |> should equal "#(#\\b #\\c #\\d #\\e)"
+    "(string->vector \"abcde\" 1 4)" |> rep |> should equal "#(#\\b #\\c #\\d)"
+
+[<Fact>]
+let ``vector-copy`` () =
+    "(vector-copy '#(a b c d))" |> rep |> should equal "#(a b c d)"
+    "(vector-copy '#(a b c d) 1)" |> rep |> should equal "#(b c d)"
+    "(vector-copy '#(a b c d) 1 3)" |> rep |> should equal "#(b c)"
+
+[<Fact>]
+let ``vector-copy!`` () =
+    "(let ((a (vector 1 2 3 4 5)) (b (vector 10 20 30))) (vector-copy! a 1 b) a)"
+    |> rep
+    |> should equal "#(1 10 20 30 5)"
+
+    "(let ((a (vector 1 2 3 4 5)) (b (vector 10 20 30))) (vector-copy! a 1 b 1) a)"
+    |> rep
+    |> should equal "#(1 20 30 4 5)"
+
+    "(let ((a (vector 1 2 3 4 5)) (b (vector 10 20 30))) (vector-copy! a 1 b 0 2) a)"
+    |> rep
+    |> should equal "#(1 10 20 4 5)"
+
+[<Fact>]
+let ``vector-append`` () =
+    "(vector-append '#(a b) '#(c d e) '#(f))"
+    |> rep
+    |> should equal "#(a b c d e f)"
+
+    "(vector-append)" |> rep |> should equal "#()"
+
+[<Fact>]
 let ``vector-fill!`` () =
     "(let ((v (vector 1 2 3))) (vector-fill! v 5) v)"
     |> rep

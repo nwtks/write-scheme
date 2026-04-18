@@ -56,6 +56,24 @@ module Procedure =
         | x -> x |> invalidParameter "'%s' invalid map parameter."
 
     [<TailCall>]
+    let rec mapVectorMap envs cont proc acc =
+        function
+        | [] -> List.rev acc |> List.toArray |> SVector |> cont
+        | x :: xs -> proc |> Eval.apply envs (fun a -> mapVectorMap envs cont proc (a :: acc) xs) x
+
+    let sVectorMap envs cont =
+        function
+        | [ _ ] as x -> x |> invalidParameter "'%s' invalid vector-map parameter."
+        | proc :: vectors as x ->
+            vectors
+            |> List.map (function
+                | SVector xs -> Array.toList xs
+                | _ -> x |> invalidParameter "'%s' invalid vector-map parameter.")
+            |> transposeList
+            |> mapVectorMap envs cont proc []
+        | x -> x |> invalidParameter "'%s' invalid vector-map parameter."
+
+    [<TailCall>]
     let rec loopForEach envs cont proc =
         function
         | [] -> SEmpty |> cont
@@ -73,6 +91,18 @@ module Procedure =
             |> transposeList
             |> loopForEach envs cont proc
         | x -> x |> invalidParameter "'%s' invalid for-each parameter."
+
+    let sVectorForEach envs cont =
+        function
+        | [ _ ] as x -> x |> invalidParameter "'%s' invalid vector-for-each parameter."
+        | proc :: vectors as x ->
+            vectors
+            |> List.map (function
+                | SVector xs -> Array.toList xs
+                | _ -> x |> invalidParameter "'%s' invalid vector-for-each parameter.")
+            |> transposeList
+            |> loopForEach envs cont proc
+        | x -> x |> invalidParameter "'%s' invalid vector-for-each parameter."
 
     let sCallCC envs cont =
         function
