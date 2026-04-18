@@ -84,8 +84,8 @@ module List =
 
     let sLength envs cont =
         function
-        | [ SList xs ] -> SRational(bigint xs.Length, 1I) |> cont
-        | [ SEmpty ] -> SRational(0I, 1I) |> cont
+        | [ SList xs ] -> newSRational (bigint xs.Length) 1I |> cont
+        | [ SEmpty ] -> SZero |> cont
         | x -> x |> invalidParameter "'%s' invalid length parameter."
 
     [<TailCall>]
@@ -193,7 +193,7 @@ module List =
 
     let sListCopy envs cont =
         function
-        | [ SList xs ] -> SList [ for x in xs -> x ] |> cont
+        | [ SList xs ] -> [ for x in xs -> x ] |> toSList |> cont
         | [ SEmpty ] -> SEmpty |> cont
         | [ SPair(xs, y) ] -> SPair([ for x in xs -> x ], y) |> cont
         | [ x ] -> x |> cont

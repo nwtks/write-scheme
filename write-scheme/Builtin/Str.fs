@@ -27,7 +27,7 @@ module Str =
 
     let sStringLength envs cont =
         function
-        | [ SString s ] -> SRational(bigint s.Length, 1I) |> cont
+        | [ SString s ] -> newSRational (bigint s.Length) 1I |> cont
         | x -> x |> invalidParameter "'%s' invalid string-length parameter."
 
     let sStringRef envs cont =

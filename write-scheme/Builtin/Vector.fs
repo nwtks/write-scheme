@@ -21,7 +21,7 @@ module Vector =
 
     let sVectorLength envs cont =
         function
-        | [ SVector xs ] -> SRational(bigint xs.Length, 1I) |> cont
+        | [ SVector xs ] -> newSRational (bigint xs.Length) 1I |> cont
         | x -> x |> invalidParameter "'%s' invalid vector-length parameter."
 
     let sVectorRef envs cont =

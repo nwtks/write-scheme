@@ -95,14 +95,14 @@ module Char =
             let num = System.Char.GetNumericValue(c.[0])
 
             if System.Char.IsDigit(c.[0]) && num >= 0.0 then
-                SRational(bigint (int num), 1I) |> cont
+                newSRational (bigint (int num)) 1I |> cont
             else
                 SFalse |> cont
         | x -> x |> invalidParameter "'%s' invalid digit-value parameter."
 
     let sCharToInteger envs cont =
         function
-        | [ SChar c ] -> SRational(bigint (System.Char.ConvertToUtf32(c, 0)), 1I) |> cont
+        | [ SChar c ] -> newSRational (bigint (System.Char.ConvertToUtf32(c, 0))) 1I |> cont
         | x -> x |> invalidParameter "'%s' invalid char->integer parameter."
 
     let sIntegerToChar envs cont =

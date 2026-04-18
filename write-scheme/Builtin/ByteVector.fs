@@ -30,13 +30,13 @@ module ByteVector =
 
     let sByteVectorLength envs cont =
         function
-        | [ SByteVector xs ] -> SRational(bigint xs.Length, 1I) |> cont
+        | [ SByteVector xs ] -> newSRational (bigint xs.Length) 1I |> cont
         | x -> x |> invalidParameter "'%s' invalid bytevector-length parameter."
 
     let sByteVectorU8Ref envs cont =
         function
         | [ SByteVector xs; SRational(k, d) ] when d = 1I && k >= 0I && k < bigint xs.Length ->
-            SRational(bigint xs.[int k], 1I) |> cont
+            newSRational (bigint xs.[int k]) 1I |> cont
         | x -> x |> invalidParameter "'%s' invalid bytevector-u8-ref parameter."
 
     let sByteVectorU8Set envs cont =

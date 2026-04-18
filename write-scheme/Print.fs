@@ -47,8 +47,8 @@ module Print =
         | SList xs -> printList xs |> sprintf "(%s)"
         | SPair(x1, x2) ->
             match x2 with
-            | SEmpty -> SList x1 |> print
-            | SList x2' -> SList(x1 @ x2') |> print
+            | SEmpty -> x1 |> toSList |> print
+            | SList x2' -> x1 @ x2' |> toSList |> print
             | SPair(y1, y2) -> SPair(x1 @ y1, y2) |> print
             | _ -> sprintf "(%s . %s)" (printList x1) (print x2)
         | SVector xs -> xs |> Array.map print |> String.concat " " |> sprintf "#(%s)"

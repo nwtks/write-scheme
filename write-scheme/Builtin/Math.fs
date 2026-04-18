@@ -310,11 +310,9 @@ module Math =
         function
         | [ n ] -> n |> Print.print |> SString |> cont
         | [ n; SRational(radix, d) ] when d = 1I ->
-            let r = int radix
-
             match n with
             | SRational(v, vd) when vd = 1I ->
-                match r with
+                match int radix with
                 | 2 -> System.Convert.ToString(int64 v, 2) |> SString |> cont
                 | 8 -> System.Convert.ToString(int64 v, 8) |> SString |> cont
                 | 10 -> string v |> SString |> cont
@@ -335,18 +333,16 @@ module Math =
             with _ ->
                 SFalse |> cont
         | [ SString s; SRational(radix, d) ] when d = 1I ->
-            let r = int radix
-
             try
                 let v =
-                    match r with
+                    match int radix with
                     | 2 -> System.Convert.ToInt64(s, 2) |> bigint
                     | 8 -> System.Convert.ToInt64(s, 8) |> bigint
                     | 10 -> bigint.Parse s
                     | 16 -> System.Convert.ToInt64(s, 16) |> bigint
                     | _ -> failwith "unsupported radix"
 
-                SRational(v, 1I) |> cont
+                newSRational v 1I |> cont
             with _ ->
                 SFalse |> cont
         | x -> x |> invalidParameter "'%s' invalid string->number parameter."

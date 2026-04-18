@@ -72,8 +72,8 @@ module Eval =
             |> eval envs (function
                 | SSyntax fn -> fn envs cont operands
                 | _ as op -> operands |> evalArgs envs cont (fun e c a -> op |> apply e c a) [])
-        | SQuote x -> SList [ SSymbol "quote"; x ] |> eval envs cont
-        | SQuasiquote x -> SList [ SSymbol "quasiquote"; x ] |> eval envs cont
+        | SQuote x -> [ SSymbol "quote"; x ] |> toSList |> eval envs cont
+        | SQuasiquote x -> [ SSymbol "quasiquote"; x ] |> toSList |> eval envs cont
 
     and [<TailCall>] evalArgs envs cont fn acc =
         function
