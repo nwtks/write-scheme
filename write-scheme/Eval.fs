@@ -4,6 +4,44 @@ open Type
 
 module Eval =
     [<TailCall>]
+    let rec apply envs cont args =
+        function
+        | SParameter(r, converterOpt) ->
+            match args with
+            | [] -> r.Value |> cont
+            | [ v ] ->
+                match converterOpt with
+                | Some converter ->
+                    converter
+                    |> apply
+                        envs
+                        (fun converted ->
+                            r.Value <- converted
+                            converted |> cont)
+                        [ v ]
+                | None ->
+                    r.Value <- v
+                    v |> cont
+            | _ ->
+                args
+                |> toSList
+                |> Print.print
+                |> sprintf "'%s' invalid parameter object call."
+                |> failwith
+        | SSyntax fn
+        | SProcedure fn -> args |> fn envs cont
+        | SContinuation fn ->
+            match args with
+            | [ arg ] -> fn arg
+            | _ ->
+                args
+                |> toSList
+                |> Print.print
+                |> sprintf "'%s' invalid continuation parameter."
+                |> failwith
+        | x -> Print.print x |> sprintf "'%s' not operator." |> failwith
+
+    [<TailCall>]
     let rec eval envs cont =
         function
         | SEmpty -> failwith "() is not a valid expression. It must be quoted."
@@ -29,7 +67,11 @@ module Eval =
         | SContinuation _ as x -> x |> cont
         | SSymbol x -> (Context.lookupEnvs envs x).Value |> cont
         | SList [] -> SEmpty |> cont
-        | SList(operator :: operands) -> operator |> eval envs (apply envs cont operands)
+        | SList(operator :: operands) ->
+            operator
+            |> eval envs (function
+                | SSyntax fn -> fn envs cont operands
+                | _ as op -> operands |> evalArgs envs cont (fun e c a -> op |> apply e c a) [])
         | SQuote x -> SList [ SSymbol "quote"; x ] |> eval envs cont
         | SQuasiquote x -> SList [ SSymbol "quasiquote"; x ] |> eval envs cont
 
@@ -37,43 +79,6 @@ module Eval =
         function
         | [] -> List.rev acc |> fn envs cont
         | x :: xs -> x |> eval envs (fun a -> xs |> evalArgs envs cont fn (a :: acc))
-
-    and [<TailCall>] apply envs cont args =
-        function
-        | SParameter(r, converterOpt) ->
-            match args with
-            | [] -> r.Value |> cont
-            | [ v ] ->
-                match converterOpt with
-                | Some converter ->
-                    converter
-                    |> apply
-                        envs
-                        (fun converted ->
-                            r.Value <- converted
-                            converted |> cont)
-                        [ v ]
-                | None ->
-                    r.Value <- v
-                    v |> cont
-            | _ ->
-                args
-                |> toSList
-                |> Print.print
-                |> sprintf "'%s' invalid parameter object call."
-                |> failwith
-        | SSyntax fn -> fn envs cont args
-        | SProcedure fn -> evalArgs envs cont fn [] args
-        | SContinuation fn ->
-            match args with
-            | [ arg ] -> fn arg
-            | _ ->
-                args
-                |> toSList
-                |> Print.print
-                |> sprintf "'%s' invalid continuation parameter."
-                |> failwith
-        | x -> Print.print x |> sprintf "'%s' not operator." |> failwith
 
     [<TailCall>]
     let rec eachEval envs cont acc =

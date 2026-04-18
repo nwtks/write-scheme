@@ -65,33 +65,53 @@ let ``dynamic-wind with exception handler`` () =
     "path" |> rep |> should equal "(out error in)"
 
 [<Fact>]
-let ``parameterize basic`` () =
+let ``dynamic-wind nested jump`` () =
     let rep = repEnvs ()
 
-    "(define p (make-parameter 0))" |> rep |> ignore
-    "(parameterize ((p 1)) (p))" |> rep |> should equal "1"
-    "(p)" |> rep |> should equal "0"
+    "(define path '())" |> rep |> ignore
+    "(define k #f)" |> rep |> ignore
 
-[<Fact>]
-let ``parameterize with call/cc`` () =
-    let rep = repEnvs ()
-
-    "(define p (make-parameter 0))" |> rep |> ignore
-    "(define c #f)" |> rep |> ignore
-
-    "(define (test)
-        (parameterize ((p 1))
-            (call/cc (lambda (k) (set! c k)))
-            (p)))"
+    "(dynamic-wind
+      (lambda () (set! path (append path '(in-outer))))
+      (lambda ()
+        (if (call/cc (lambda (k1) (set! k k1) #t))
+            (dynamic-wind
+              (lambda () (set! path (append path '(in-inner1))))
+              (lambda ()
+                 (set! path (append path '(body1)))
+                 (if k (let ((tmp k)) (set! k #f) (tmp #f))))
+              (lambda () (set! path (append path '(out-inner1)))))
+            (dynamic-wind
+              (lambda () (set! path (append path '(in-inner2))))
+              (lambda () (set! path (append path '(body2))))
+              (lambda () (set! path (append path '(out-inner2)))))))
+      (lambda () (set! path (append path '(out-outer)))))"
     |> rep
     |> ignore
 
-    "(test)" |> rep |> should equal "1"
-    "(p)" |> rep |> should equal "0"
+    "path"
+    |> rep
+    |> should equal "(in-outer in-inner1 body1 out-inner1 in-inner2 body2 out-inner2 out-outer)"
 
-    "(c #t)" |> rep |> should equal "1"
-    "(p)" |> rep |> should equal "0"
+[<Fact>]
+let ``dynamic-wind different stacks jump`` () =
+    let rep = repEnvs ()
 
-    "(p 2)" |> rep |> ignore
-    "(c #t)" |> rep |> should equal "1"
-    "(p)" |> rep |> should equal "2"
+    "(define path '())" |> rep |> ignore
+    "(define k #f)" |> rep |> ignore
+
+    "(dynamic-wind
+        (lambda () (set! path (append path '(in1))))
+        (lambda () (call/cc (lambda (k1) (set! k k1))))
+        (lambda () (set! path (append path '(out1)))))"
+    |> rep
+    |> ignore
+
+    "(dynamic-wind
+        (lambda () (set! path (append path '(in2))))
+        (lambda () (if k (let ((tmp k)) (set! k #f) (tmp #f))))
+        (lambda () (set! path (append path '(out2)))))"
+    |> rep
+    |> ignore
+
+    "path" |> rep |> should equal "(in1 out1 in2 out2 in1 out1)"

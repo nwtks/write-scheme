@@ -18,6 +18,7 @@ let cons () =
     "(cons \"a\" '(b c))" |> rep |> should equal "(\"a\" b c)"
     "(cons 'a 3)" |> rep |> should equal "(a . 3)"
     "(cons '(a b) 'c)" |> rep |> should equal "((a b) . c)"
+    "(cons 'a '(b . c))" |> rep |> should equal "(a b . c)"
 
 [<Fact>]
 let car () =
@@ -57,3 +58,13 @@ let append () =
     "(append '(a (b)) '((c)))" |> rep |> should equal "(a (b) (c))"
     "(append '(a b) '(c . d))" |> rep |> should equal "(a b c . d)"
     "(append '() 'a)" |> rep |> should equal "a"
+    "(append '(a) '() '(b))" |> rep |> should equal "(a b)"
+    "(append)" |> rep |> should equal "()"
+    "(append '(1 2) '(3 4) '(5 6))" |> rep |> should equal "(1 2 3 4 5 6)"
+    "(append '())" |> rep |> should equal "()"
+    "(append 1)" |> rep |> should equal "1"
+    "(append '(1) 2)" |> rep |> should equal "(1 . 2)"
+    "(append '() '(1))" |> rep |> should equal "(1)"
+    "(append '(1) '() '())" |> rep |> should equal "(1)"
+    "(append '() '() '())" |> rep |> should equal "()"
+    "(append '(1) '(2) '())" |> rep |> should equal "(1 2)"

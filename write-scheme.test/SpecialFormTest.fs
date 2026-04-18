@@ -22,20 +22,15 @@ let quote () =
 [<Fact>]
 let ``lambda`` () =
     "((lambda (x) (+ x x)) 4)" |> rep |> should equal "8"
+    "((lambda x x))" |> rep |> should equal "()"
+    "((lambda x x) 1)" |> rep |> should equal "(1)"
     "((lambda x x) 3 4 5 6)" |> rep |> should equal "(3 4 5 6)"
     "((lambda (x y . z) z) 3 4 5 6)" |> rep |> should equal "(5 6)"
-
-    let rep = repEnvs ()
 
     "(define reverse-subtract (lambda (x y) (- y x)))" |> rep |> ignore
     "(reverse-subtract 7 10)" |> rep |> should equal "3"
 
-    "(define add4
-      (let ((x 4))
-       (lambda (y) (+ x y))))"
-    |> rep
-    |> ignore
-
+    "(define add4 (let ((x 4)) (lambda (y) (+ x y))))" |> rep |> ignore
     "(add4 6)" |> rep |> should equal "10"
 
 [<Fact>]
@@ -45,10 +40,11 @@ let ``if`` () =
     "(if (> 3 2) (- 3 2) (+ 3 2))" |> rep |> should equal "1"
     "((if #t + *) 3 4)" |> rep |> should equal "7"
     "((if #f + *) 3 4)" |> rep |> should equal "12"
+    "(if #t 42)" |> rep |> should equal "42"
+    "(if #f 42 99)" |> rep |> should equal "99"
 
 [<Fact>]
 let ``set!`` () =
-    let rep = repEnvs ()
     "(define x 2)" |> rep |> ignore
     "(+ x 1)" |> rep |> should equal "3"
     "(set! x 4)" |> rep |> ignore
@@ -66,32 +62,27 @@ let cond () =
     |> rep
     |> should equal "((b 2) (c 3))"
 
+    "(cond ((> 1 2) 'a) ((> 1 3) 'b))" |> rep |> should equal "()"
+
 [<Fact>]
 let ``case`` () =
-    "(case (* 2 3)
-       ((2 3 5 7) 'prime)
-       ((1 4 6 8 9) 'composite))"
+    "(case (* 2 3) ((2 3 5 7) 'prime) ((1 4 6 8 9) 'composite))"
     |> rep
     |> should equal "composite"
 
-    "(case (car '(c d))
-       ((a) 'a)
-       ((b) 'b))"
-    |> rep
-    |> should equal "()"
-
-    "(case (car '(c d))
-       ((a e i o u) 'vowel)
-       ((w y) 'semivowel)
-       (else => (lambda (x) x)))"
+    "(case (car '(c d)) ((a e i o u) 'vowel) ((w y) 'semivowel) (else => (lambda (x) x)))"
     |> rep
     |> should equal "c"
 
-    // => recipient without else
-    "(case (* 2 3)
-       ((1 4 6 8 9) => (lambda (x) x)))"
-    |> rep
-    |> should equal "6"
+    "(case (car '(c d)) ((a) 'a) ((b) 'b))" |> rep |> should equal "()"
+    "(case (* 2 3) ((1 4 6 8 9) => (lambda (x) x)))" |> rep |> should equal "6"
+    "(case 1)" |> rep |> should equal "()"
+    "(case 1 (else => (lambda (x) x)))" |> rep |> should equal "1"
+    "(case 1 (else 1 2 3))" |> rep |> should equal "3"
+    "(case 1 ((1 2) => (lambda (x) x)))" |> rep |> should equal "1"
+    "(case 3 ((1 2) => (lambda (x) x)) (else 0))" |> rep |> should equal "0"
+    "(case 1 ((1 2) 42 99))" |> rep |> should equal "99"
+    "(case 3 ((1 2) 42) (else 0))" |> rep |> should equal "0"
 
 [<Fact>]
 let ``and`` () =
@@ -121,23 +112,13 @@ let ``unless`` () =
 
 [<Fact>]
 let ``let`` () =
-    "(let ((x 2) (y 3))
-      (* x y))"
-    |> rep
-    |> should equal "6"
+    "(let ((x 2) (y 3)) (* x y))" |> rep |> should equal "6"
 
-    "(let ((x 2) (y 3))
-      (let ((x 7)
-        (z (+ x y)))
-       (* z x)))"
+    "(let ((x 2) (y 3)) (let ((x 7) (z (+ x y))) (* z x)))"
     |> rep
     |> should equal "35"
 
-    "(let
-      ((x 2))
-      x)"
-    |> rep
-    |> should equal "2"
+    "(let ((x 2)) x)" |> rep |> should equal "2"
 
     "(let
       ((square (lambda (x) (* x x))))
@@ -166,20 +147,11 @@ let ``let`` () =
 
 [<Fact>]
 let ``let*`` () =
-    "(let ((x 2) (y 3))
-      (let* ((x 7)
-        (z (+ x y)))
-       (* z x)))"
+    "(let ((x 2) (y 3)) (let* ((x 7) (z (+ x y))) (* z x)))"
     |> rep
     |> should equal "70"
 
-    "(let*
-      ((a 5)
-       (b (* a 2))
-       (c (- b 3)))
-      c)"
-    |> rep
-    |> should equal "7"
+    "(let* ((a 5) (b (* a 2)) (c (- b 3))) c)" |> rep |> should equal "7"
 
 [<Fact>]
 let ``letrec`` () =
@@ -224,21 +196,13 @@ let ``letrec*`` () =
 
 [<Fact>]
 let ``let-values`` () =
-    "(let-values (((a b) (values 1 2)))
-       (+ a b))"
-    |> rep
-    |> should equal "3"
+    "(let-values (((a b) (values 1 2))) (+ a b))" |> rep |> should equal "3"
 
-    "(let-values (((a b c) (values 1 2 3))
-                  ((d)     (values 4)))
-       (+ a b c d))"
+    "(let-values (((a b c) (values 1 2 3)) ((d) (values 4))) (+ a b c d))"
     |> rep
     |> should equal "10"
 
-    "(let-values (((x) 42))
-       x)"
-    |> rep
-    |> should equal "42"
+    "(let-values (((x) 42)) x)" |> rep |> should equal "42"
 
 [<Fact>]
 let ``let*-values`` () =
@@ -254,37 +218,26 @@ let ``let*-values`` () =
     |> rep
     |> should equal "(2 1)"
 
+    "(let*-values (((x) 42)) x)" |> rep |> should equal "42"
+
 [<Fact>]
 let ``values and call-with-values`` () =
     "(call-with-values (lambda () (values 1 2)) +)" |> rep |> should equal "3"
 
-    "(call-with-values (lambda () (values 4 5))
-       (lambda (a b) b))"
+    "(call-with-values (lambda () (values 4 5)) (lambda (a b) b))"
     |> rep
     |> should equal "5"
 
-    "(call-with-values (lambda () 42)
-       (lambda (x) x))"
-    |> rep
-    |> should equal "42"
+    "(call-with-values (lambda () 42) (lambda (x) x))" |> rep |> should equal "42"
 
 [<Fact>]
 let ``begin`` () =
     let rep = repEnvs ()
     "(define x 0)" |> rep |> ignore
-
-    "(and
-      (= x 0)
-      (begin
-       (set! x 5)
-       (+ x 1)))"
-    |> rep
-    |> should equal "6"
+    "(and (= x 0) (begin (set! x 5) (+ x 1)))" |> rep |> should equal "6"
 
 [<Fact>]
 let ``do`` () =
-    let rep = repEnvs ()
-
     "(do ((vec (make-vector 5))
           (i 0 (+ i 1)))
          ((= i 5) vec)
@@ -299,43 +252,32 @@ let ``do`` () =
     |> rep
     |> should equal "25"
 
-    "(do ((i 0 (+ i 1)))
-         ((= i 3)))"
-    |> rep
-    |> should equal "()"
+    "(do ((i 0 (+ i 1))) ((= i 3)))" |> rep |> should equal "()"
+    "(do ((i 0 (+ i 1)) (s 0)) ((= i 3) (list i s)))" |> rep |> should equal "(3 0)"
 
 [<Fact>]
-let ``delay and force`` () =
-    let rep = repEnvs ()
-
+let ``delay`` () =
     "(force (delay (+ 1 2)))" |> rep |> should equal "3"
-
-    "(promise? 1)" |> rep |> should equal "#f"
-
     "(force (make-promise 42))" |> rep |> should equal "42"
 
     "(define count 0)" |> rep |> ignore
     "(define p (delay (begin (set! count (+ count 1)) count)))" |> rep |> ignore
     "(force p)" |> rep |> should equal "1"
     "(force p)" |> rep |> should equal "1"
+    "(force 1)" |> rep |> should equal "1"
     "count" |> rep |> should equal "1"
 
+[<Fact>]
+let ``delay-force`` () =
     "(force (delay-force (delay (delay-force (delay 10)))))"
     |> rep
     |> should equal "10"
 
 [<Fact>]
 let ``parameterize`` () =
-    let rep = repEnvs ()
-
     "(define radix (make-parameter 10))" |> rep |> ignore
     "(radix)" |> rep |> should equal "10"
-
-    "(parameterize ((radix 16))
-       (radix))"
-    |> rep
-    |> should equal "16"
-
+    "(parameterize ((radix 16)) (radix))" |> rep |> should equal "16"
     "(radix)" |> rep |> should equal "10"
 
     "(define greet (make-parameter \"hello\"
@@ -343,25 +285,35 @@ let ``parameterize`` () =
     |> rep
     |> ignore
 
-    "(parameterize ((greet 42))
-       (greet))"
-    |> rep
-    |> should equal "\"default\""
-
+    "(parameterize ((greet 42)) (greet))" |> rep |> should equal "\"default\""
     "(greet)" |> rep |> should equal "\"hello\""
 
-    "(parameterize ((radix 2))
-       (parameterize ((radix 8))
-         (radix)))"
+    "(parameterize ((radix 2)) (parameterize ((radix 8)) (radix)))"
     |> rep
     |> should equal "8"
 
     "(radix)" |> rep |> should equal "10"
 
+    "(define p (make-parameter 0))" |> rep |> ignore
+    "(define c #f)" |> rep |> ignore
+
+    "(define (test)
+        (parameterize ((p 1))
+            (call/cc (lambda (k) (set! c k)))
+            (p)))"
+    |> rep
+    |> ignore
+
+    "(test)" |> rep |> should equal "1"
+    "(p)" |> rep |> should equal "0"
+    "(c #t)" |> rep |> should equal "1"
+    "(p)" |> rep |> should equal "0"
+    "(p 2)" |> rep |> ignore
+    "(c #t)" |> rep |> should equal "1"
+    "(p)" |> rep |> should equal "2"
+
 [<Fact>]
 let ``guard`` () =
-    let rep = repEnvs ()
-
     "(guard (condition
              (else 'caught))
        (+ 1 2))"
@@ -417,6 +369,7 @@ let ``letrec-syntax`` () =
 [<Fact>]
 let ``quasiquote`` () =
     "`(list ,(+ 1 2) 4)" |> rep |> should equal "(list 3 4)"
+    "`(a . ,(+ 1 2))" |> rep |> should equal "(a . 3)"
     "(let ((name 'a)) `(list ,name ',name))" |> rep |> should equal "(list a 'a)"
 
     "`((foo ,(- 10 3)) ,@(cdr '(c d)) . ,(car '(cons)))"
@@ -435,18 +388,49 @@ let ``quasiquote`` () =
     |> rep
     |> should equal "(a `(b ,x ,'y d) e)"
 
+    "`1" |> rep |> should equal "1"
+    "`\"abc\"" |> rep |> should equal "\"abc\""
+    "`#t" |> rep |> should equal "#t"
+    "`a" |> rep |> should equal "a"
+    "`()" |> rep |> should equal "()"
+
+    "`(,@'(1 2) ,@'(3 4))" |> rep |> should equal "(1 2 3 4)"
+    "`(,@'())" |> rep |> should equal "()"
+    "`(,@'() . ,@'())" |> rep |> should equal "()"
+    "`(,@'() 1 2)" |> rep |> should equal "(1 2)"
+    "`,@'(1 2)" |> rep |> should equal "(1 2)"
+    "``(a . ,,@'(1 2))" |> rep |> should equal "`(a . ,(1 2))"
+    "`(,@'(1 2) . 3)" |> rep |> should equal "(1 2 . 3)"
+    "`(1 2 . ,(append '(3 4) 5))" |> rep |> should equal "(1 2 3 4 . 5)"
+    "`(,@'(1 2) . ,(append '(3 4) 5))" |> rep |> should equal "(1 2 3 4 . 5)"
+    "`(a . ,(values 1 2))" |> rep |> should equal "(a . (values 1 2))"
+    "`(,@(values '(1 2)))" |> rep |> should equal "(1 2)"
+    "`#()" |> rep |> should equal "#()"
+    "`#(1 ,@(values '(2 3)) 4)" |> rep |> should equal "#(1 2 3 4)"
+
+    "(let ((x 1)) `#(a ,x c))" |> rep |> should equal "#(a 1 c)"
+    "(let ((x '(1 2))) `#(a ,@x c))" |> rep |> should equal "#(a 1 2 c)"
+    "(let ((x '(1 2))) `#(a ,@x ,x))" |> rep |> should equal "#(a 1 2 (1 2))"
+    "(let ((x '(1 2))) `(a . ,x))" |> rep |> should equal "(a 1 2)"
+    "(let ((x '(1 2))) `(a ,@x . 3))" |> rep |> should equal "(a 1 2 . 3)"
+    "(let ((x '(1 2)) (y '(3 4))) `(,@x . ,@y))" |> rep |> should equal "(1 2 3 4)"
+    "(let ((x '(1 2))) `(a `(b . ,@x)))" |> rep |> should equal "(a `(b . ,@x))"
+    "(let ((x '(1 2))) `(a `(b ,@,x)))" |> rep |> should equal "(a `(b ,@(1 2)))"
+    "(let ((x '((1 2)))) `(a `(b ,,@x)))" |> rep |> should equal "(a `(b ,((1 2))))"
+
 [<Fact>]
 let ``define`` () =
-    let rep = repEnvs ()
-
-    "(define add3
-       (lambda (x) (+ x 3)))"
-    |> rep
-    |> ignore
-
+    "(define add3 (lambda (x) (+ x 3)))" |> rep |> ignore
     "(add3 3)" |> rep |> should equal "6"
+
     "(define first car)" |> rep |> ignore
     "(first '(1 2))" |> rep |> should equal "1"
+
+    "(define (square x) (* x x))" |> rep |> ignore
+    "(square 5)" |> rep |> should equal "25"
+
+    "(define (add . xs) (apply + xs))" |> rep |> ignore
+    "(add 1 2 3)" |> rep |> should equal "6"
 
 [<Fact>]
 let ``define-values`` () =
@@ -464,8 +448,6 @@ let ``define-values`` () =
 
 [<Fact>]
 let ``define-record-type`` () =
-    let rep = repEnvs ()
-
     "(define-record-type <p> (make-p x y) p? (x get-x) (y get-y set-y!))"
     |> rep
     |> ignore
@@ -483,3 +465,22 @@ let ``define-record-type`` () =
     "(q? q1)" |> rep |> should equal "#t"
     "(p? q1)" |> rep |> should equal "#f"
     "(q? p1)" |> rep |> should equal "#f"
+
+[<Fact>]
+let ``promise?`` () =
+    "(promise? 1)" |> rep |> should equal "#f"
+    "(promise? (make-promise 1))" |> rep |> should equal "#t"
+    "(make-promise (delay 1))" |> rep |> should equal "#<promise>"
+
+    "(define p (delay 42))" |> rep |> ignore
+    "(promise? p)" |> rep |> should equal "#t"
+
+[<Fact>]
+let ``make-parameter`` () =
+    "(define p (make-parameter 0 (lambda (x) (* x 2))))" |> rep |> ignore
+    "(p)" |> rep |> should equal "0"
+    "(p 10)" |> rep |> should equal "20"
+    "(p)" |> rep |> should equal "20"
+
+    "(parameterize ((p 100)) (p))" |> rep |> should equal "200"
+    "(p)" |> rep |> should equal "20"

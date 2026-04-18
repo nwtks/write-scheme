@@ -20,6 +20,16 @@ let ``with-exception-handler`` () =
     |> should equal "42"
 
     "(with-exception-handler
+        (lambda (e) (+ e 200))
+        (lambda ()
+          (+ 100
+             (with-exception-handler
+                (lambda (e) e)
+                (lambda () 42)))))"
+    |> rep
+    |> should equal "142"
+
+    "(with-exception-handler
        (lambda (e) (+ e 100))
        (lambda ()
          (with-exception-handler
@@ -38,6 +48,14 @@ let ``error and error-object?`` () =
        (lambda () (error \"bad value\" 1 2)))"
     |> rep
     |> should equal "(#t \"bad value\" (1 2))"
+
+    "(with-exception-handler
+        (lambda (e)
+          (list (error-object-message e)
+                (error-object-irritants e)))
+        (lambda () (error \"simple error\")))"
+    |> rep
+    |> should equal "(\"simple error\" ())"
 
     "(with-exception-handler
        (lambda (e) (error-object? e))

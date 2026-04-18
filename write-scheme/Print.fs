@@ -3,6 +3,17 @@ namespace WriteScheme
 open Type
 
 module Print =
+    let namedChars =
+        [ "\u0007", "alarm"
+          "\u0008", "backspace"
+          "\u007f", "delete"
+          "\u001b", "escape"
+          "\u000a", "newline"
+          "\u0000", "null"
+          "\u000d", "return"
+          "\u0009", "tab" ]
+        |> Map.ofList
+
     let formatFloat x isImaginary =
         if System.Double.IsNaN x then
             "+nan.0"
@@ -24,10 +35,22 @@ module Print =
         | SReal x -> formatFloat x false
         | SComplex x -> sprintf "%s%si" (formatFloat x.Real false) (formatFloat x.Imaginary true)
         | SString x -> x.Replace("\"", "\\\"") |> sprintf "\"%s\""
-        | SChar x -> sprintf "#\\%s" x
+        | SChar x ->
+            match Map.tryFind x namedChars with
+            | Some name -> sprintf "#\\%s" name
+            | None ->
+                if x.Length = 1 && System.Char.IsControl(x.[0]) then
+                    sprintf "#\\x%x" (int x.[0])
+                else
+                    sprintf "#\\%s" x
         | SSymbol x -> x
-        | SList xs -> xs |> printList |> sprintf "(%s)"
-        | SPair(x1, x2) -> sprintf "(%s . %s)" (printList x1) (print x2)
+        | SList xs -> printList xs |> sprintf "(%s)"
+        | SPair(x1, x2) ->
+            match x2 with
+            | SEmpty -> SList x1 |> print
+            | SList x2' -> SList(x1 @ x2') |> print
+            | SPair(y1, y2) -> SPair(x1 @ y1, y2) |> print
+            | _ -> sprintf "(%s . %s)" (printList x1) (print x2)
         | SVector xs -> xs |> Array.map print |> String.concat " " |> sprintf "#(%s)"
         | SByteVector xs -> xs |> Array.map string |> String.concat " " |> sprintf "#u8(%s)"
         | SValues xs -> xs |> List.map print |> String.concat " " |> sprintf "(values %s)"

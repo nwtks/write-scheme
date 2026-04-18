@@ -13,17 +13,17 @@ module Procedure =
         | _ -> SFalse |> cont
 
     [<TailCall>]
-    let rec foldApply =
+    let rec foldApply xs =
         function
-        | acc, []
         | acc, [ SEmpty ] -> List.rev acc
         | acc, [ SList x ] -> List.rev acc @ x
-        | acc, [ SPair(x1, x2) ] -> [ SPair(List.rev acc @ x1, x2) ]
-        | acc, x1 :: x2 -> (x1 :: acc, x2) |> foldApply
+        | acc, [ _ ]
+        | acc, [] -> xs |> invalidParameter "'%s' invalid apply parameter."
+        | acc, x1 :: x2 -> (x1 :: acc, x2) |> foldApply xs
 
     let sApply envs cont =
         function
-        | proc :: args -> proc |> Eval.apply envs cont (([], args) |> foldApply)
+        | proc :: args -> proc |> Eval.apply envs cont (([], args) |> foldApply args)
         | x -> x |> invalidParameter "'%s' invalid apply parameter."
 
     [<TailCall>]
@@ -31,7 +31,7 @@ module Procedure =
         function
         | 0, _
         | _, [] -> List.rev acc
-        | n, xs -> foldTranspose ((xs |> List.map (List.head >> SQuote)) :: acc) (n - 1, xs |> List.map List.tail)
+        | n, xs -> foldTranspose ((xs |> List.map List.head) :: acc) (n - 1, xs |> List.map List.tail)
 
     let transposeList lists =
         foldTranspose [] (lists |> List.map List.length |> Seq.min, lists)

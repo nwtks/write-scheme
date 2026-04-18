@@ -5,9 +5,6 @@ open FsUnit.Xunit
 
 let rep = WriteScheme.Repl.rep WriteScheme.Builtin.builtin
 
-let repEnvs () =
-    WriteScheme.Repl.newEnvs () |> WriteScheme.Repl.rep
-
 [<Fact>]
 let ``procedure?`` () =
     "(procedure? car)" |> rep |> should equal "#t"
@@ -19,11 +16,16 @@ let ``procedure?`` () =
 [<Fact>]
 let ``apply`` () =
     "(apply + (list 3 4))" |> rep |> should equal "7"
+    "(apply + 1 2 '(3))" |> rep |> should equal "6"
+    "(apply + '())" |> rep |> should equal "0"
+    "(apply list 1 '() '(2))" |> rep |> should equal "(1 () 2)"
 
 [<Fact>]
 let ``map`` () =
     "(map cdr '((a b) (d e) (g h)))" |> rep |> should equal "((b) (e) (h))"
     "(map + '(1 2 3) '(4 5 6 7))" |> rep |> should equal "(5 7 9)"
+    "(map car '())" |> rep |> should equal "()"
+    "(map (lambda (x) (* x x)) '(1 2 3))" |> rep |> should equal "(1 4 9)"
 
 [<Fact>]
 let ``for-each`` () =
@@ -36,10 +38,12 @@ let ``for-each`` () =
     |> rep
     |> should equal "(16 9 4 1 0)"
 
+    "(let ((v '())) (for-each (lambda (x) (set! v (cons x v))) '()) v)"
+    |> rep
+    |> should equal "()"
+
 [<Fact>]
 let ``call-with-current-continuation`` () =
-    let rep = repEnvs ()
-
     "(define list-length
        (lambda (obj)
          (call-with-current-continuation
@@ -57,3 +61,11 @@ let ``call-with-current-continuation`` () =
 
     "(list-length '(a b c d))" |> rep |> should equal "4"
     "(list-length '(a b . c))" |> rep |> should equal "#f"
+
+[<Fact>]
+let ``values`` () =
+    "(call-with-values (lambda () (values 1 2 3)) list)"
+    |> rep
+    |> should equal "(1 2 3)"
+
+    "(values 42)" |> rep |> should equal "42"

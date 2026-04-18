@@ -33,7 +33,7 @@ module Read =
             |> Seq.fold (fun acc a -> acc * 16 + a) 0
             |> System.Char.ConvertFromUtf32
 
-    let pInlineHexEscape = between (pstring "\\x") (pchar ';') pHexScalarValue
+    let pInlineHexEscape = between (pstringCI "\\x") (pchar ';') pHexScalarValue
 
     let pMnemonicEscape =
         choice
@@ -41,6 +41,8 @@ module Read =
               stringReturn "\\b" "\u0008"
               stringReturn "\\t" "\u0009"
               stringReturn "\\n" "\u000a"
+              stringReturn "\\v" "\u000b"
+              stringReturn "\\f" "\u000c"
               stringReturn "\\r" "\u000d" ]
 
     let pSignSubsequent = choice [ pInitial; pExplicitSign; pchar '@' ]
@@ -63,6 +65,7 @@ module Read =
         choice
             [ noneOf "|\\" |>> string
               stringReturn "\\|" "|"
+              stringReturn "\\\\" "\\"
               pMnemonicEscape
               pInlineHexEscape ]
 
@@ -102,7 +105,7 @@ module Read =
                   (pIntralineWhitespace |> manyChars)
                   pLineEnding
                   (pIntralineWhitespace |> manyChars)
-                  (fun s1 c2 s3 -> sprintf "%s%c%s" s1 c2 s3) ]
+                  (fun _ _ _ -> "") ]
 
     let pString = between (pchar '"') (pchar '"') (pStringElement |> manyStrings)
     let pSign = anyOf "+-" |> opt |>> Option.defaultValue '+'
@@ -110,58 +113,56 @@ module Read =
     let toBigInteger radix x =
         x |> Seq.map hex2int |> Seq.fold (fun acc a -> acc * radix + bigint a) 0I
 
-    let pUinteger10 = pDigit |> many1Chars |>> toBigInteger 10I
-    let pUinteger16 = pHexDigit |> many1Chars |>> toBigInteger 16I
-    let pUinteger2 = anyOf "01" |> many1 |>> toBigInteger 2I
-    let pUinteger8 = anyOf "01234567" |> many1 |>> toBigInteger 8I
+    let pUinteger radix =
+        let pDigits =
+            match radix with
+            | 2 -> anyOf "01" |> many1Chars
+            | 8 -> anyOf "01234567" |> many1Chars
+            | 10 -> digit |> many1Chars
+            | 16 -> hex |> many1Chars
+            | _ -> failwith "unsupported radix"
 
-    let pRationalN pUinteger =
+        pDigits |>> toBigInteger (bigint radix)
+
+    let pRationalN radix =
+        let pU = pUinteger radix
+
         choice
-            [ attempt (
-                  pipe4 pSign pUinteger (pchar '/') pUinteger (fun c1 n2 _ n4 -> (if c1 = '-' then -n2 else n2), n4)
-              )
-              pipe2 pSign pUinteger (fun c1 n2 -> (if c1 = '-' then -n2 else n2), 1I) ]
+            [ attempt (pipe4 pSign pU (pchar '/') pU (fun c1 n2 _ n4 -> (if c1 = '-' then -n2 else n2), n4))
+              pipe2 pSign pU (fun c1 n2 -> (if c1 = '-' then -n2 else n2), 1I) ]
 
-    let pRational =
-        choice
-            [ pstringCI "#x" >>. pRationalN pUinteger16
-              pstringCI "#b" >>. pRationalN pUinteger2
-              pstringCI "#o" >>. pRationalN pUinteger8
-              pstringCI "#d" >>. pRationalN pUinteger10
-              pRationalN pUinteger10 ]
+    let pRational radix =
+        pRationalN radix |>> fun (n, d) -> newSRational n d
 
-    let pSuffix =
+    let pDecimalSuffix =
         anyOf "Ee"
         >>. pipe2 pSign (pDigit |> many1Chars) (fun c1 s2 -> sprintf "E%c%s" c1 s2)
 
-    let pSuffixOpt = pSuffix |> opt |>> Option.defaultValue ""
+    let pDecimalSuffixOpt = pDecimalSuffix |> opt |>> Option.defaultValue ""
 
     let pDecimal10 =
         choice
             [ attempt (
-                  pipe5 pSign (pDigit |> many1Chars) (pchar '.') (pDigit |> many1Chars) pSuffixOpt (fun c1 s2 _ s4 s5 ->
-                      sprintf "%c%s.%s%s" c1 s2 s4 s5 |> System.Double.Parse)
+                  pipe5
+                      pSign
+                      (pDigit |> many1Chars)
+                      (pchar '.')
+                      (pDigit |> many1Chars)
+                      pDecimalSuffixOpt
+                      (fun c1 s2 _ s4 s5 -> sprintf "%c%s.%s%s" c1 s2 s4 s5 |> System.Double.Parse)
               )
               attempt (
-                  pipe4 pSign (pDigit |> many1Chars) (pchar '.') pSuffixOpt (fun c1 s2 _ s4 ->
+                  pipe4 pSign (pDigit |> many1Chars) (pchar '.') pDecimalSuffixOpt (fun c1 s2 _ s4 ->
                       sprintf "%c%s%s" c1 s2 s4 |> System.Double.Parse)
               )
-              pipe4 pSign (pchar '.') (pDigit |> many1Chars) pSuffixOpt (fun c1 _ s3 s4 ->
-                  sprintf "%c0.%s%s" c1 s3 s4 |> System.Double.Parse)
-              pipe3 pSign (pDigit |> many1Chars) pSuffix (fun c1 s2 s3 ->
-                  sprintf "%c%s%s" c1 s2 s3 |> System.Double.Parse) ]
-
-    let parseSymbol = pIdentifier |>> SSymbol
-
-    let parseBool =
-        choice
-            [ stringCIReturn "#true" STrue
-              stringCIReturn "#t" STrue
-              stringCIReturn "#false" SFalse
-              stringCIReturn "#f" SFalse ]
-
-    let parseChar = pCharacter |>> SChar
-    let parseString = pString |>> SString
+              attempt (
+                  pipe4 pSign (pchar '.') (pDigit |> many1Chars) pDecimalSuffixOpt (fun c1 _ s3 s4 ->
+                      sprintf "%c0.%s%s" c1 s3 s4 |> System.Double.Parse)
+              )
+              attempt (
+                  pipe3 pSign (pDigit |> many1Chars) pDecimalSuffix (fun c1 s2 s3 ->
+                      sprintf "%c%s%s" c1 s2 s3 |> System.Double.Parse)
+              ) ]
 
     let pRealDouble =
         choice
@@ -172,20 +173,26 @@ module Read =
               pstringCI "#d" >>. pDecimal10
               pDecimal10 ]
 
-    let parseReal = pRealDouble |>> SReal
+    let pReal = pRealDouble |>> SReal
 
-    let pFloatNum =
-        choice
-            [ attempt pRealDouble
-              attempt pRational |>> fun (x1, x2) -> float x1 / float x2 ]
+    let pFloat radix =
+        if radix = 10 then
+            pRealDouble <|> (pRationalN radix |>> fun (n, d) -> float n / float d)
+        else
+            pRationalN radix |>> fun (n, d) -> float n / float d
 
-    let parseComplex =
+    let pComplex radix =
+        let pFloatNum = pFloat radix
+
         choice
             [ attempt (
                   pipe3 pFloatNum (pchar '@') pFloatNum (fun r _ i ->
                       System.Numerics.Complex.FromPolarCoordinates(r, i) |> SComplex)
               )
-              attempt (pipe2 pFloatNum (pFloatNum .>> pchar 'i') (fun r i -> System.Numerics.Complex(r, i) |> SComplex))
+              attempt (
+                  pipe2 pFloatNum (pFloatNum .>> (pchar 'i' <|> pchar 'I')) (fun r i ->
+                      System.Numerics.Complex(r, i) |> SComplex)
+              )
               attempt (
                   pipe2
                       pFloatNum
@@ -193,7 +200,10 @@ module Read =
                        <|> (pstringCI "-i" >>. notFollowedBy (anyOf "nN") >>% -1.0))
                       (fun r i -> System.Numerics.Complex(r, i) |> SComplex)
               )
-              attempt (pFloatNum .>> pchar 'i' |>> fun i -> System.Numerics.Complex(0.0, i) |> SComplex)
+              attempt (
+                  pFloatNum .>> (pchar 'i' <|> pchar 'I')
+                  |>> fun i -> System.Numerics.Complex(0.0, i) |> SComplex
+              )
               attempt (
                   pstringCI "+i" >>. notFollowedBy (anyOf "nN")
                   >>% (System.Numerics.Complex(0.0, 1.0) |> SComplex)
@@ -203,9 +213,60 @@ module Read =
                   >>% (System.Numerics.Complex(0.0, -1.0) |> SComplex)
               ) ]
 
-    let parseRational = pRational |>> fun (x1, x2) -> newSRational x1 x2
+    let pNumberBody radix =
+        if radix = 10 then
+            choice [ attempt (pComplex radix); attempt pReal; pRational radix ]
+        else
+            choice [ attempt (pComplex radix); pRational radix ]
+
+    let pExactnessOnly = choice [ pstringCI "#e" >>% true; pstringCI "#i" >>% false ]
+
+    let pRadixOnly =
+        choice
+            [ pstringCI "#b" >>% 2
+              pstringCI "#o" >>% 8
+              pstringCI "#d" >>% 10
+              pstringCI "#x" >>% 16 ]
+
+    let pPrefix =
+        choice
+            [ attempt (pipe2 pExactnessOnly (pRadixOnly |> opt) (fun e r -> (Some e, r)))
+              attempt (pipe2 pRadixOnly (pExactnessOnly |> opt) (fun r e -> (e, Some r)))
+              preturn (None, None) ]
+
+    let parseExactnessRadix exactness radix =
+        pNumberBody (radix |> Option.defaultValue 10)
+        |>> fun num ->
+            match exactness with
+            | Some true ->
+                match num with
+                | SReal x -> SRational(bigint x, 1I)
+                | SComplex c -> SRational(bigint c.Real, 1I)
+                | _ -> num
+            | Some false ->
+                match num with
+                | SRational(n, d) -> SReal(float n / float d)
+                | _ -> num
+            | None -> num
+
+    let parseNumber =
+        pPrefix >>= fun (exactness, radix) -> parseExactnessRadix exactness radix
+
+    let parseBool =
+        choice
+            [ stringCIReturn "#true" STrue
+              stringCIReturn "#t" STrue
+              stringCIReturn "#false" SFalse
+              stringCIReturn "#f" SFalse ]
+
+    let parseSymbol = pIdentifier |>> SSymbol
+    let parseChar = pCharacter |>> SChar
+    let parseString = pString |>> SString
 
     let parseDatum, parseDatumRef = createParserForwardedToRef ()
+
+    let parseList =
+        between (pchar '(') (pchar ')') (pIntertokenSpace >>. many (parseDatum .>> pIntertokenSpace) |>> toSList)
 
     let parseDotList =
         between
@@ -232,9 +293,6 @@ module Read =
                 | _ -> failwith "bytevector elements must be exact integers between 0 and 255")
             |> List.toArray
             |> SByteVector
-
-    let parseList =
-        between (pchar '(') (pchar ')') (pIntertokenSpace >>. many (parseDatum .>> pIntertokenSpace) |>> toSList)
 
     let parseQuoted = pchar '\'' >>. parseDatum |>> SQuote
     let parseQuasiquote = pchar '`' >>. parseDatum |>> SQuasiquote
@@ -263,9 +321,7 @@ module Read =
             [ parseBool
               parseChar
               parseString
-              attempt parseComplex
-              attempt parseReal
-              attempt parseRational
+              attempt parseNumber
               attempt parseDotList
               attempt parseVector
               attempt parseByteVector
