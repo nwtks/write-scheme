@@ -65,16 +65,6 @@ module Core =
         | [ a; b ] -> [ a, b ] |> loopEqual |> toSBool |> cont
         | _ -> SFalse |> cont
 
-    let sNot envs cont =
-        function
-        | [ SBool false ] -> STrue |> cont
-        | _ -> SFalse |> cont
-
-    let isBoolean envs cont =
-        function
-        | [ SBool _ ] -> STrue |> cont
-        | _ -> SFalse |> cont
-
     let sDisplay envs cont =
         function
         | [ SString x ] ->

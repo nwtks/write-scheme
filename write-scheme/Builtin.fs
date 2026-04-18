@@ -80,6 +80,7 @@ module Builtin =
               "string->number", SProcedure sStringToNumber |> ref
               "not", SProcedure sNot |> ref
               "boolean?", SProcedure isBoolean |> ref
+              "boolean=?", SProcedure isBooleanEq |> ref
               "pair?", SProcedure isPair |> ref
               "cons", SProcedure sCons |> ref
               "car", SProcedure sCar |> ref

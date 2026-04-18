@@ -105,20 +105,3 @@ let ``equal?`` () =
     "(equal? (cons 1 2) (cons 1 2))" |> rep |> should equal "#t"
     "(equal? (lambda () 1) (lambda () 1))" |> rep |> should equal "#f"
     "(let ((p (lambda (x) x))) (equal? p p))" |> rep |> should equal "#t"
-
-[<Fact>]
-let ``not`` () =
-    "(not #t)" |> rep |> should equal "#f"
-    "(not 3)" |> rep |> should equal "#f"
-    "(not (list 3))" |> rep |> should equal "#f"
-    "(not #f)" |> rep |> should equal "#t"
-    "(not '())" |> rep |> should equal "#f"
-    "(not (list))" |> rep |> should equal "#f"
-    "(not 'nil)" |> rep |> should equal "#f"
-
-[<Fact>]
-let ``boolean?`` () =
-    "(boolean? #f)" |> rep |> should equal "#t"
-    "(boolean? #t)" |> rep |> should equal "#t"
-    "(boolean? 0)" |> rep |> should equal "#f"
-    "(boolean? '())" |> rep |> should equal "#f"

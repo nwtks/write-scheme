@@ -18,6 +18,7 @@
     <Compile Include="Builtin/Macro.fs" />
     <Compile Include="Builtin/Core.fs" />
     <Compile Include="Builtin/Math.fs" />
+    <Compile Include="Builtin/Bool.fs" />
     <Compile Include="Builtin/List.fs" />
     <Compile Include="Builtin/Symbol.fs" />
     <Compile Include="Builtin/Char.fs" />

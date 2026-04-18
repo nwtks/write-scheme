@@ -13,6 +13,7 @@
     <Compile Include="MacroTest.fs" />
     <Compile Include="CoreTest.fs" />
     <Compile Include="MathTest.fs" />
+    <Compile Include="BoolTest.fs" />
     <Compile Include="ListTest.fs" />
     <Compile Include="SymbolTest.fs" />
     <Compile Include="CharTest.fs" />
