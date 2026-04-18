@@ -51,7 +51,68 @@ module ByteVector =
     let sByteVectorCopy envs cont =
         function
         | [ SByteVector xs ] -> Array.copy xs |> SByteVector |> cont
+        | [ SByteVector xs; SRational(start, d1) ] when d1 = 1I && start >= 0I && start <= bigint xs.Length ->
+            xs.[int start ..] |> Array.copy |> SByteVector |> cont
+        | [ SByteVector xs; SRational(start, d1); SRational(stop, d2) ] when
+            d1 = 1I && d2 = 1I && start >= 0I && stop >= start && stop <= bigint xs.Length
+            ->
+            xs.[int start .. int stop - 1] |> Array.copy |> SByteVector |> cont
         | x -> x |> invalidParameter "'%s' invalid bytevector-copy parameter."
+
+    let sByteVectorCopyBang envs cont =
+        function
+        | [ SByteVector target; SRational(at, dAt); SByteVector source ] when
+            dAt = 1I && at >= 0I && at + bigint source.Length <= bigint target.Length
+            ->
+            Array.blit source 0 target (int at) source.Length
+            SUnspecified |> cont
+        | [ SByteVector target; SRational(at, dAt); SByteVector source; SRational(start, d1) ] when
+            dAt = 1I
+            && d1 = 1I
+            && start >= 0I
+            && start <= bigint source.Length
+            && at >= 0I
+            && at + bigint (source.Length - int start) <= bigint target.Length
+            ->
+            let len = source.Length - int start
+            Array.blit source (int start) target (int at) len
+            SUnspecified |> cont
+        | [ SByteVector target; SRational(at, dAt); SByteVector source; SRational(start, d1); SRational(stop, d2) ] when
+            dAt = 1I
+            && d1 = 1I
+            && d2 = 1I
+            && start >= 0I
+            && stop >= start
+            && stop <= bigint source.Length
+            && at >= 0I
+            && at + bigint (int stop - int start) <= bigint target.Length
+            ->
+            let len = int stop - int start
+            Array.blit source (int start) target (int at) len
+            SUnspecified |> cont
+        | x -> x |> invalidParameter "'%s' invalid bytevector-copy! parameter."
+
+    let sByteVectorAppend envs cont xs =
+        xs
+        |> List.map (function
+            | SByteVector v -> v
+            | x -> Print.print x |> sprintf "'%s' is not a bytevector." |> failwith)
+        |> Array.concat
+        |> SByteVector
+        |> cont
+
+    let sUtf8ToString envs cont =
+        function
+        | [ SByteVector bs ] -> System.Text.Encoding.UTF8.GetString(bs) |> SString |> cont
+        | [ SByteVector bs; SRational(start, d1) ] when d1 = 1I && start >= 0I && start <= bigint bs.Length ->
+            System.Text.Encoding.UTF8.GetString(bs.[int start ..]) |> SString |> cont
+        | [ SByteVector bs; SRational(start, d1); SRational(stop, d2) ] when
+            d1 = 1I && d2 = 1I && start >= 0I && stop >= start && stop <= bigint bs.Length
+            ->
+            System.Text.Encoding.UTF8.GetString(bs.[int start .. int stop - 1])
+            |> SString
+            |> cont
+        | x -> x |> invalidParameter "'%s' invalid utf8->string parameter."
 
     let sStringToUtf8 envs cont =
         function
@@ -69,16 +130,3 @@ module ByteVector =
             |> SByteVector
             |> cont
         | x -> x |> invalidParameter "'%s' invalid string->utf8 parameter."
-
-    let sUtf8ToString envs cont =
-        function
-        | [ SByteVector bs ] -> System.Text.Encoding.UTF8.GetString(bs) |> SString |> cont
-        | [ SByteVector bs; SRational(start, d1) ] when d1 = 1I && start >= 0I && start <= bigint bs.Length ->
-            System.Text.Encoding.UTF8.GetString(bs.[int start ..]) |> SString |> cont
-        | [ SByteVector bs; SRational(start, d1); SRational(stop, d2) ] when
-            d1 = 1I && d2 = 1I && start >= 0I && stop >= start && stop <= bigint bs.Length
-            ->
-            System.Text.Encoding.UTF8.GetString(bs.[int start .. int stop - 1])
-            |> SString
-            |> cont
-        | x -> x |> invalidParameter "'%s' invalid utf8->string parameter."

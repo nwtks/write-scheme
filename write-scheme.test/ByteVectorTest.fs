@@ -52,14 +52,39 @@ let ``bytevector-copy`` () =
     |> rep
     |> should equal "#u8(1 2 3)"
 
+    "(bytevector-copy #u8(1 2 3 4 5) 2)" |> rep |> should equal "#u8(3 4 5)"
+    "(bytevector-copy #u8(1 2 3 4 5) 2 4)" |> rep |> should equal "#u8(3 4)"
+
 [<Fact>]
-let ``string->utf8`` () =
-    "(bytevector? (string->utf8 \"hello\"))" |> rep |> should equal "#t"
-    "(string->utf8 \"A\")" |> rep |> should equal "#u8(65)"
-    "(string->utf8 \"ABC\" 1 2)" |> rep |> should equal "#u8(66)"
+let ``bytevector-copy!`` () =
+    "(let ((a (bytevector 1 2 3 4 5)) (b (bytevector 10 20 30))) (bytevector-copy! a 1 b) a)"
+    |> rep
+    |> should equal "#u8(1 10 20 30 5)"
+
+    "(let ((a (bytevector 1 2 3 4 5)) (b (bytevector 10 20 30))) (bytevector-copy! a 1 b 1) a)"
+    |> rep
+    |> should equal "#u8(1 20 30 4 5)"
+
+    "(let ((a (bytevector 1 2 3 4 5)) (b (bytevector 10 20 30))) (bytevector-copy! a 1 b 0 2) a)"
+    |> rep
+    |> should equal "#u8(1 10 20 4 5)"
+
+[<Fact>]
+let ``bytevector-append`` () =
+    "(bytevector-append #u8(1 2) #u8(3 4 5) #u8(6))"
+    |> rep
+    |> should equal "#u8(1 2 3 4 5 6)"
+
+    "(bytevector-append)" |> rep |> should equal "#u8()"
 
 [<Fact>]
 let ``utf8->string`` () =
     "(utf8->string #u8(65 66 67))" |> rep |> should equal "\"ABC\""
     "(utf8->string #u8(72 101 108 108 111))" |> rep |> should equal "\"Hello\""
     "(utf8->string #u8(65 66 67) 1 2)" |> rep |> should equal "\"B\""
+
+[<Fact>]
+let ``string->utf8`` () =
+    "(string->utf8 \"A\")" |> rep |> should equal "#u8(65)"
+    "(string->utf8 \"ABC\" 1 2)" |> rep |> should equal "#u8(66)"
+    "(bytevector? (string->utf8 \"hello\"))" |> rep |> should equal "#t"

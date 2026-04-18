@@ -175,8 +175,10 @@ module Builtin =
               "bytevector-u8-ref", SProcedure sByteVectorU8Ref |> ref
               "bytevector-u8-set!", SProcedure sByteVectorU8Set |> ref
               "bytevector-copy", SProcedure sByteVectorCopy |> ref
-              "string->utf8", SProcedure sStringToUtf8 |> ref
+              "bytevector-copy!", SProcedure sByteVectorCopyBang |> ref
+              "bytevector-append", SProcedure sByteVectorAppend |> ref
               "utf8->string", SProcedure sUtf8ToString |> ref
+              "string->utf8", SProcedure sStringToUtf8 |> ref
               "procedure?", SProcedure isProcedure |> ref
               "apply", SProcedure sApply |> ref
               "map", SProcedure sMap |> ref
