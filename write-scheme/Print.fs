@@ -29,6 +29,7 @@ module Print =
         | SList xs -> xs |> printList |> sprintf "(%s)"
         | SPair(x1, x2) -> sprintf "(%s . %s)" (printList x1) (print x2)
         | SVector xs -> xs |> Array.map print |> String.concat " " |> sprintf "#(%s)"
+        | SByteVector xs -> xs |> Array.map string |> String.concat " " |> sprintf "#u8(%s)"
         | SValues xs -> xs |> List.map print |> String.concat " " |> sprintf "(values %s)"
         | SRecord(_, typeName, _) -> sprintf "#<%s>" typeName
         | SError(msg, []) -> sprintf "#<error \"%s\">" msg

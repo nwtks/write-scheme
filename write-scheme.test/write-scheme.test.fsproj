@@ -15,6 +15,7 @@
     <Compile Include="MathTest.fs" />
     <Compile Include="ListTest.fs" />
     <Compile Include="VectorTest.fs" />
+    <Compile Include="ByteVectorTest.fs" />
     <Compile Include="DynamicWindTest.fs" />
     <Compile Include="ProcedureTest.fs" />
     <Compile Include="ExceptionTest.fs" />

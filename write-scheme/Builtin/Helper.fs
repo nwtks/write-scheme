@@ -38,7 +38,6 @@ module Helper =
             | [] -> failwith "unreachable"
         else
             match sList, tList with
-            | [], [] -> List.rev accS, List.rev accT
             | h1 :: _, h2 :: _ when h1.id = h2.id -> List.rev accS, List.rev accT
             | h1 :: t1, h2 :: t2 -> loopDiffWinders t1 t2 (lenS - 1) (lenT - 1) (h1 :: accS) (h2 :: accT)
             | _ -> List.rev accS, List.rev accT

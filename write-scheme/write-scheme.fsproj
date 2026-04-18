@@ -20,6 +20,7 @@
     <Compile Include="Builtin/Math.fs" />
     <Compile Include="Builtin/List.fs" />
     <Compile Include="Builtin/Vector.fs" />
+    <Compile Include="Builtin/ByteVector.fs" />
     <Compile Include="Builtin/Procedure.fs" />
     <Compile Include="Builtin/Exception.fs" />
     <Compile Include="Builtin.fs" />

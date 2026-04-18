@@ -70,12 +70,12 @@ module Builtin =
               "*", SProcedure multiplyNumber |> ref
               "-", SProcedure subtractNumber |> ref
               "/", SProcedure divideNumber |> ref
-              "make-rectangular", SProcedure makeRectangular |> ref
-              "make-polar", SProcedure makePolar |> ref
-              "real-part", SProcedure realPart |> ref
-              "imag-part", SProcedure imagPart |> ref
-              "magnitude", SProcedure magnitude |> ref
-              "angle", SProcedure angle |> ref
+              "make-rectangular", SProcedure sMakeRectangular |> ref
+              "make-polar", SProcedure sMakePolar |> ref
+              "real-part", SProcedure sRealPart |> ref
+              "imag-part", SProcedure sImagPart |> ref
+              "magnitude", SProcedure sMagnitude |> ref
+              "angle", SProcedure sAngle |> ref
               "not", SProcedure sNot |> ref
               "boolean?", SProcedure isBoolean |> ref
               "pair?", SProcedure isPair |> ref
@@ -98,6 +98,13 @@ module Builtin =
               "vector->list", SProcedure sVectorToList |> ref
               "list->vector", SProcedure sListToVector |> ref
               "vector-fill!", SProcedure sVectorFill |> ref
+              "bytevector?", SProcedure isByteVector |> ref
+              "make-bytevector", SProcedure sMakeByteVector |> ref
+              "bytevector", SProcedure sByteVector |> ref
+              "bytevector-length", SProcedure sByteVectorLength |> ref
+              "bytevector-u8-ref", SProcedure sByteVectorU8Ref |> ref
+              "bytevector-u8-set!", SProcedure sByteVectorU8Set |> ref
+              "bytevector-copy", SProcedure sByteVectorCopy |> ref
               "procedure?", SProcedure isProcedure |> ref
               "apply", SProcedure sApply |> ref
               "map", SProcedure sMap |> ref

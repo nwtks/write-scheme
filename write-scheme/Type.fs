@@ -15,6 +15,7 @@ module Type =
         | SList of SExpression list
         | SPair of SExpression list * SExpression
         | SVector of SExpression array
+        | SByteVector of byte array
         | SValues of SExpression list
         | SRecord of typeId: int * typeName: string * fields: SExpression ref array
         | SError of string * SExpression list

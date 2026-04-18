@@ -26,6 +26,7 @@ let ``lambda`` () =
     "((lambda (x y . z) z) 3 4 5 6)" |> rep |> should equal "(5 6)"
 
     let rep = repEnvs ()
+
     "(define reverse-subtract (lambda (x y) (- y x)))" |> rep |> ignore
     "(reverse-subtract 7 10)" |> rep |> should equal "3"
 
@@ -458,7 +459,8 @@ let ``define-values`` () =
     "a" |> rep |> should equal "10"
     "b" |> rep |> should equal "(20 30)"
 
-    "(define-values () (values))" |> rep |> ignore
+    "(define-values (z) 42)" |> rep |> ignore
+    "z" |> rep |> should equal "42"
 
 [<Fact>]
 let ``define-record-type`` () =

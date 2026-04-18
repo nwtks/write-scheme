@@ -4,7 +4,7 @@ open Type
 
 module Eval =
     [<TailCall>]
-    let rec matchEval envs cont =
+    let rec eval envs cont =
         function
         | SEmpty -> failwith "() is not a valid expression. It must be quoted."
         | SUnspecified
@@ -16,6 +16,7 @@ module Eval =
         | SChar _
         | SPair _
         | SVector _
+        | SByteVector _
         | SValues _
         | SRecord _
         | SError _
@@ -28,14 +29,14 @@ module Eval =
         | SContinuation _ as x -> x |> cont
         | SSymbol x -> (Context.lookupEnvs envs x).Value |> cont
         | SList [] -> SEmpty |> cont
-        | SList(operator :: operands) -> operator |> matchEval envs (apply envs cont operands)
-        | SQuote x -> SList [ SSymbol "quote"; x ] |> matchEval envs cont
-        | SQuasiquote x -> SList [ SSymbol "quasiquote"; x ] |> matchEval envs cont
+        | SList(operator :: operands) -> operator |> eval envs (apply envs cont operands)
+        | SQuote x -> SList [ SSymbol "quote"; x ] |> eval envs cont
+        | SQuasiquote x -> SList [ SSymbol "quasiquote"; x ] |> eval envs cont
 
     and [<TailCall>] evalArgs envs cont fn acc =
         function
         | [] -> List.rev acc |> fn envs cont
-        | x :: xs -> x |> matchEval envs (fun a -> xs |> evalArgs envs cont fn (a :: acc))
+        | x :: xs -> x |> eval envs (fun a -> xs |> evalArgs envs cont fn (a :: acc))
 
     and [<TailCall>] apply envs cont args =
         function
@@ -74,7 +75,13 @@ module Eval =
                 |> failwith
         | x -> Print.print x |> sprintf "'%s' not operator." |> failwith
 
-    let eval envs cont expr =
+    [<TailCall>]
+    let rec eachEval envs cont acc =
+        function
+        | [] -> acc |> cont
+        | x :: xs -> x |> eval envs (fun a -> xs |> eachEval envs cont a)
+
+    let evalWrapped envs cont expr =
         let processErr (e: exn) =
             match e with
             | :? SchemeRaise -> raise e
@@ -87,12 +94,6 @@ module Eval =
                     | None -> raise e
 
         try
-            matchEval envs cont expr
+            eval envs cont expr
         with e ->
             processErr e
-
-    [<TailCall>]
-    let rec eachEval envs cont acc =
-        function
-        | [] -> acc |> cont
-        | x :: xs -> x |> eval envs (fun a -> xs |> eachEval envs cont a)

@@ -57,12 +57,12 @@ module SavedParameter =
                             converter
                             |> Eval.apply
                                 envs
-                                (fun converted -> setAndContinue envs cont body saved acc xs r converted)
+                                (fun converted -> setParameterize envs cont body saved acc xs r converted)
                                 [ v ]
-                        | None -> setAndContinue envs cont body saved acc xs r v
+                        | None -> setParameterize envs cont body saved acc xs r v
                     | x -> Print.print x |> sprintf "'%s' is not a parameter object." |> failwith))
 
-    and [<TailCall>] setAndContinue envs cont body saved acc xs r newVal =
+    and [<TailCall>] setParameterize envs cont body saved acc xs r newVal =
         let old = r.Value
         r.Value <- newVal
         let s = { Ref = r; SavedValue = ref old }

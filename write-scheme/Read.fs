@@ -207,11 +207,6 @@ module Read =
 
     let parseDatum, parseDatumRef = createParserForwardedToRef ()
 
-    let parseVector =
-        pstring "#(" >>. pIntertokenSpace >>. many (parseDatum .>> pIntertokenSpace)
-        .>> pchar ')'
-        |>> (List.toArray >> SVector)
-
     let parseDotList =
         between
             (pchar '(')
@@ -221,6 +216,22 @@ module Read =
                  (many1 (parseDatum .>> pIntertokenSpace1))
                  (pchar '.' >>. pIntertokenSpace1 >>. parseDatum .>> pIntertokenSpace)
                  (fun x1 x2 -> SPair(x1, x2)))
+
+    let parseVector =
+        pstring "#(" >>. pIntertokenSpace >>. many (parseDatum .>> pIntertokenSpace)
+        .>> pchar ')'
+        |>> (List.toArray >> SVector)
+
+    let parseByteVector =
+        pstringCI "#u8(" >>. pIntertokenSpace >>. many (parseDatum .>> pIntertokenSpace)
+        .>> pchar ')'
+        |>> fun xs ->
+            xs
+            |> List.map (function
+                | SRational(num, den) when den = 1I && num >= 0I && num <= 255I -> byte num
+                | _ -> failwith "bytevector elements must be exact integers between 0 and 255")
+            |> List.toArray
+            |> SByteVector
 
     let parseList =
         between (pchar '(') (pchar ')') (pIntertokenSpace >>. many (parseDatum .>> pIntertokenSpace) |>> toSList)
@@ -255,8 +266,9 @@ module Read =
               attempt parseComplex
               attempt parseReal
               attempt parseRational
-              attempt parseVector
               attempt parseDotList
+              attempt parseVector
+              attempt parseByteVector
               parseList
               parseQuoted
               parseQuasiquote

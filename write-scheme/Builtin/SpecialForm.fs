@@ -92,7 +92,7 @@ module SpecialForm =
 
     and [<TailCall>] testCond envs cont conseq clauses test =
         test
-        |> Eval.matchEval envs (function
+        |> Eval.eval envs (function
             | SBool false -> sCond envs cont clauses
             | x -> conseq x)
 
@@ -438,7 +438,7 @@ module SpecialForm =
         | SList [ SSymbol "unquote"; x ] :: rest ->
             if n = 0 then
                 x
-                |> Eval.matchEval envs (fun a -> rest |> replaceQuasiquoteList envs cont n (fun b -> cons a b |> next))
+                |> Eval.eval envs (fun a -> rest |> replaceQuasiquoteList envs cont n (fun b -> cons a b |> next))
             else
                 x
                 |> replaceQuasiquote envs cont (n - 1) (fun a ->
@@ -447,7 +447,7 @@ module SpecialForm =
         | SList [ SSymbol "unquote-splicing"; x ] :: rest ->
             if n = 0 then
                 x
-                |> Eval.matchEval envs (fun a -> rest |> replaceQuasiquoteList envs cont n (fun b -> join a b |> next))
+                |> Eval.eval envs (fun a -> rest |> replaceQuasiquoteList envs cont n (fun b -> join a b |> next))
             else
                 x
                 |> replaceQuasiquote envs cont (n - 1) (fun a ->
@@ -474,13 +474,13 @@ module SpecialForm =
         | SUnquote x
         | SList [ SSymbol "unquote"; x ] ->
             if n = 0 then
-                x |> Eval.matchEval envs next
+                x |> Eval.eval envs next
             else
                 x |> replaceQuasiquote envs cont (n - 1) (SUnquote >> next)
         | SUnquoteSplicing x
         | SList [ SSymbol "unquote-splicing"; x ] ->
             if n = 0 then
-                x |> Eval.matchEval envs next
+                x |> Eval.eval envs next
             else
                 x |> replaceQuasiquote envs cont (n - 1) (SUnquoteSplicing >> next)
         | SQuasiquote x

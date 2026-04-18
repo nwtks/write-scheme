@@ -109,3 +109,11 @@ let vector () =
     "#(0 10 5)" |> rep |> should equal "#(0 10 5)"
     "#(\"a\" \"b\" \"c\")" |> rep |> should equal "#(\"a\" \"b\" \"c\")"
     "#(a b c)" |> rep |> should equal "#(a b c)"
+
+[<Fact>]
+let bytevector () =
+    "#u8()" |> rep |> should equal "#u8()"
+    "#u8(1 2 3)" |> rep |> should equal "#u8(1 2 3)"
+    "#u8(0 10 5)" |> rep |> should equal "#u8(0 10 5)"
+    "#u8(255)" |> rep |> should equal "#u8(255)"
+    "#u8(#x10 #o10 #b10)" |> rep |> should equal "#u8(16 8 2)"

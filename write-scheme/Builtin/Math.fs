@@ -268,7 +268,7 @@ module Math =
             cont
             args
 
-    let makeRectangular envs cont =
+    let sMakeRectangular envs cont =
         function
         | [ r; i ] ->
             System.Numerics.Complex((toComplex r).Real, (toComplex i).Real)
@@ -278,7 +278,7 @@ module Math =
             sprintf "'make-rectangular' required 2 arguments, but %d" args.Length
             |> failwith
 
-    let makePolar envs cont =
+    let sMakePolar envs cont =
         function
         | [ r; theta ] ->
             System.Numerics.Complex.FromPolarCoordinates((toComplex r).Real, (toComplex theta).Real)
@@ -286,22 +286,22 @@ module Math =
             |> cont
         | args -> sprintf "'make-polar' required 2 arguments, but %d" args.Length |> failwith
 
-    let realPart envs cont =
+    let sRealPart envs cont =
         function
         | [ x ] -> (toComplex x).Real |> SReal |> cont
         | args -> sprintf "'real-part' required 1 argument, but %d" args.Length |> failwith
 
-    let imagPart envs cont =
+    let sImagPart envs cont =
         function
         | [ x ] -> (toComplex x).Imaginary |> SReal |> cont
         | args -> sprintf "'imag-part' required 1 argument, but %d" args.Length |> failwith
 
-    let magnitude envs cont =
+    let sMagnitude envs cont =
         function
         | [ x ] -> (toComplex x).Magnitude |> SReal |> cont
         | args -> sprintf "'magnitude' required 1 argument, but %d" args.Length |> failwith
 
-    let angle envs cont =
+    let sAngle envs cont =
         function
         | [ x ] -> (toComplex x).Phase |> SReal |> cont
         | args -> sprintf "'angle' required 1 argument, but %d" args.Length |> failwith

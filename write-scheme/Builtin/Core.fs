@@ -34,6 +34,16 @@ module Core =
                         if i < 0 then acc else zip (i - 1) ((va.[i], vb.[i]) :: acc)
 
                     zip (va.Length - 1) xs |> loopEqual
+            | SByteVector va, SByteVector vb ->
+                if va.Length <> vb.Length then
+                    false
+                else
+                    let rec loop i =
+                        if i < 0 then true
+                        elif va.[i] <> vb.[i] then false
+                        else loop (i - 1)
+
+                    loop (va.Length - 1) && loopEqual xs
             | SValues va, SValues vb ->
                 if va.Length <> vb.Length then
                     false
