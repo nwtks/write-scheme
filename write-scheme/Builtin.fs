@@ -85,10 +85,26 @@ module Builtin =
               "cons", SProcedure sCons |> ref
               "car", SProcedure sCar |> ref
               "cdr", SProcedure sCdr |> ref
+              "caar", SProcedure sCaar |> ref
+              "cadr", SProcedure sCadr |> ref
+              "cdar", SProcedure sCdar |> ref
+              "cddr", SProcedure sCddr |> ref
               "null?", SProcedure isNull |> ref
               "list?", SProcedure isList |> ref
+              "make-list", SProcedure sMakeList |> ref
               "list", SProcedure sList |> ref
+              "length", SProcedure sLength |> ref
               "append", SProcedure sAppend |> ref
+              "reverse", SProcedure sReverse |> ref
+              "list-tail", SProcedure sListTail |> ref
+              "list-ref", SProcedure sListRef |> ref
+              "memq", SProcedure sMemq |> ref
+              "memv", SProcedure sMemv |> ref
+              "member", SProcedure sMember |> ref
+              "assq", SProcedure sAssq |> ref
+              "assv", SProcedure sAssv |> ref
+              "assoc", SProcedure sAssoc |> ref
+              "list-copy", SProcedure sListCopy |> ref
               "symbol?", SProcedure isSymbol |> ref
               "symbol=?", SProcedure isSymbolEq |> ref
               "symbol->string", SProcedure sSymbolToString |> ref
