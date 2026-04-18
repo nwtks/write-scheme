@@ -1,7 +1,6 @@
-
 # R7RS Scheme Interpreter in F#
 
-A subset R7RS Scheme interpreter written in F#. Features a CPS (Continuation-Passing Style) based evaluator with first-class continuations and macros.
+A subset R7RS Scheme interpreter written in F#. Features a CPS (Continuation-Passing Style) based evaluator with first-class continuations, hygienic macros, and a stack-safe execution model.
 
 ## Requirements
 
@@ -26,11 +25,15 @@ dotnet test
 | Boolean | `#t`, `#f`, `#true`, `#false` |
 | Integer / Rational | `42`, `-1`, `1/2`, `10/3` |
 | Real | `3.14`, `1e2`, `+inf.0`, `-inf.0`, `+nan.0` |
+| Complex | `1+2i`, `1@1.57` (polar) |
 | String | `"hello"`, `"\n"`, `"\x3071;"` (ぱ) |
 | Character | `#\a`, `#\space`, `#\newline`, `#\x3071` |
-| Symbol | `foo`, `+`, `list->vector`, `\|two words\|` |
+| Symbol | `foo`, `+`, `list->vector`, `|two words|` |
 | Pair / List | `(1 2 3)`, `(a . b)` |
+| Vector | `#(1 2 3)` |
+| Bytevector | `#u8(0 10 255)` |
 | Numeric radix | `#x1F` (hex), `#o17` (octal), `#b1010` (binary) |
+| Exactness | `#e1.0` (exact), `#i1/2` (inexact) |
 
 ### Special Forms
 
@@ -64,6 +67,7 @@ dotnet test
 - **Stack-Safe Evaluator**: The core evaluator uses a Jump-based Continuation-Passing Style (CPS) to ensure that Deep recursion (including tail calls) works indefinitely without consuming stack frames.
 - **First-Class Continuations**: Full support for `call/cc` enabled by the CPS architecture.
 - **Robust Exception Handling**: R7RS `guard` and `with-exception-handler` integrated with the CPS flow for predictable and safe error management.
+- **Source-Mapped Errors**: Runtime errors include line and column information from the source.
 
 ### Built-in Procedures
 
@@ -71,22 +75,31 @@ dotnet test
 `eqv?`, `eq?`, `equal?`
 
 #### Numeric
-`+`, `-`, `*`, `/`, `=`, `<`, `>`, `<=`, `>=`, `number?`, `zero?`, `positive?`, `negative?`
+`+`, `-`, `*`, `/`, `=`, `<`, `>`, `<=`, `>=`, `number?`, `complex?`, `real?`, `rational?`, `integer?`, `exact?`, `inexact?`, `exact-integer?`, `finite?`, `infinite?`, `nan?`, `zero?`, `positive?`, `negative?`, `odd?`, `even?`, `make-rectangular`, `make-polar`, `real-part`, `imag-part`, `magnitude`, `angle`, `number->string`, `string->number`
 
 #### Boolean
-`not`, `boolean?`
+`not`, `boolean?`, `boolean=?`
 
 #### List Operations
-`cons`, `car`, `cdr`, `pair?`, `null?`, `list?`, `list`, `append`
+`cons`, `car`, `cdr`, `caar`...`cddr`, `pair?`, `null?`, `list?`, `make-list`, `list`, `length`, `append`, `reverse`, `list-tail`, `list-ref`, `memq`, `memv`, `member`, `assq`, `assv`, `assoc`, `list-copy`
+
+#### Symbol Operations
+`symbol?`, `symbol=?`, `symbol->string`, `string->symbol`
+
+#### Character Operations
+`char?`, `char=?`, `char<?`, `char>?`, `char<=?`, `char>=?`, `char-ci=?`, `char-ci<?`, `char-ci>?`, `char-ci<=?`, `char-ci>=?`, `char-alphabetic?`, `char-numeric?`, `char-whitespace?`, `char-upper-case?`, `char-lower-case?`, `digit-value`, `char->integer`, `integer->char`, `char-upcase`, `char-downcase`, `char-foldcase`
+
+#### String Operations
+`string?`, `make-string`, `string`, `string-length`, `string-ref`, `string=?`, `string<?`, `string>?`, `string<=?`, `string>=?`, `string-ci=?`, `string-ci<?`, `string-ci>?`, `string-ci<=?`, `string-ci>=?`, `string-upcase`, `string-downcase`, `string-foldcase`, `substring`, `string-append`, `string->list`, `list->string`, `string-copy`
 
 #### Vector Operations
-`vector?`, `make-vector`, `vector`, `vector-length`, `vector-ref`, `vector-set!`, `vector->list`, `list->vector`, `vector-fill!`
+`vector?`, `make-vector`, `vector`, `vector-length`, `vector-ref`, `vector-set!`, `vector->list`, `list->vector`, `vector->string`, `string->vector`, `vector-copy`, `vector-copy!`, `vector-append`, `vector-fill!`
 
-#### Type Predicates
-`boolean?`, `number?`, `symbol?`, `char?`, `string?`, `procedure?`
+#### Bytevector Operations
+`bytevector?`, `make-bytevector`, `bytevector`, `bytevector-length`, `bytevector-u8-ref`, `bytevector-u8-set!`, `bytevector-copy`, `bytevector-copy!`, `bytevector-append`, `utf8->string`, `string->utf8`
 
 #### Higher-Order Functions
-`apply`, `map`, `for-each`
+`apply`, `map`, `string-map`, `vector-map`, `for-each`, `string-for-each`, `vector-for-each`
 
 #### Continuations & Control
 `call/cc`, `call-with-current-continuation`, `values`, `call-with-values`, `dynamic-wind`
@@ -110,6 +123,7 @@ Read.fs    — Parser built with FParsec (tokenizing and parsing S-expressions)
 Type.fs    — S-expression type definitions (SExpression discriminated union)
 Eval.fs    — CPS-based evaluator (eval / apply)
 Print.fs   — S-expression serialization
-Builtin.fs — Built-in procedures and special forms
+Builtin.fs — Built-in procedures registration
+Builtin/   - Implementation of built-in procedures and special forms
 Repl.fs    — Read-Eval-Print loop
 ```
