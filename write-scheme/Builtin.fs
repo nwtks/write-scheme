@@ -93,6 +93,27 @@ module Builtin =
               "symbol->string", SProcedure sSymbolToString |> ref
               "string->symbol", SProcedure sStringToSymbol |> ref
               "char?", SProcedure isChar |> ref
+              "char=?", SProcedure sCharEq |> ref
+              "char<?", SProcedure sCharLt |> ref
+              "char>?", SProcedure sCharGt |> ref
+              "char<=?", SProcedure sCharLe |> ref
+              "char>=?", SProcedure sCharGe |> ref
+              "char-ci=?", SProcedure sCharCiEq |> ref
+              "char-ci<?", SProcedure sCharCiLt |> ref
+              "char-ci>?", SProcedure sCharCiGt |> ref
+              "char-ci<=?", SProcedure sCharCiLe |> ref
+              "char-ci>=?", SProcedure sCharCiGe |> ref
+              "char-alphabetic?", SProcedure sCharAlphabetic |> ref
+              "char-numeric?", SProcedure sCharNumeric |> ref
+              "char-whitespace?", SProcedure sCharWhitespace |> ref
+              "char-upper-case?", SProcedure sCharUpperCase |> ref
+              "char-lower-case?", SProcedure sCharLowerCase |> ref
+              "digit-value", SProcedure sDigitValue |> ref
+              "char->integer", SProcedure sCharToInteger |> ref
+              "integer->char", SProcedure sIntegerToChar |> ref
+              "char-upcase", SProcedure sCharUpcase |> ref
+              "char-downcase", SProcedure sCharDowncase |> ref
+              "char-foldcase", SProcedure sCharFoldcase |> ref
               "string?", SProcedure isString |> ref
               "make-string", SProcedure sMakeString |> ref
               "string", SProcedure sString |> ref

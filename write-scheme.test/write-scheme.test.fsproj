@@ -15,6 +15,7 @@
     <Compile Include="MathTest.fs" />
     <Compile Include="ListTest.fs" />
     <Compile Include="SymbolTest.fs" />
+    <Compile Include="CharTest.fs" />
     <Compile Include="StrTest.fs" />
     <Compile Include="VectorTest.fs" />
     <Compile Include="ByteVectorTest.fs" />

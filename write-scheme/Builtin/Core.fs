@@ -75,11 +75,6 @@ module Core =
         | [ SBool _ ] -> STrue |> cont
         | _ -> SFalse |> cont
 
-    let isChar envs cont =
-        function
-        | [ SChar _ ] -> STrue |> cont
-        | _ -> SFalse |> cont
-
     let sDisplay envs cont =
         function
         | [ SString x ] ->

@@ -122,10 +122,3 @@ let ``boolean?`` () =
     "(boolean? #t)" |> rep |> should equal "#t"
     "(boolean? 0)" |> rep |> should equal "#f"
     "(boolean? '())" |> rep |> should equal "#f"
-
-[<Fact>]
-let ``char?`` () =
-    "(char? #\\a)" |> rep |> should equal "#t"
-    "(char? #\\space)" |> rep |> should equal "#t"
-    "(char? 1)" |> rep |> should equal "#f"
-    "(char? \"a\")" |> rep |> should equal "#f"
