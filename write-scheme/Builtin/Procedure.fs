@@ -56,6 +56,31 @@ module Procedure =
         | x -> x |> invalidParameter "'%s' invalid map parameter."
 
     [<TailCall>]
+    let rec mapStringMap envs cont proc acc =
+        function
+        | [] ->
+            List.rev acc
+            |> List.map (function
+                | SChar c -> c
+                | x -> Print.print x |> sprintf "'%s' is not a char." |> failwith)
+            |> String.concat ""
+            |> SString
+            |> cont
+        | x :: xs -> proc |> Eval.apply envs (fun a -> mapStringMap envs cont proc (a :: acc) xs) x
+
+    let sStringMap envs cont =
+        function
+        | [ _ ] as x -> x |> invalidParameter "'%s' invalid string-map parameter."
+        | proc :: strings as x ->
+            strings
+            |> List.map (function
+                | SString s -> s |> Seq.map (fun c -> SChar(string c)) |> Seq.toList
+                | _ -> x |> invalidParameter "'%s' invalid string-map parameter.")
+            |> transposeList
+            |> mapStringMap envs cont proc []
+        | x -> x |> invalidParameter "'%s' invalid string-map parameter."
+
+    [<TailCall>]
     let rec mapVectorMap envs cont proc acc =
         function
         | [] -> List.rev acc |> List.toArray |> SVector |> cont
@@ -91,6 +116,18 @@ module Procedure =
             |> transposeList
             |> loopForEach envs cont proc
         | x -> x |> invalidParameter "'%s' invalid for-each parameter."
+
+    let sStringForEach envs cont =
+        function
+        | [ _ ] as x -> x |> invalidParameter "'%s' invalid string-for-each parameter."
+        | proc :: strings as x ->
+            strings
+            |> List.map (function
+                | SString s -> s |> Seq.map (fun c -> SChar(string c)) |> Seq.toList
+                | _ -> x |> invalidParameter "'%s' invalid string-for-each parameter.")
+            |> transposeList
+            |> loopForEach envs cont proc
+        | x -> x |> invalidParameter "'%s' invalid string-for-each parameter."
 
     let sVectorForEach envs cont =
         function

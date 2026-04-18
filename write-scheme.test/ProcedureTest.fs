@@ -28,6 +28,14 @@ let ``map`` () =
     "(map (lambda (x) (* x x)) '(1 2 3))" |> rep |> should equal "(1 4 9)"
 
 [<Fact>]
+let ``string-map`` () =
+    "(string-map char-upcase \"abc\")" |> rep |> should equal "\"ABC\""
+
+    "(string-map (lambda (c) (integer->char (+ 1 (char->integer c)))) \"hal\")"
+    |> rep
+    |> should equal "\"ibm\""
+
+[<Fact>]
 let ``vector-map`` () =
     "(vector-map + '#(1 2 3) '#(4 5 6))" |> rep |> should equal "#(5 7 9)"
     "(vector-map (lambda (x) (* x x)) '#(1 2 3))" |> rep |> should equal "#(1 4 9)"
@@ -46,6 +54,12 @@ let ``for-each`` () =
     "(let ((v '())) (for-each (lambda (x) (set! v (cons x v))) '()) v)"
     |> rep
     |> should equal "()"
+
+[<Fact>]
+let ``string-for-each`` () =
+    "(let ((v '())) (string-for-each (lambda (c) (set! v (cons c v))) \"abc\") v)"
+    |> rep
+    |> should equal "(#\\c #\\b #\\a)"
 
 [<Fact>]
 let ``vector-for-each`` () =

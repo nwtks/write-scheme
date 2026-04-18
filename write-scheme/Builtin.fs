@@ -180,8 +180,10 @@ module Builtin =
               "procedure?", SProcedure isProcedure |> ref
               "apply", SProcedure sApply |> ref
               "map", SProcedure sMap |> ref
+              "string-map", SProcedure sStringMap |> ref
               "vector-map", SProcedure sVectorMap |> ref
               "for-each", SProcedure sForEach |> ref
+              "string-for-each", SProcedure sStringForEach |> ref
               "vector-for-each", SProcedure sVectorForEach |> ref
               "call-with-current-continuation", SProcedure sCallCC |> ref
               "call/cc", SProcedure sCallCC |> ref
