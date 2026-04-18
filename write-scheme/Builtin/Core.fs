@@ -75,11 +75,6 @@ module Core =
         | [ SBool _ ] -> STrue |> cont
         | _ -> SFalse |> cont
 
-    let isSymbol envs cont =
-        function
-        | [ SSymbol _ ] -> STrue |> cont
-        | _ -> SFalse |> cont
-
     let isChar envs cont =
         function
         | [ SChar _ ] -> STrue |> cont

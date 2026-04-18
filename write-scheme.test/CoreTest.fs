@@ -124,15 +124,6 @@ let ``boolean?`` () =
     "(boolean? '())" |> rep |> should equal "#f"
 
 [<Fact>]
-let ``symbol?`` () =
-    "(symbol? 'foo)" |> rep |> should equal "#t"
-    "(symbol? (car '(a b)))" |> rep |> should equal "#t"
-    "(symbol? \"bar\")" |> rep |> should equal "#f"
-    "(symbol? 'nil)" |> rep |> should equal "#t"
-    "(symbol? '())" |> rep |> should equal "#f"
-    "(symbol? #f)" |> rep |> should equal "#f"
-
-[<Fact>]
 let ``char?`` () =
     "(char? #\\a)" |> rep |> should equal "#t"
     "(char? #\\space)" |> rep |> should equal "#t"

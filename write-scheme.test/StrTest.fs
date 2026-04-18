@@ -142,13 +142,3 @@ let ``string-copy`` () =
     "(string-copy \"abc\")" |> rep |> should equal "\"abc\""
     "(string-copy \"abc\" 1)" |> rep |> should equal "\"bc\""
     "(string-copy \"abc\" 1 2)" |> rep |> should equal "\"b\""
-
-[<Fact>]
-let ``symbol->string`` () =
-    "(symbol->string 'abc)" |> rep |> should equal "\"abc\""
-    "(symbol->string 'hello-world)" |> rep |> should equal "\"hello-world\""
-
-[<Fact>]
-let ``string->symbol`` () =
-    "(string->symbol \"abc\")" |> rep |> should equal "abc"
-    "(string->symbol \"hello-world\")" |> rep |> should equal "hello-world"

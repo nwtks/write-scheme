@@ -165,13 +165,3 @@ module Str =
             ->
             s.[int start .. int stop - 1] |> SString |> cont
         | x -> x |> invalidParameter "'%s' invalid string-copy parameter."
-
-    let sSymbolToString envs cont =
-        function
-        | [ SSymbol s ] -> SString s |> cont
-        | x -> x |> invalidParameter "'%s' invalid symbol->string parameter."
-
-    let sStringToSymbol envs cont =
-        function
-        | [ SString s ] -> SSymbol s |> cont
-        | x -> x |> invalidParameter "'%s' invalid string->symbol parameter."

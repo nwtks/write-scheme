@@ -89,6 +89,7 @@ module Builtin =
               "list", SProcedure sList |> ref
               "append", SProcedure sAppend |> ref
               "symbol?", SProcedure isSymbol |> ref
+              "symbol=?", SProcedure isSymbolEq |> ref
               "symbol->string", SProcedure sSymbolToString |> ref
               "string->symbol", SProcedure sStringToSymbol |> ref
               "char?", SProcedure isChar |> ref
