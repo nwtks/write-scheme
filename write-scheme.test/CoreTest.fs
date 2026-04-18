@@ -138,10 +138,3 @@ let ``char?`` () =
     "(char? #\\space)" |> rep |> should equal "#t"
     "(char? 1)" |> rep |> should equal "#f"
     "(char? \"a\")" |> rep |> should equal "#f"
-
-[<Fact>]
-let ``string?`` () =
-    "(string? \"hello\")" |> rep |> should equal "#t"
-    "(string? \"\")" |> rep |> should equal "#t"
-    "(string? 'hello)" |> rep |> should equal "#f"
-    "(string? 1)" |> rep |> should equal "#f"

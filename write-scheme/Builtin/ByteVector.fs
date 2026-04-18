@@ -52,3 +52,33 @@ module ByteVector =
         function
         | [ SByteVector xs ] -> Array.copy xs |> SByteVector |> cont
         | x -> x |> invalidParameter "'%s' invalid bytevector-copy parameter."
+
+    let sStringToUtf8 envs cont =
+        function
+        | [ SString s ] -> System.Text.Encoding.UTF8.GetBytes(s) |> Array.map byte |> SByteVector |> cont
+        | [ SString s; SRational(start, d1) ] when d1 = 1I && start >= 0I && start <= bigint s.Length ->
+            System.Text.Encoding.UTF8.GetBytes(s.[int start ..])
+            |> Array.map byte
+            |> SByteVector
+            |> cont
+        | [ SString s; SRational(start, d1); SRational(stop, d2) ] when
+            d1 = 1I && d2 = 1I && start >= 0I && stop >= start && stop <= bigint s.Length
+            ->
+            System.Text.Encoding.UTF8.GetBytes(s.[int start .. int stop - 1])
+            |> Array.map byte
+            |> SByteVector
+            |> cont
+        | x -> x |> invalidParameter "'%s' invalid string->utf8 parameter."
+
+    let sUtf8ToString envs cont =
+        function
+        | [ SByteVector bs ] -> System.Text.Encoding.UTF8.GetString(bs) |> SString |> cont
+        | [ SByteVector bs; SRational(start, d1) ] when d1 = 1I && start >= 0I && start <= bigint bs.Length ->
+            System.Text.Encoding.UTF8.GetString(bs.[int start ..]) |> SString |> cont
+        | [ SByteVector bs; SRational(start, d1); SRational(stop, d2) ] when
+            d1 = 1I && d2 = 1I && start >= 0I && stop >= start && stop <= bigint bs.Length
+            ->
+            System.Text.Encoding.UTF8.GetString(bs.[int start .. int stop - 1])
+            |> SString
+            |> cont
+        | x -> x |> invalidParameter "'%s' invalid utf8->string parameter."

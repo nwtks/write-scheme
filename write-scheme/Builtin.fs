@@ -76,6 +76,8 @@ module Builtin =
               "imag-part", SProcedure sImagPart |> ref
               "magnitude", SProcedure sMagnitude |> ref
               "angle", SProcedure sAngle |> ref
+              "number->string", SProcedure sNumberToString |> ref
+              "string->number", SProcedure sStringToNumber |> ref
               "not", SProcedure sNot |> ref
               "boolean?", SProcedure isBoolean |> ref
               "pair?", SProcedure isPair |> ref
@@ -87,8 +89,32 @@ module Builtin =
               "list", SProcedure sList |> ref
               "append", SProcedure sAppend |> ref
               "symbol?", SProcedure isSymbol |> ref
+              "symbol->string", SProcedure sSymbolToString |> ref
+              "string->symbol", SProcedure sStringToSymbol |> ref
               "char?", SProcedure isChar |> ref
               "string?", SProcedure isString |> ref
+              "make-string", SProcedure sMakeString |> ref
+              "string", SProcedure sString |> ref
+              "string-length", SProcedure sStringLength |> ref
+              "string-ref", SProcedure sStringRef |> ref
+              "string=?", SProcedure sStringEq |> ref
+              "string<?", SProcedure sStringLt |> ref
+              "string>?", SProcedure sStringGt |> ref
+              "string<=?", SProcedure sStringLe |> ref
+              "string>=?", SProcedure sStringGe |> ref
+              "string-ci=?", SProcedure sStringCiEq |> ref
+              "string-ci<?", SProcedure sStringCiLt |> ref
+              "string-ci>?", SProcedure sStringCiGt |> ref
+              "string-ci<=?", SProcedure sStringCiLe |> ref
+              "string-ci>=?", SProcedure sStringCiGe |> ref
+              "string-upcase", SProcedure sStringUpcase |> ref
+              "string-downcase", SProcedure sStringDowncase |> ref
+              "string-foldcase", SProcedure sStringFoldcase |> ref
+              "substring", SProcedure sSubstring |> ref
+              "string-append", SProcedure sStringAppend |> ref
+              "string->list", SProcedure sStringToList |> ref
+              "list->string", SProcedure sListToString |> ref
+              "string-copy", SProcedure sStringCopy |> ref
               "vector?", SProcedure isVector |> ref
               "make-vector", SProcedure sMakeVector |> ref
               "vector", SProcedure sVector |> ref
@@ -105,6 +131,8 @@ module Builtin =
               "bytevector-u8-ref", SProcedure sByteVectorU8Ref |> ref
               "bytevector-u8-set!", SProcedure sByteVectorU8Set |> ref
               "bytevector-copy", SProcedure sByteVectorCopy |> ref
+              "string->utf8", SProcedure sStringToUtf8 |> ref
+              "utf8->string", SProcedure sUtf8ToString |> ref
               "procedure?", SProcedure isProcedure |> ref
               "apply", SProcedure sApply |> ref
               "map", SProcedure sMap |> ref

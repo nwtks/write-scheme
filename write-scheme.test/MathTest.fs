@@ -269,3 +269,19 @@ let ``make-rectangular`` () =
 [<Fact>]
 let ``make-polar`` () =
     "(make-polar 1 0)" |> rep |> should equal "1+0i"
+
+[<Fact>]
+let ``number->string`` () =
+    "(number->string 42)" |> rep |> should equal "\"42\""
+    "(number->string 255 16)" |> rep |> should equal "\"ff\""
+    "(number->string 8 2)" |> rep |> should equal "\"1000\""
+    "(number->string 8 8)" |> rep |> should equal "\"10\""
+
+[<Fact>]
+let ``string->number`` () =
+    "(string->number \"42\")" |> rep |> should equal "42"
+    "(string->number \"3.14\")" |> rep |> should equal "3.14"
+    "(string->number \"ff\" 16)" |> rep |> should equal "255"
+    "(string->number \"1000\" 2)" |> rep |> should equal "8"
+    "(string->number \"10\" 8)" |> rep |> should equal "8"
+    "(string->number \"not-a-number\")" |> rep |> should equal "#f"
