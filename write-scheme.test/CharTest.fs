@@ -75,44 +75,56 @@ let ``char-alphabetic?`` () =
     "(char-alphabetic? #\\a)" |> rep |> should equal "#t"
     "(char-alphabetic? #\\A)" |> rep |> should equal "#t"
     "(char-alphabetic? #\\1)" |> rep |> should equal "#f"
+    "(char-alphabetic? #\\x10400)" |> rep |> should equal "#t"
+    "(char-alphabetic? #\\🍎)" |> rep |> should equal "#f"
 
 [<Fact>]
 let ``char-numeric?`` () =
     "(char-numeric? #\\1)" |> rep |> should equal "#t"
     "(char-numeric? #\\a)" |> rep |> should equal "#f"
+    "(char-numeric? #\\x1D7DC)" |> rep |> should equal "#t"
+    "(char-numeric? #\\🍎)" |> rep |> should equal "#f"
 
 [<Fact>]
 let ``char-whitespace?`` () =
     "(char-whitespace? #\\space)" |> rep |> should equal "#t"
     "(char-whitespace? #\\newline)" |> rep |> should equal "#t"
     "(char-whitespace? #\\a)" |> rep |> should equal "#f"
+    "(char-whitespace? #\\🍎)" |> rep |> should equal "#f"
 
 [<Fact>]
 let ``char-upper-case?`` () =
     "(char-upper-case? #\\A)" |> rep |> should equal "#t"
     "(char-upper-case? #\\a)" |> rep |> should equal "#f"
+    "(char-upper-case? #\\x10400)" |> rep |> should equal "#t"
+    "(char-upper-case? #\\🍎)" |> rep |> should equal "#f"
 
 [<Fact>]
 let ``char-lower-case?`` () =
     "(char-lower-case? #\\a)" |> rep |> should equal "#t"
     "(char-lower-case? #\\A)" |> rep |> should equal "#f"
+    "(char-lower-case? #\\x10428)" |> rep |> should equal "#t"
+    "(char-lower-case? #\\🍎)" |> rep |> should equal "#f"
 
 [<Fact>]
 let ``digit-value`` () =
     "(digit-value #\\3)" |> rep |> should equal "3"
     "(digit-value #\\0)" |> rep |> should equal "0"
     "(digit-value #\\9)" |> rep |> should equal "9"
+    "(digit-value #\\x1D7DC)" |> rep |> should equal "4"
     "(digit-value #\\a)" |> rep |> should equal "#f"
 
 [<Fact>]
 let ``char->integer`` () =
     "(char->integer #\\a)" |> rep |> should equal "97"
     "(char->integer #\\A)" |> rep |> should equal "65"
+    "(char->integer #\\🍎)" |> rep |> should equal "127822"
 
 [<Fact>]
 let ``integer->char`` () =
     "(integer->char 97)" |> rep |> should equal "#\\a"
     "(integer->char 65)" |> rep |> should equal "#\\A"
+    "(integer->char 127822)" |> rep |> should equal "#\\🍎"
 
 [<Fact>]
 let ``char-upcase`` () =

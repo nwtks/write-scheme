@@ -87,11 +87,26 @@ module Read =
               stringCIReturn "#\\space" "\u0020"
               stringCIReturn "#\\tab" "\u0009" ]
 
+    let pAnyRune =
+        anyChar
+        >>= fun c1 ->
+            if System.Char.IsHighSurrogate c1 then
+                anyChar
+                >>= fun c2 ->
+                    if System.Char.IsLowSurrogate c2 then
+                        preturn (string c1 + string c2)
+                    else
+                        fail "invalid surrogate pair"
+            elif System.Char.IsLowSurrogate c1 then
+                fail "unexpected low surrogate"
+            else
+                preturn (string c1)
+
     let pCharacter =
         choice
             [ attempt pCharacterName
               attempt (pstringCI "#\\x" >>. pHexScalarValue)
-              pstring "#\\" >>. anyChar |>> string ]
+              pstring "#\\" >>. pAnyRune ]
 
     let pStringElement =
         choice

@@ -175,6 +175,8 @@ let char () =
     "#\\Space" |> rep |> should equal "#\\ "
     "#\\tab" |> rep |> should equal "#\\tab"
     "#\\Tab" |> rep |> should equal "#\\tab"
+    "#\\🍎" |> rep |> should equal "#\\🍎"
+    "#\\x1F34E" |> rep |> should equal "#\\🍎"
 
 [<Fact>]
 let string () =
