@@ -29,11 +29,12 @@ let ``map`` () =
 
 [<Fact>]
 let ``string-map`` () =
-    "(string-map char-upcase \"abc\")" |> rep |> should equal "\"ABC\""
-
-    "(string-map (lambda (c) (integer->char (+ 1 (char->integer c)))) \"hal\")"
+    "(string-map (lambda (x) (integer->char (+ 1 (char->integer x)))) \"HAL\")"
     |> rep
-    |> should equal "\"ibm\""
+    |> should equal "\"IBM\""
+
+    "(string-map (lambda (x) x) \"🍎\")" |> rep |> should equal "\"🍎\""
+    "(string-map (lambda (x y) x) \"🍎a\" \"bc\")" |> rep |> should equal "\"🍎a\""
 
 [<Fact>]
 let ``vector-map`` () =
@@ -60,6 +61,18 @@ let ``string-for-each`` () =
     "(let ((v '())) (string-for-each (lambda (c) (set! v (cons c v))) \"abc\") v)"
     |> rep
     |> should equal "(#\\c #\\b #\\a)"
+
+    "(begin (define sum 0) (string-for-each (lambda (x) (set! sum (+ sum (char->integer x)))) \"ABC\") sum)"
+    |> rep
+    |> should equal "198"
+
+    "(begin (define last #f) (string-for-each (lambda (x) (set! last x)) \"🍎\") last)"
+    |> rep
+    |> should equal "#\\🍎"
+
+    "(begin (define count 0) (string-for-each (lambda (x y) (set! count (+ count 1))) \"🍎a\" \"bc\") count)"
+    |> rep
+    |> should equal "2"
 
 [<Fact>]
 let ``vector-for-each`` () =

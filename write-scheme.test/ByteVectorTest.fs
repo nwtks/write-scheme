@@ -80,11 +80,14 @@ let ``bytevector-append`` () =
 [<Fact>]
 let ``utf8->string`` () =
     "(utf8->string #u8(65 66 67))" |> rep |> should equal "\"ABC\""
-    "(utf8->string #u8(72 101 108 108 111))" |> rep |> should equal "\"Hello\""
-    "(utf8->string #u8(65 66 67) 1 2)" |> rep |> should equal "\"B\""
+    "(utf8->string #u8(#x41 #x42 #x43))" |> rep |> should equal "\"ABC\""
+    "(utf8->string #u8(#x41 #x42 #x43) 1)" |> rep |> should equal "\"BC\""
+    "(utf8->string #u8(#x41 #x42 #x43) 1 2)" |> rep |> should equal "\"B\""
 
 [<Fact>]
 let ``string->utf8`` () =
-    "(string->utf8 \"A\")" |> rep |> should equal "#u8(65)"
+    "(string->utf8 \"ABC\")" |> rep |> should equal "#u8(65 66 67)"
+    "(string->utf8 \"ABC\" 1)" |> rep |> should equal "#u8(66 67)"
     "(string->utf8 \"ABC\" 1 2)" |> rep |> should equal "#u8(66)"
-    "(bytevector? (string->utf8 \"hello\"))" |> rep |> should equal "#t"
+    "(string->utf8 \"🍎\")" |> rep |> should equal "#u8(240 159 141 142)"
+    "(string->utf8 \"a🍎b\" 1 2)" |> rep |> should equal "#u8(240 159 141 142)"

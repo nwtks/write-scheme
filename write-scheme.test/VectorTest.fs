@@ -85,9 +85,11 @@ let ``vector->string`` () =
 
 [<Fact>]
 let ``string->vector`` () =
-    "(string->vector \"abc\")" |> rep |> should equal "#(#\\a #\\b #\\c)"
+    "(string->vector \"ABC\")" |> rep |> should equal "#(#\\A #\\B #\\C)"
     "(string->vector \"abcde\" 1)" |> rep |> should equal "#(#\\b #\\c #\\d #\\e)"
     "(string->vector \"abcde\" 1 4)" |> rep |> should equal "#(#\\b #\\c #\\d)"
+    "(string->vector \"🍎\")" |> rep |> should equal "#(#\\🍎)"
+    "(string->vector \"a🍎b\" 1 2)" |> rep |> should equal "#(#\\🍎)"
 
 [<Fact>]
 let ``vector-copy`` () =

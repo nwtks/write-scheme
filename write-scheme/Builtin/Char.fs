@@ -15,13 +15,10 @@ module Char =
         | []
         | [ _ ] -> STrue |> cont
         | args ->
-            let chars =
-                args
-                |> List.map (function
-                    | SChar c -> transformer c
-                    | x -> Print.print x |> sprintf "'%s' is not a char in %s." name |> failwith)
-
-            chars
+            args
+            |> List.map (function
+                | SChar c -> transformer c
+                | x -> Print.print x |> sprintf "'%s' is not a char in %s." name |> failwith)
             |> List.pairwise
             |> List.forall (fun (a, b) -> pred a b)
             |> toSBool

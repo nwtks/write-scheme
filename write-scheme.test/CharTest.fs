@@ -18,6 +18,8 @@ let ``char=?`` () =
     "(char=? #\\a #\\b)" |> rep |> should equal "#f"
     "(char=? #\\a #\\a #\\a)" |> rep |> should equal "#t"
     "(char=? #\\a #\\a #\\b)" |> rep |> should equal "#f"
+    "(char=? #\\a)" |> rep |> should equal "#t"
+    "(char=? #\\🍎 #\\🍎)" |> rep |> should equal "#t"
 
 [<Fact>]
 let ``char<?`` () =

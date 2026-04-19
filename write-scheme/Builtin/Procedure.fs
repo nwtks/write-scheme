@@ -74,7 +74,7 @@ module Procedure =
         | proc :: strings as x ->
             strings
             |> List.map (function
-                | SString s -> s |> Seq.map (fun c -> SChar(string c)) |> Seq.toList
+                | SString s -> s.EnumerateRunes() |> Seq.map (fun r -> r.ToString() |> SChar) |> Seq.toList
                 | _ -> x |> invalidParameter "'%s' invalid string-map parameter.")
             |> transposeList
             |> mapStringMap envs cont proc []
@@ -123,7 +123,7 @@ module Procedure =
         | proc :: strings as x ->
             strings
             |> List.map (function
-                | SString s -> s |> Seq.map (fun c -> SChar(string c)) |> Seq.toList
+                | SString s -> s.EnumerateRunes() |> Seq.map (fun r -> r.ToString() |> SChar) |> Seq.toList
                 | _ -> x |> invalidParameter "'%s' invalid string-for-each parameter.")
             |> transposeList
             |> loopForEach envs cont proc

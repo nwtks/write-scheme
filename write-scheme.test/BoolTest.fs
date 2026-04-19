@@ -30,3 +30,4 @@ let ``boolean=?`` () =
     "(boolean=? #f #t)" |> rep |> should equal "#f"
     "(boolean=? #t #t #t)" |> rep |> should equal "#t"
     "(boolean=? #t #t #f)" |> rep |> should equal "#f"
+    "(boolean=? #f)" |> rep |> should equal "#t"

@@ -57,13 +57,10 @@ module Str =
         | []
         | [ _ ] -> STrue |> cont
         | args ->
-            let strings =
-                args
-                |> List.map (function
-                    | SString s -> transformer s
-                    | x -> Print.print x |> sprintf "'%s' is not a string in %s." name |> failwith)
-
-            strings
+            args
+            |> List.map (function
+                | SString s -> transformer s
+                | x -> Print.print x |> sprintf "'%s' is not a string in %s." name |> failwith)
             |> List.pairwise
             |> List.forall (fun (a, b) -> pred a b)
             |> toSBool

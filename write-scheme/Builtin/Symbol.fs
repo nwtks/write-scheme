@@ -15,13 +15,14 @@ module Symbol =
         | []
         | [ _ ] -> STrue |> cont
         | args ->
-            let names =
-                args
-                |> List.map (function
-                    | SSymbol s -> s
-                    | x -> Print.print x |> sprintf "'%s' is not a symbol in symbol=?." |> failwith)
-
-            names |> List.pairwise |> List.forall (fun (a, b) -> a = b) |> toSBool |> cont
+            args
+            |> List.map (function
+                | SSymbol s -> s
+                | x -> Print.print x |> sprintf "'%s' is not a symbol in symbol=?." |> failwith)
+            |> List.pairwise
+            |> List.forall (fun (a, b) -> a = b)
+            |> toSBool
+            |> cont
 
     let sSymbolToString envs cont =
         function

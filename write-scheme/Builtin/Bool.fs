@@ -20,16 +20,13 @@ module Bool =
         | []
         | [ _ ] -> STrue |> cont
         | args ->
-            let booleans =
-                args
-                |> List.map (function
-                    | SBool b -> b
-                    | x ->
-                        Print.print (toSList [ x ])
-                        |> sprintf "'%s' is not a boolean in boolean=?."
-                        |> failwith)
-
-            booleans
+            args
+            |> List.map (function
+                | SBool b -> b
+                | x ->
+                    Print.print (toSList [ x ])
+                    |> sprintf "'%s' is not a boolean in boolean=?."
+                    |> failwith)
             |> List.pairwise
             |> List.forall (fun (a, b) -> a = b)
             |> toSBool
