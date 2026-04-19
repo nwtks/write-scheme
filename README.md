@@ -68,6 +68,7 @@ dotnet test
 - **First-Class Continuations**: Full support for `call/cc` enabled by the CPS architecture.
 - **Robust Exception Handling**: R7RS `guard` and `with-exception-handler` integrated with the CPS flow for predictable and safe error management.
 - **Source-Mapped Errors**: Runtime errors include line and column information from the source.
+- **R7RS Compliant Unicode Support**: Full support for Unicode scalar values (Runes). Procedures like `string-ref`, `string-length`, and `string-map` are codepoint-aware and handle surrogate pairs (e.g., 🍎) correctly.
 
 ### Built-in Procedures
 
@@ -115,6 +116,19 @@ dotnet test
 
 #### I/O
 `display`, `load`
+
+## R7RS Compliance & Known Issues
+
+This project aims for R7RS (Small) compliance, but some features are currently limited:
+
+### Mutability
+- **Strings**: Currently implemented using .NET's immutable strings. Procedures like `string-set!` and `string-fill!` are not yet supported.
+- **Pairs**: The internal representation uses optimized list structures, making `set-car!` and `set-cdr!` challenging. Full support for mutable pairs is a work-in-progress.
+
+### Other Limitations
+- **Number Tower**: Limited support for complex numbers and inexact reals.
+- **Macros**: `syntax-rules` support is limited in some edge cases.
+- **Libraries**: The `define-library` system is not yet fully implemented.
 
 ## Architecture
 
