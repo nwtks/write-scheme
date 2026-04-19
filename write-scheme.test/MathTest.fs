@@ -24,6 +24,7 @@ let ``real?`` () =
     "(real? 2.5+0.0i)" |> rep |> should equal "#t"
     "(real? 2.5+1.0i)" |> rep |> should equal "#f"
     "(real? 1)" |> rep |> should equal "#t"
+    "(real? 1+0i)" |> rep |> should equal "#t"
 
 [<Fact>]
 let ``rational?`` () =
@@ -114,6 +115,7 @@ let ``'<'`` () =
     "(< 1/2 1)" |> rep |> should equal "#t"
     "(< 1.0 2.0)" |> rep |> should equal "#t"
     "(< 1 1.5)" |> rep |> should equal "#t"
+    "(< 1.5 2)" |> rep |> should equal "#t"
     "(< 1/2 0.6)" |> rep |> should equal "#t"
     "(< 1+0i 2+0i)" |> rep |> should equal "#t"
 
@@ -184,6 +186,21 @@ let ``even?`` () =
     "(even? 4.0+0.0i)" |> rep |> should equal "#t"
 
 [<Fact>]
+let max () =
+    "(max 3 4)" |> rep |> should equal "4"
+    "(max 3.9 4)" |> rep |> should equal "4"
+    "(max 1 2.0)" |> rep |> should equal "2"
+    "(max 1/2 0.6)" |> rep |> should equal "0.6"
+    "(max 3 4.5 2)" |> rep |> should equal "4.5"
+
+[<Fact>]
+let min () =
+    "(min 3 4)" |> rep |> should equal "3"
+    "(min 3.9 4)" |> rep |> should equal "3.9"
+    "(min 1 2.0)" |> rep |> should equal "1"
+    "(min 3 4.5 2)" |> rep |> should equal "2"
+
+[<Fact>]
 let ``+`` () =
     "(+)" |> rep |> should equal "0"
     "(+ 10)" |> rep |> should equal "10"
@@ -192,9 +209,12 @@ let ``+`` () =
     "(+ 1.5 2.5)" |> rep |> should equal "4"
     "(+ 1 1.0)" |> rep |> should equal "2"
     "(+ 1.0 1)" |> rep |> should equal "2"
+    "(+ 1 1.5)" |> rep |> should equal "2.5"
+    "(+ 1.5 1)" |> rep |> should equal "2.5"
     "(+ 1/2 0.5)" |> rep |> should equal "1"
     "(+ 1+2i 3+4i)" |> rep |> should equal "4+6i"
     "(+ 1+2i 3)" |> rep |> should equal "4+2i"
+    "(+ 1 1+2i)" |> rep |> should equal "2+2i"
     "(+ 1+2i 0.5)" |> rep |> should equal "1.5+2i"
     "(+ 5)" |> rep |> should equal "5"
     "(+ 1.0)" |> rep |> should equal "1"
@@ -242,6 +262,213 @@ let ``/`` () =
     "(/ 2.0)" |> rep |> should equal "0.5"
 
 [<Fact>]
+let abs () =
+    "(abs -7)" |> rep |> should equal "7"
+    "(abs -3.14)" |> rep |> should equal "3.14"
+    "(abs 3+4i)" |> rep |> should equal "5"
+    "(abs 0+3i)" |> rep |> should equal "3"
+    "(abs 0+0i)" |> rep |> should equal "0"
+
+[<Fact>]
+let ``floor/`` () =
+    "(floor/ 10 3)" |> rep |> should equal "(values 3 1)"
+    "(floor/ -10 3)" |> rep |> should equal "(values -4 2)"
+
+[<Fact>]
+let ``floor-quotient`` () =
+    "(floor-quotient 10 3)" |> rep |> should equal "3"
+    "(floor-quotient -10 3)" |> rep |> should equal "-4"
+
+[<Fact>]
+let ``floor-remainder`` () =
+    "(floor-remainder 10 3)" |> rep |> should equal "1"
+    "(floor-remainder -10 3)" |> rep |> should equal "2"
+
+[<Fact>]
+let ``truncate/`` () =
+    "(truncate/ 10 3)" |> rep |> should equal "(values 3 1)"
+    "(truncate/ -10 3)" |> rep |> should equal "(values -3 -1)"
+
+[<Fact>]
+let ``truncate-quotient`` () =
+    "(truncate-quotient 10 3)" |> rep |> should equal "3"
+    "(truncate-quotient -10 3)" |> rep |> should equal "-3"
+
+[<Fact>]
+let ``truncate-remainder`` () =
+    "(truncate-remainder 10 3)" |> rep |> should equal "1"
+    "(truncate-remainder -10 3)" |> rep |> should equal "-1"
+
+[<Fact>]
+let quotient () =
+    "(quotient 10 3)" |> rep |> should equal "3"
+    "(quotient -10 3)" |> rep |> should equal "-3"
+
+[<Fact>]
+let remainder () =
+    "(remainder 10 3)" |> rep |> should equal "1"
+    "(remainder -10 3)" |> rep |> should equal "-1"
+
+[<Fact>]
+let modulo () =
+    "(modulo 10 3)" |> rep |> should equal "1"
+    "(modulo -10 3)" |> rep |> should equal "2"
+
+[<Fact>]
+let gcd () =
+    "(gcd 32 -36)" |> rep |> should equal "4"
+    "(gcd 12 18 24)" |> rep |> should equal "6"
+    "(gcd 5)" |> rep |> should equal "5"
+    "(gcd)" |> rep |> should equal "0"
+
+[<Fact>]
+let lcm () =
+    "(lcm 32 -36)" |> rep |> should equal "288"
+    "(lcm 2 3 4)" |> rep |> should equal "12"
+    "(lcm 5)" |> rep |> should equal "5"
+    "(lcm)" |> rep |> should equal "1"
+
+[<Fact>]
+let numerator () =
+    "(numerator 1/2)" |> rep |> should equal "1"
+    "(numerator 3)" |> rep |> should equal "3"
+
+[<Fact>]
+let denominator () =
+    "(denominator 1/2)" |> rep |> should equal "2"
+    "(denominator 3)" |> rep |> should equal "1"
+
+[<Fact>]
+let floor () =
+    "(floor 2.5)" |> rep |> should equal "2"
+    "(floor -2.5)" |> rep |> should equal "-3"
+    "(floor 5/2)" |> rep |> should equal "2"
+    "(floor -5/2)" |> rep |> should equal "-3"
+
+[<Fact>]
+let ceiling () =
+    "(ceiling 2.5)" |> rep |> should equal "3"
+    "(ceiling -2.5)" |> rep |> should equal "-2"
+    "(ceiling 5/2)" |> rep |> should equal "3"
+    "(ceiling -5/2)" |> rep |> should equal "-2"
+
+[<Fact>]
+let truncate () =
+    "(truncate 2.5)" |> rep |> should equal "2"
+    "(truncate -2.5)" |> rep |> should equal "-2"
+    "(truncate 5/2)" |> rep |> should equal "2"
+    "(truncate -5/2)" |> rep |> should equal "-2"
+
+[<Fact>]
+let round () =
+    "(round 1.5)" |> rep |> should equal "2"
+    "(round 2.5)" |> rep |> should equal "2" // Ties to even in .NET/R7RS? R7RS says ties to even.
+    "(round 3.5)" |> rep |> should equal "4"
+    "(round 5/2)" |> rep |> should equal "2"
+    "(round 7/2)" |> rep |> should equal "4"
+
+[<Fact>]
+let ``rationalize`` () =
+    "(rationalize 0.3 1/10)" |> rep |> should equal "1/3"
+    "(rationalize 1/2 1/10)" |> rep |> should equal "1/2"
+    "(rationalize 1+2i 1/10)" |> rep |> should equal "1+2i"
+    "(rationalize -0.3 1/10)" |> rep |> should equal "-1/3"
+    "(rationalize 0.1 0.2)" |> rep |> should equal "0"
+    "(rationalize +inf.0 0.1)" |> rep |> should equal "+inf.0"
+    "(rationalize 1.0 0.1)" |> rep |> should equal "1"
+    "(rationalize 1e20 1)" |> rep |> should not' (equal "0")
+
+[<Fact>]
+let exp () =
+    "(exp 0)" |> rep |> should equal "1"
+    "(exp 1.0)" |> rep |> should not' (equal "0")
+    "(exp 1+2i)" |> rep |> should not' (equal "0")
+
+[<Fact>]
+let log () =
+    "(log 1)" |> rep |> should equal "0"
+    "(log 1.0)" |> rep |> should equal "0"
+    "(log 8 2)" |> rep |> should equal "3"
+    "(log 1/2)" |> rep |> should not' (equal "0")
+    "(log 1+0i)" |> rep |> should equal "0+0i"
+
+[<Fact>]
+let sin () =
+    "(sin 0)" |> rep |> should equal "0"
+    "(sin 0.0)" |> rep |> should equal "0"
+    "(sin 1/2)" |> rep |> should not' (equal "0")
+    "(sin 1+2i)" |> rep |> should not' (equal "0")
+
+[<Fact>]
+let ``cos`` () =
+    "(cos 0.0)" |> rep |> should equal "1"
+    "(cos 1+2i)" |> rep |> should not' (equal "0")
+    "(cos 1/2)" |> rep |> should not' (equal "0")
+
+[<Fact>]
+let ``tan`` () =
+    "(tan 0.0)" |> rep |> should equal "0"
+    "(tan 1+2i)" |> rep |> should not' (equal "0")
+    "(tan 1/2)" |> rep |> should not' (equal "0")
+
+[<Fact>]
+let ``asin`` () =
+    "(asin 1/2)" |> rep |> should not' (equal "0")
+    "(asin 0.5)" |> rep |> should not' (equal "0")
+    "(asin 1+2i)" |> rep |> should not' (equal "0")
+
+[<Fact>]
+let ``acos`` () =
+    "(acos 1/2)" |> rep |> should not' (equal "0")
+    "(acos 0.5)" |> rep |> should not' (equal "0")
+    "(acos 1+2i)" |> rep |> should not' (equal "0")
+
+[<Fact>]
+let ``atan`` () =
+    "(atan 1/2)" |> rep |> should not' (equal "0")
+    "(atan 0.5)" |> rep |> should not' (equal "0")
+    "(atan 1+2i)" |> rep |> should not' (equal "0")
+    "(atan 1 1)" |> rep |> should not' (equal "0")
+    "(atan 1/2 1/2)" |> rep |> should not' (equal "0")
+    "(atan 1.0 1.0)" |> rep |> should not' (equal "0")
+    "(atan 1+i 1.0)" |> rep |> should equal "0"
+    "(atan 1.0 1+i)" |> rep |> should not' (equal "0")
+
+[<Fact>]
+let square () =
+    "(square 3)" |> rep |> should equal "9"
+    "(square -3.0)" |> rep |> should equal "9"
+
+[<Fact>]
+let sqrt () =
+    "(sqrt 4)" |> rep |> should equal "2"
+    "(sqrt -1)" |> rep |> should equal "0+1i"
+    "(sqrt -4.0)" |> rep |> should equal "0+2i"
+    "(sqrt 1/4)" |> rep |> should equal "0.5"
+    "(sqrt 3+4i)" |> rep |> should equal "2+1i"
+
+[<Fact>]
+let exactIntegerSqrt () =
+    "(exact-integer-sqrt 4)" |> rep |> should equal "(values 2 0)"
+    "(exact-integer-sqrt 5)" |> rep |> should equal "(values 2 1)"
+
+[<Fact>]
+let expt () =
+    "(expt 2 3)" |> rep |> should equal "8"
+    "(expt 4 0.5)" |> rep |> should equal "2+0i" // result of complex pow
+    "(expt 2 10)" |> rep |> should equal "1024"
+
+[<Fact>]
+let ``make-rectangular`` () =
+    "(make-rectangular 3 4)" |> rep |> should equal "3+4i"
+    "(make-rectangular 0 0)" |> rep |> should equal "0+0i"
+    "(make-rectangular 1/2 1/4)" |> rep |> should equal "0.5+0.25i"
+
+[<Fact>]
+let ``make-polar`` () =
+    "(make-polar 1 0)" |> rep |> should equal "1+0i"
+
+[<Fact>]
 let ``real-part`` () =
     "(real-part 3+4i)" |> rep |> should equal "3"
     "(real-part 5)" |> rep |> should equal "5"
@@ -262,26 +489,33 @@ let ``angle`` () =
     "(angle 1+0i)" |> rep |> should equal "0"
 
 [<Fact>]
-let ``make-rectangular`` () =
-    "(make-rectangular 3 4)" |> rep |> should equal "3+4i"
-    "(make-rectangular 0 0)" |> rep |> should equal "0+0i"
+let inexact () =
+    "(inexact 1)" |> rep |> should equal "1"
+    "(inexact 1.0)" |> rep |> should equal "1"
+    "(inexact 1+2i)" |> rep |> should equal "1+2i"
 
 [<Fact>]
-let ``make-polar`` () =
-    "(make-polar 1 0)" |> rep |> should equal "1+0i"
+let exact () =
+    "(exact 1.0)" |> rep |> should equal "1"
+    "(exact 1)" |> rep |> should equal "1"
+    "(exact 0.5)" |> rep |> should equal "0"
 
 [<Fact>]
 let ``number->string`` () =
     "(number->string 42)" |> rep |> should equal "\"42\""
-    "(number->string 255 16)" |> rep |> should equal "\"ff\""
+    "(number->string 3.14)" |> rep |> should equal "\"3.14\""
     "(number->string 8 2)" |> rep |> should equal "\"1000\""
     "(number->string 8 8)" |> rep |> should equal "\"10\""
+    "(number->string 42 10)" |> rep |> should equal "\"42\""
+    "(number->string 3.14 10)" |> rep |> should equal "\"3.14\""
+    "(number->string 255 16)" |> rep |> should equal "\"ff\""
 
 [<Fact>]
 let ``string->number`` () =
     "(string->number \"42\")" |> rep |> should equal "42"
     "(string->number \"3.14\")" |> rep |> should equal "3.14"
-    "(string->number \"ff\" 16)" |> rep |> should equal "255"
     "(string->number \"1000\" 2)" |> rep |> should equal "8"
     "(string->number \"10\" 8)" |> rep |> should equal "8"
+    "(string->number \"42\" 10)" |> rep |> should equal "42"
+    "(string->number \"ff\" 16)" |> rep |> should equal "255"
     "(string->number \"not-a-number\")" |> rep |> should equal "#f"

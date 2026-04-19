@@ -66,16 +66,51 @@ module Builtin =
               "negative?", SProcedure isNegative |> ref
               "odd?", SProcedure isOdd |> ref
               "even?", SProcedure isEven |> ref
+              "max", SProcedure sMax |> ref
+              "min", SProcedure sMin |> ref
               "+", SProcedure addNumber |> ref
               "*", SProcedure multiplyNumber |> ref
               "-", SProcedure subtractNumber |> ref
               "/", SProcedure divideNumber |> ref
+              "abs", SProcedure sAbs |> ref
+              "floor/", SProcedure sFloorDiv |> ref
+              "floor-quotient", SProcedure sFloorQuotient |> ref
+              "floor-remainder", SProcedure sFloorRemainder |> ref
+              "truncate/", SProcedure sTruncateDiv |> ref
+              "truncate-quotient", SProcedure sTruncateQuotient |> ref
+              "truncate-remainder", SProcedure sTruncateRemainder |> ref
+              "quotient", SProcedure sQuotient |> ref
+              "remainder", SProcedure sRemainder |> ref
+              "modulo", SProcedure sModulo |> ref
+              "gcd", SProcedure sGcd |> ref
+              "lcm", SProcedure sLcm |> ref
+              "numerator", SProcedure sNumerator |> ref
+              "denominator", SProcedure sDenominator |> ref
+              "floor", SProcedure sFloor |> ref
+              "ceiling", SProcedure sCeiling |> ref
+              "truncate", SProcedure sTruncate |> ref
+              "round", SProcedure sRound |> ref
+              "rationalize", SProcedure sRationalize |> ref
+              "exp", SProcedure sExp |> ref
+              "log", SProcedure sLog |> ref
+              "sin", SProcedure sSin |> ref
+              "cos", SProcedure sCos |> ref
+              "tan", SProcedure sTan |> ref
+              "asin", SProcedure sAsin |> ref
+              "acos", SProcedure sAcos |> ref
+              "atan", SProcedure sAtan |> ref
+              "square", SProcedure sSquare |> ref
+              "sqrt", SProcedure sSqrt |> ref
+              "exact-integer-sqrt", SProcedure sExactIntegerSqrt |> ref
+              "expt", SProcedure sExpt |> ref
               "make-rectangular", SProcedure sMakeRectangular |> ref
               "make-polar", SProcedure sMakePolar |> ref
               "real-part", SProcedure sRealPart |> ref
               "imag-part", SProcedure sImagPart |> ref
               "magnitude", SProcedure sMagnitude |> ref
               "angle", SProcedure sAngle |> ref
+              "inexact", SProcedure sInexact |> ref
+              "exact", SProcedure sExact |> ref
               "number->string", SProcedure sNumberToString |> ref
               "string->number", SProcedure sStringToNumber |> ref
               "not", SProcedure sNot |> ref
