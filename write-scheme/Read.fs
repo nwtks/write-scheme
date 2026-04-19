@@ -94,13 +94,13 @@ module Read =
                 anyChar
                 >>= fun c2 ->
                     if System.Char.IsLowSurrogate c2 then
-                        preturn (string c1 + string c2)
+                        preturn (System.Text.Rune(c1, c2).ToString())
                     else
                         fail "invalid surrogate pair"
             elif System.Char.IsLowSurrogate c1 then
                 fail "unexpected low surrogate"
             else
-                preturn (string c1)
+                preturn (System.Text.Rune(c1).ToString())
 
     let pCharacter =
         choice
@@ -275,8 +275,8 @@ module Read =
               stringCIReturn "#f" SFalse ]
 
     let parseSymbol = pIdentifier |>> SSymbol
-    let parseChar = pCharacter |>> SChar
-    let parseString = pString |>> SString
+    let parseChar = pCharacter |>> fun s -> System.Text.Rune.GetRuneAt(s, 0) |> SChar
+    let parseString = pString |>> fun s -> newSString true s
 
     let parseDatum, parseDatumRef = createParserForwardedToRef ()
 

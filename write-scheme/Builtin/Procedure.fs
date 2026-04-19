@@ -59,13 +59,14 @@ module Procedure =
     let rec mapStringMap envs cont proc acc =
         function
         | [] ->
-            List.rev acc
-            |> List.map (function
-                | SChar c -> c
-                | x -> Print.print x |> sprintf "'%s' is not a char." |> failwith)
-            |> String.concat ""
-            |> SString
-            |> cont
+            let runes =
+                List.rev acc
+                |> List.map (function
+                    | SChar c -> c
+                    | x -> Print.print x |> sprintf "'%s' is not a char." |> failwith)
+                |> List.toArray
+
+            { runes = runes; isImmutable = false } |> SString |> cont
         | x :: xs -> proc |> Eval.apply envs (fun a -> mapStringMap envs cont proc (a :: acc) xs) x
 
     let sStringMap envs cont =
@@ -74,7 +75,7 @@ module Procedure =
         | proc :: strings as x ->
             strings
             |> List.map (function
-                | SString s -> s.EnumerateRunes() |> Seq.map (fun r -> r.ToString() |> SChar) |> Seq.toList
+                | SString s -> s.runes |> Array.map SChar |> Array.toList
                 | _ -> x |> invalidParameter "'%s' invalid string-map parameter.")
             |> transposeList
             |> mapStringMap envs cont proc []
@@ -123,7 +124,7 @@ module Procedure =
         | proc :: strings as x ->
             strings
             |> List.map (function
-                | SString s -> s.EnumerateRunes() |> Seq.map (fun r -> r.ToString() |> SChar) |> Seq.toList
+                | SString s -> s.runes |> Array.map SChar |> Array.toList
                 | _ -> x |> invalidParameter "'%s' invalid string-for-each parameter.")
             |> transposeList
             |> loopForEach envs cont proc

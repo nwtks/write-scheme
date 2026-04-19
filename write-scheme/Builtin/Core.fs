@@ -55,7 +55,10 @@ module Core =
             | SRational(a1, a2), SRational(b1, b2) -> a1 = b1 && a2 = b2 && loopEqual xs
             | SReal a', SReal b' -> a' = b' && loopEqual xs
             | SComplex a', SComplex b' -> a' = b' && loopEqual xs
-            | SString a', SString b' -> a' = b' && loopEqual xs
+            | SString a', SString b' ->
+                a'.runes.Length = b'.runes.Length
+                && Array.forall2 (=) a'.runes b'.runes
+                && loopEqual xs
             | SChar a', SChar b' -> a' = b' && loopEqual xs
             | SSymbol a', SSymbol b' -> a' = b' && loopEqual xs
             | a', b' -> a' = b' && loopEqual xs
@@ -68,10 +71,10 @@ module Core =
     let sDisplay envs cont =
         function
         | [ SString x ] ->
-            x |> printf "%s"
+            x.runes |> runesToString |> printf "%s"
             SEmpty |> cont
         | [ SChar x ] ->
-            x |> printf "%s"
+            x.ToString() |> printf "%s"
             SEmpty |> cont
         | [ x ] ->
             x |> Print.print |> printf "%s"
@@ -81,6 +84,7 @@ module Core =
     let sLoad envs cont =
         function
         | [ SString f ] ->
-            System.IO.File.ReadAllText f |> Read.read |> Eval.eval envs cont |> ignore
-            sprintf "Loaded '%s'." f |> SSymbol |> cont
+            let path = f.runes |> runesToString
+            System.IO.File.ReadAllText path |> Read.read |> Eval.eval envs cont |> ignore
+            sprintf "Loaded '%s'." path |> SSymbol |> cont
         | x -> x |> invalidParameter "'%s' invalid load parameter."

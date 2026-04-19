@@ -717,32 +717,39 @@ module Math =
 
     let sNumberToString envs cont =
         function
-        | [ n ] -> n |> Print.print |> SString |> cont
+        | [ n ] -> n |> Print.print |> newSString true |> cont
         | [ n; SRational(radix, d) ] when d = 1I ->
             match n with
-            | SRational(v, vd) when vd = 1I ->
-                match int radix with
-                | 2 -> System.Convert.ToString(int64 v, 2) |> SString |> cont
-                | 8 -> System.Convert.ToString(int64 v, 8) |> SString |> cont
-                | 10 -> string v |> SString |> cont
-                | 16 -> System.Convert.ToString(int64 v, 16) |> SString |> cont
-                | _ -> failwith "number->string: unsupported radix"
-            | _ -> n |> Print.print |> SString |> cont
+            | SRational(k, d') ->
+                if d' = 1I then
+                    match int radix with
+                    | 2 -> System.Convert.ToString(int64 k, 2)
+                    | 8 -> System.Convert.ToString(int64 k, 8)
+                    | 10 -> string k
+                    | 16 -> System.Convert.ToString(int64 k, 16)
+                    | _ -> failwith "number->string: unsupported radix"
+                else
+                    sprintf "%A/%A" k d'
+                |> newSString true
+                |> cont
+            | _ -> n |> Print.print |> newSString true |> cont
         | x -> x |> invalidParameter "'%s' invalid number->string parameter."
 
     let sStringToNumber envs cont =
         function
         | [ SString s ] ->
             try
-                match Read.read s with
+                match s.runes |> runesToString |> Read.read with
                 | SRational _
                 | SReal _
                 | SComplex _ as n -> n |> cont
                 | _ -> SFalse |> cont
             with _ ->
                 SFalse |> cont
-        | [ SString s; SRational(radix, d) ] when d = 1I ->
+        | [ SString data; SRational(radix, d) ] when d = 1I ->
             try
+                let s = data.runes |> runesToString
+
                 let v =
                     match int radix with
                     | 2 -> System.Convert.ToInt64(s, 2) |> bigint

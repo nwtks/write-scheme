@@ -47,7 +47,7 @@ module ByteVector =
             SUnspecified |> cont
         | x -> x |> invalidParameter "'%s' invalid bytevector-u8-set! parameter."
 
-    let getRange (length: int) =
+    let getByteVectorRange (length: int) =
         function
         | [ _ ] -> Some(0, length)
         | [ _; SRational(start, d) ] when d = 1I && start >= 0I && start <= bigint length -> Some(int start, length)
@@ -59,20 +59,16 @@ module ByteVector =
 
     let sByteVectorCopy envs cont =
         function
-        | [ SByteVector xs ]
-        | [ SByteVector xs; _ ]
-        | [ SByteVector xs; _; _ ] as args ->
-            match getRange xs.Length args with
+        | SByteVector xs :: _ as args ->
+            match getByteVectorRange xs.Length args with
             | Some(start, stop) -> xs.[start .. stop - 1] |> Array.copy |> SByteVector |> cont
             | None -> args |> invalidParameter "'%s' invalid bytevector-copy parameter."
         | x -> x |> invalidParameter "'%s' invalid bytevector-copy parameter."
 
     let sByteVectorCopyBang envs cont =
         function
-        | [ SByteVector target; SRational(at, dAt); SByteVector source ]
-        | [ SByteVector target; SRational(at, dAt); SByteVector source; _ ]
-        | [ SByteVector target; SRational(at, dAt); SByteVector source; _; _ ] as args ->
-            match getRange source.Length args.[2..] with
+        | SByteVector target :: SRational(at, dAt) :: SByteVector source :: rest as args ->
+            match getByteVectorRange source.Length (SByteVector source :: rest) with
             | Some(start, stop) when dAt = 1I && at >= 0I && at + bigint (stop - start) <= bigint target.Length ->
                 Array.blit source start target (int at) (stop - start)
                 SUnspecified |> cont
@@ -90,31 +86,26 @@ module ByteVector =
 
     let sUtf8ToString envs cont =
         function
-        | [ SByteVector bs ]
-        | [ SByteVector bs; _ ]
-        | [ SByteVector bs; _; _ ] as args ->
-            match getRange bs.Length args with
-            | Some(start, stop) -> System.Text.Encoding.UTF8.GetString(bs.[start .. stop - 1]) |> SString |> cont
+        | SByteVector bs :: _ as args ->
+            match getByteVectorRange bs.Length args with
+            | Some(start, stop) ->
+                bs.[start .. stop - 1]
+                |> System.Text.Encoding.UTF8.GetString
+                |> newSString false
+                |> cont
             | None -> args |> invalidParameter "'%s' invalid utf8->string parameter."
         | x -> x |> invalidParameter "'%s' invalid utf8->string parameter."
 
     let sStringToUtf8 envs cont =
         function
-        | [ SString s ]
-        | [ SString s; _ ]
-        | [ SString s; _; _ ] as args ->
-            let runes = s.EnumerateRunes() |> Seq.toArray
-
-            match getRange runes.Length args with
+        | SString s :: _ as args ->
+            match getByteVectorRange s.runes.Length args with
             | Some(start, stop) ->
-                let subStr = System.Text.StringBuilder()
+                let subStr = System.Text.StringBuilder(stop - start)
 
                 for i in start .. stop - 1 do
-                    subStr.Append(runes.[i].ToString()) |> ignore
+                    subStr.Append(s.runes.[i].ToString()) |> ignore
 
-                System.Text.Encoding.UTF8.GetBytes(subStr.ToString())
-                |> Array.map byte
-                |> SByteVector
-                |> cont
+                subStr.ToString() |> System.Text.Encoding.UTF8.GetBytes |> SByteVector |> cont
             | None -> args |> invalidParameter "'%s' invalid string->utf8 parameter."
         | x -> x |> invalidParameter "'%s' invalid string->utf8 parameter."

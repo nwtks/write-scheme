@@ -171,6 +171,7 @@ module Builtin =
               "string", SProcedure sString |> ref
               "string-length", SProcedure sStringLength |> ref
               "string-ref", SProcedure sStringRef |> ref
+              "string-set!", SProcedure sStringSetBang |> ref
               "string=?", SProcedure sStringEq |> ref
               "string<?", SProcedure sStringLt |> ref
               "string>?", SProcedure sStringGt |> ref
@@ -189,6 +190,8 @@ module Builtin =
               "string->list", SProcedure sStringToList |> ref
               "list->string", SProcedure sListToString |> ref
               "string-copy", SProcedure sStringCopy |> ref
+              "string-copy!", SProcedure sStringCopyBang |> ref
+              "string-fill!", SProcedure sStringFillBang |> ref
               "vector?", SProcedure isVector |> ref
               "make-vector", SProcedure sMakeVector |> ref
               "vector", SProcedure sVector |> ref

@@ -15,19 +15,15 @@ module Bool =
         | [ SBool _ ] -> STrue |> cont
         | _ -> SFalse |> cont
 
-    let isBooleanEq envs cont =
-        function
-        | []
-        | [ _ ] -> STrue |> cont
-        | args ->
-            args
-            |> List.map (function
-                | SBool b -> b
-                | x ->
-                    Print.print (toSList [ x ])
-                    |> sprintf "'%s' is not a boolean in boolean=?."
-                    |> failwith)
-            |> List.pairwise
-            |> List.forall (fun (a, b) -> a = b)
-            |> toSBool
-            |> cont
+    let isBooleanEq envs cont args =
+        args
+        |> List.map (function
+            | SBool b -> b
+            | x ->
+                Print.print (toSList [ x ])
+                |> sprintf "'%s' is not a boolean in boolean=?."
+                |> failwith)
+        |> List.pairwise
+        |> List.forall (fun (a, b) -> a = b)
+        |> toSBool
+        |> cont

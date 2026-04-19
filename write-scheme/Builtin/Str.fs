@@ -12,59 +12,58 @@ module Str =
 
     let sMakeString envs cont =
         function
-        | [ SRational(k, d) ] when d = 1I && k >= 0I -> System.String('\u0000', int k) |> SString |> cont
+        | [ SRational(k, d) ] when d = 1I && k >= 0I ->
+            { runes = Array.create (int k) (System.Text.Rune '\u0000')
+              isImmutable = false }
+            |> SString
+            |> cont
         | [ SRational(k, d); SChar c ] when d = 1I && k >= 0I ->
-            let result = System.Text.StringBuilder()
-
-            for _ in 1I .. k do
-                result.Append c |> ignore
-
-            result.ToString() |> SString |> cont
+            { runes = Array.create (int k) c
+              isImmutable = false }
+            |> SString
+            |> cont
         | x -> x |> invalidParameter "'%s' invalid make-string parameter."
 
     let sString envs cont xs =
-        xs
-        |> List.map (function
-            | SChar c -> c
-            | x -> Print.print x |> sprintf "'%s' is not a char." |> failwith)
-        |> String.concat ""
-        |> SString
-        |> cont
+        let runes =
+            xs
+            |> List.map (function
+                | SChar c -> c
+                | x -> Print.print x |> sprintf "'%s' is not a char." |> failwith)
+            |> List.toArray
+
+        { runes = runes; isImmutable = false } |> SString |> cont
 
     let sStringLength envs cont =
         function
-        | [ SString s ] ->
-            let count = s.EnumerateRunes() |> Seq.length
-            newSRational (bigint count) 1I |> cont
+        | [ SString s ] -> newSRational (bigint s.runes.Length) 1I |> cont
         | x -> x |> invalidParameter "'%s' invalid string-length parameter."
-
-    let toRunes (s: string) =
-        s.EnumerateRunes() |> Seq.map (fun r -> r.ToString()) |> Seq.toArray
 
     let sStringRef envs cont =
         function
-        | [ SString s; SRational(k, d) ] when d = 1I && k >= 0I ->
-            let runes = toRunes s
-
-            if k < bigint runes.Length then
-                runes.[int k] |> SChar |> cont
-            else
-                failwith "string-ref: index out of range"
+        | [ SString s; SRational(k, d) ] when d = 1I && k >= 0I && k < bigint s.runes.Length ->
+            s.runes.[int k] |> SChar |> cont
         | x -> x |> invalidParameter "'%s' invalid string-ref parameter."
 
-    let compareStringsBase transformer pred name cont =
+    let sStringSetBang envs cont =
         function
-        | []
-        | [ _ ] -> STrue |> cont
-        | args ->
-            args
-            |> List.map (function
-                | SString s -> transformer s
-                | x -> Print.print x |> sprintf "'%s' is not a string in %s." name |> failwith)
-            |> List.pairwise
-            |> List.forall (fun (a, b) -> pred a b)
-            |> toSBool
-            |> cont
+        | [ SString s; SRational(k, d); SChar c ] when d = 1I && k >= 0I && k < bigint s.runes.Length ->
+            if s.isImmutable then
+                failwith "string-set!: immutable string"
+
+            s.runes.[int k] <- c
+            SUnspecified |> cont
+        | x -> x |> invalidParameter "'%s' invalid string-set! parameter."
+
+    let compareStringsBase transformer pred name cont args =
+        args
+        |> List.map (function
+            | SString s -> s.runes |> runesToString |> transformer
+            | x -> Print.print x |> sprintf "'%s' is not a string in %s." name |> failwith)
+        |> List.pairwise
+        |> List.forall (fun (a, b) -> pred a b)
+        |> toSBool
+        |> cont
 
     let compareStrings pred name cont args =
         compareStringsBase id pred name cont args
@@ -89,73 +88,108 @@ module Str =
 
     let sStringUpcase envs cont =
         function
-        | [ SString s ] -> s.ToUpperInvariant() |> SString |> cont
+        | [ SString s ] -> (s.runes |> runesToString).ToUpperInvariant() |> newSString false |> cont
         | x -> x |> invalidParameter "'%s' invalid string-upcase parameter."
 
     let sStringDowncase envs cont =
         function
-        | [ SString s ] -> s.ToLowerInvariant() |> SString |> cont
+        | [ SString s ] -> (s.runes |> runesToString).ToLowerInvariant() |> newSString false |> cont
         | x -> x |> invalidParameter "'%s' invalid string-downcase parameter."
 
     let sStringFoldcase envs cont =
         function
-        | [ SString s ] -> s.ToLowerInvariant() |> SString |> cont
+        | [ SString s ] -> (s.runes |> runesToString).ToLowerInvariant() |> newSString false |> cont
         | x -> x |> invalidParameter "'%s' invalid string-foldcase parameter."
 
-    let toRunesSlice name =
+    let getRunesRange =
         function
-        | [ SString s ] -> toRunes s |> Some
-        | [ SString s; SRational(start, d) ] when d = 1I && start >= 0I ->
-            let runes = toRunes s
-
-            if start <= bigint runes.Length then
-                runes.[int start ..] |> Some
-            else
-                failwithf "%s: start index out of range" name
+        | [ SString s ] -> Some(s.runes, 0, s.runes.Length)
+        | [ SString s; SRational(start, d) ] when d = 1I && start >= 0I && start <= bigint s.runes.Length ->
+            Some(s.runes, int start, s.runes.Length - int start)
         | [ SString s; SRational(start, d1); SRational(stop, d2) ] when
-            d1 = 1I && d2 = 1I && start >= 0I && stop >= start
+            d1 = 1I
+            && d2 = 1I
+            && start >= 0I
+            && stop >= start
+            && stop <= bigint s.runes.Length
             ->
-            let runes = toRunes s
-
-            if stop <= bigint runes.Length then
-                runes.[int start .. int stop - 1] |> Some
-            else
-                failwithf "%s: stop index out of range" name
+            Some(s.runes, int start, int stop - int start)
         | _ -> None
 
+    let getRunesSlice args =
+        args
+        |> getRunesRange
+        |> Option.map (fun (runes, start, count) -> Array.sub runes start count)
+
     let sSubstring envs cont args =
-        match toRunesSlice "substring" args with
-        | Some slice -> slice |> String.concat "" |> SString |> cont
+        match getRunesSlice args with
+        | Some slice -> { runes = slice; isImmutable = false } |> SString |> cont
         | None -> args |> invalidParameter "'%s' invalid substring parameter."
 
     let sStringAppend envs cont xs =
-        xs
-        |> List.map (function
-            | SString s -> s
-            | x -> Print.print x |> sprintf "'%s' is not a string." |> failwith)
-        |> String.concat ""
-        |> SString
-        |> cont
+        let runes =
+            xs
+            |> List.collect (function
+                | SString s -> s.runes |> Array.toList
+                | x -> Print.print x |> sprintf "'%s' is not a string." |> failwith)
+            |> List.toArray
+
+        { runes = runes; isImmutable = false } |> SString |> cont
 
     let sStringToList envs cont args =
-        match toRunesSlice "string->list" args with
-        | Some slice -> slice |> Seq.map SChar |> Seq.toList |> toSList |> cont
+        match getRunesRange args with
+        | Some(runes, start, count) ->
+            runes.[start .. start + count - 1]
+            |> Seq.map SChar
+            |> Seq.toList
+            |> toSList
+            |> cont
         | None -> args |> invalidParameter "'%s' invalid string->list parameter."
 
     let sListToString envs cont =
         function
         | [ SList xs ] ->
-            xs
-            |> List.map (function
-                | SChar c -> c
-                | x -> Print.print x |> sprintf "'%s' is not a char." |> failwith)
-            |> String.concat ""
-            |> SString
-            |> cont
-        | [ SEmpty ] -> SString "" |> cont
+            let runes =
+                xs
+                |> List.map (function
+                    | SChar c -> c
+                    | x -> Print.print x |> sprintf "'%s' is not a char." |> failwith)
+                |> List.toArray
+
+            { runes = runes; isImmutable = false } |> SString |> cont
+        | [ SEmpty ] -> { runes = [||]; isImmutable = false } |> SString |> cont
         | x -> x |> invalidParameter "'%s' invalid list->string parameter."
 
     let sStringCopy envs cont args =
-        match toRunesSlice "string-copy" args with
-        | Some slice -> slice |> String.concat "" |> SString |> cont
+        match getRunesSlice args with
+        | Some slice -> { runes = slice; isImmutable = false } |> SString |> cont
         | None -> args |> invalidParameter "'%s' invalid string-copy parameter."
+
+    let sStringCopyBang envs cont =
+        function
+        | SString dest :: SRational(at, dAt) :: rest as args when dAt = 1I && at >= 0I ->
+            if dest.isImmutable then
+                failwith "string-copy!: immutable destination string"
+
+            match getRunesRange rest with
+            | Some(srcRunes, srcStart, count) ->
+                if int at + count > dest.runes.Length then
+                    failwith "string-copy!: destination out of range"
+
+                Array.blit srcRunes srcStart dest.runes (int at) count
+                SUnspecified |> cont
+            | None -> args |> invalidParameter "'%s' invalid string-copy! parameter."
+        | x -> x |> invalidParameter "'%s' invalid string-copy! parameter."
+
+    let sStringFillBang envs cont =
+        function
+        | SString s :: SChar c :: rest as args ->
+            if s.isImmutable then
+                failwith "string-fill!: immutable string"
+
+            match getRunesRange (SString s :: rest) with
+            | Some(runes, start, count) ->
+                Array.fill runes start count c
+                SUnspecified |> cont
+            | None -> args |> invalidParameter "'%s' invalid string-fill! parameter."
+        | x -> x |> invalidParameter "'%s' invalid string-fill! parameter."

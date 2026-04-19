@@ -36,7 +36,7 @@ module Vector =
             SUnspecified |> cont
         | x -> x |> invalidParameter "'%s' invalid vector-set! parameter."
 
-    let getRange (length: int) =
+    let getVectorRange (length: int) =
         function
         | [ _ ] -> Some(0, length)
         | [ _; SRational(start, d) ] when d = 1I && start >= 0I && start <= bigint length -> Some(int start, length)
@@ -48,10 +48,8 @@ module Vector =
 
     let sVectorToList envs cont =
         function
-        | [ SVector xs ]
-        | [ SVector xs; _ ]
-        | [ SVector xs; _; _ ] as args ->
-            match getRange xs.Length args with
+        | SVector xs :: _ as args ->
+            match getVectorRange xs.Length args with
             | Some(start, stop) -> xs.[start .. stop - 1] |> Array.toList |> toSList |> cont
             | None -> args |> invalidParameter "'%s' invalid vector->list parameter."
         | x -> x |> invalidParameter "'%s' invalid vector->list parameter."
@@ -64,53 +62,39 @@ module Vector =
 
     let sVectorToString envs cont =
         function
-        | [ SVector xs ]
-        | [ SVector xs; _ ]
-        | [ SVector xs; _; _ ] as args ->
-            match getRange xs.Length args with
+        | SVector xs :: _ as args ->
+            match getVectorRange xs.Length args with
             | Some(start, stop) ->
-                xs.[start .. stop - 1]
-                |> Array.map (function
-                    | SChar c -> c
-                    | x -> Print.print x |> sprintf "'%s' is not a char." |> failwith)
-                |> String.concat ""
-                |> SString
-                |> cont
+                let runes =
+                    xs.[start .. stop - 1]
+                    |> Array.map (function
+                        | SChar c -> c
+                        | x -> Print.print x |> sprintf "'%s' is not a char." |> failwith)
+
+                { runes = runes; isImmutable = false } |> SString |> cont
             | None -> args |> invalidParameter "'%s' invalid vector->string parameter."
         | x -> x |> invalidParameter "'%s' invalid vector->string parameter."
 
     let sStringToVector envs cont =
         function
-        | [ SString s ]
-        | [ SString s; _ ]
-        | [ SString s; _; _ ] as args ->
-            let runes = s.EnumerateRunes() |> Seq.toArray
-
-            match getRange runes.Length args with
-            | Some(start, stop) ->
-                runes.[start .. stop - 1]
-                |> Array.map (fun r -> r.ToString() |> SChar)
-                |> SVector
-                |> cont
+        | SString s :: _ as args ->
+            match getVectorRange s.runes.Length args with
+            | Some(start, stop) -> s.runes.[start .. stop - 1] |> Array.map SChar |> SVector |> cont
             | None -> args |> invalidParameter "'%s' invalid string->vector parameter."
         | x -> x |> invalidParameter "'%s' invalid string->vector parameter."
 
     let sVectorCopy envs cont =
         function
-        | [ SVector xs ]
-        | [ SVector xs; _ ]
-        | [ SVector xs; _; _ ] as args ->
-            match getRange xs.Length args with
+        | SVector xs :: _ as args ->
+            match getVectorRange xs.Length args with
             | Some(start, stop) -> xs.[start .. stop - 1] |> Array.copy |> SVector |> cont
             | None -> args |> invalidParameter "'%s' invalid vector-copy parameter."
         | x -> x |> invalidParameter "'%s' invalid vector-copy parameter."
 
     let sVectorCopyBang envs cont =
         function
-        | [ SVector target; SRational(at, dAt); SVector source ]
-        | [ SVector target; SRational(at, dAt); SVector source; _ ]
-        | [ SVector target; SRational(at, dAt); SVector source; _; _ ] as args ->
-            match getRange source.Length args.[2..] with
+        | SVector target :: SRational(at, dAt) :: SVector source :: rest as args ->
+            match getVectorRange source.Length (SVector source :: rest) with
             | Some(start, stop) when dAt = 1I && at >= 0I && at + bigint (stop - start) <= bigint target.Length ->
                 Array.blit source start target (int at) (stop - start)
                 SUnspecified |> cont
@@ -128,15 +112,8 @@ module Vector =
 
     let sVectorFill envs cont =
         function
-        | [ SVector xs; fill ]
-        | [ SVector xs; fill; _ ]
-        | [ SVector xs; fill; _; _ ] as args ->
-            let rangeArgs =
-                match args with
-                | v :: _ :: indices -> v :: indices
-                | _ -> args
-
-            match getRange xs.Length rangeArgs with
+        | SVector xs :: fill :: rest as args ->
+            match getVectorRange xs.Length (SVector xs :: rest) with
             | Some(start, stop) ->
                 for i in start .. stop - 1 do
                     xs.[i] <- fill

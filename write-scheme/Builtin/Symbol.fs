@@ -8,28 +8,25 @@ module Symbol =
     let isSymbol envs cont =
         function
         | [ SSymbol _ ] -> STrue |> cont
-        | _ -> SFalse |> cont
+        | [ _ ] -> SFalse |> cont
+        | x -> x |> invalidParameter "'%s' invalid symbol? parameter."
 
-    let isSymbolEq envs cont =
-        function
-        | []
-        | [ _ ] -> STrue |> cont
-        | args ->
-            args
-            |> List.map (function
-                | SSymbol s -> s
-                | x -> Print.print x |> sprintf "'%s' is not a symbol in symbol=?." |> failwith)
-            |> List.pairwise
-            |> List.forall (fun (a, b) -> a = b)
-            |> toSBool
-            |> cont
+    let isSymbolEq envs cont args =
+        args
+        |> List.pairwise
+        |> List.forall (fun (a, b) ->
+            match a, b with
+            | SSymbol s1, SSymbol s2 -> s1 = s2
+            | _ -> false)
+        |> toSBool
+        |> cont
 
     let sSymbolToString envs cont =
         function
-        | [ SSymbol s ] -> SString s |> cont
+        | [ SSymbol s ] -> s |> newSString true |> cont
         | x -> x |> invalidParameter "'%s' invalid symbol->string parameter."
 
     let sStringToSymbol envs cont =
         function
-        | [ SString s ] -> SSymbol s |> cont
+        | [ SString s ] -> s.runes |> runesToString |> SSymbol |> cont
         | x -> x |> invalidParameter "'%s' invalid string->symbol parameter."
