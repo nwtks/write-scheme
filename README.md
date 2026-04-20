@@ -91,7 +91,7 @@ dotnet test
 `char?`, `char=?`, `char<?`, `char>?`, `char<=?`, `char>=?`, `char-ci=?`, `char-ci<?`, `char-ci>?`, `char-ci<=?`, `char-ci>=?`, `char-alphabetic?`, `char-numeric?`, `char-whitespace?`, `char-upper-case?`, `char-lower-case?`, `digit-value`, `char->integer`, `integer->char`, `char-upcase`, `char-downcase`, `char-foldcase`
 
 #### String Operations
-`string?`, `make-string`, `string`, `string-length`, `string-ref`, `string=?`, `string<?`, `string>?`, `string<=?`, `string>=?`, `string-ci=?`, `string-ci<?`, `string-ci>?`, `string-ci<=?`, `string-ci>=?`, `string-upcase`, `string-downcase`, `string-foldcase`, `substring`, `string-append`, `string->list`, `list->string`, `string-copy`
+`string?`, `make-string`, `string`, `string-length`, `string-ref`, `string-set!`, `string=?`, `string<?`, `string>?`, `string<=?`, `string>=?`, `string-ci=?`, `string-ci<?`, `string-ci>?`, `string-ci<=?`, `string-ci>=?`, `string-upcase`, `string-downcase`, `string-foldcase`, `substring`, `string-append`, `string->list`, `list->string`, `string-copy`, `string-copy!`, `string-fill!`
 
 #### Vector Operations
 `vector?`, `make-vector`, `vector`, `vector-length`, `vector-ref`, `vector-set!`, `vector->list`, `list->vector`, `vector->string`, `string->vector`, `vector-copy`, `vector-copy!`, `vector-append`, `vector-fill!`
@@ -122,7 +122,7 @@ dotnet test
 This project aims for R7RS (Small) compliance, but some features are currently limited:
 
 ### Mutability
-- **Strings**: Currently implemented using .NET's immutable strings. Procedures like `string-set!` and `string-fill!` are not yet supported.
+- **Strings**: Fully mutable and codepoint-aware. Procedures like `string-set!`, `string-copy!`, and `string-fill!` are supported.
 - **Pairs**: The internal representation uses optimized list structures, making `set-car!` and `set-cdr!` challenging. Full support for mutable pairs is a work-in-progress.
 
 ### Other Limitations

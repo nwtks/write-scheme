@@ -11,7 +11,7 @@ module Print =
         elif System.Double.IsNegativeInfinity x then
             "-inf.0"
         else if isImaginary then
-            sprintf (if x >= 0.0 then "+%g" else "%g") x
+            x |> sprintf (if x >= 0.0 then "+%g" else "%g")
         else
             string x
 
@@ -58,40 +58,52 @@ module Print =
                 c.ToString() |> sprintf "#\\%s"
 
     [<TailCall>]
-    let rec printList xs =
-        xs |> List.map print |> String.concat " "
-
-    and print =
+    let rec printListCPS cont =
         function
-        | SUnspecified -> "#<unspecified>"
-        | SEmpty -> "()"
-        | SBool true -> "#t"
-        | SBool false -> "#f"
-        | SRational(k, d) -> if d = 1I then string k else sprintf "%A/%A" k d
-        | SReal x -> formatFloat x false
-        | SComplex x -> formatComplex x
-        | SString data -> formatString data
-        | SChar x -> formatChar x
-        | SSymbol x -> x
-        | SList xs -> xs |> printList |> sprintf "(%s)"
+        | [] -> "" |> cont
+        | [ x ] -> x |> printCPS cont
+        | x :: xs -> x |> printCPS (fun s1 -> xs |> printListCPS (fun s2 -> s1 + " " + s2 |> cont))
+
+    and [<TailCall>] printCPS cont =
+        function
+        | SUnspecified -> "#<unspecified>" |> cont
+        | SEmpty -> "()" |> cont
+        | SBool true -> "#t" |> cont
+        | SBool false -> "#f" |> cont
+        | SRational(k, d) -> (if d = 1I then string k else sprintf "%A/%A" k d) |> cont
+        | SReal x -> formatFloat x false |> cont
+        | SComplex x -> formatComplex x |> cont
+        | SString data -> formatString data |> cont
+        | SChar x -> formatChar x |> cont
+        | SSymbol x -> x |> cont
+        | SList xs -> xs |> printListCPS (fun s -> s |> sprintf "(%s)" |> cont)
         | SPair(x1, x2) ->
             match x2 with
-            | SEmpty -> x1 |> toSList |> print
-            | SList x2' -> x1 @ x2' |> toSList |> print
-            | SPair(y1, y2) -> SPair(x1 @ y1, y2) |> print
-            | _ -> sprintf "(%s . %s)" (x1 |> printList) (x2 |> print)
-        | SVector xs -> xs |> Array.map print |> String.concat " " |> sprintf "#(%s)"
-        | SByteVector xs -> xs |> Array.map string |> String.concat " " |> sprintf "#u8(%s)"
-        | SValues xs -> xs |> List.map print |> String.concat " " |> sprintf "(values %s)"
-        | SRecord(_, typeName, _) -> sprintf "#<%s>" typeName
-        | SError(msg, []) -> sprintf "#<error \"%s\">" (msg.runes |> runesToString)
-        | SError(msg, irritants) -> sprintf "#<error \"%s\" %s>" (msg.runes |> runesToString) (irritants |> printList)
-        | SQuote x -> x |> print |> sprintf "'%s"
-        | SQuasiquote x -> x |> print |> sprintf "`%s"
-        | SUnquote x -> x |> print |> sprintf ",%s"
-        | SUnquoteSplicing x -> x |> print |> sprintf ",@%s"
-        | SPromise _ -> "#<promise>"
-        | SParameter _ -> "#<parameter>"
-        | SSyntax _ -> "#<syntax>"
-        | SProcedure _ -> "#<procedure>"
-        | SContinuation _ -> "#<continuation>"
+            | SEmpty -> x1 |> toSList |> printCPS cont
+            | SList x2' -> x1 @ x2' |> toSList |> printCPS cont
+            | SPair(y1, y2) -> SPair(x1 @ y1, y2) |> printCPS cont
+            | _ ->
+                x1
+                |> printListCPS (fun s1 -> x2 |> printCPS (fun s2 -> sprintf "(%s . %s)" s1 s2 |> cont))
+        | SVector xs -> xs |> Array.toList |> printListCPS (fun s -> s |> sprintf "#(%s)" |> cont)
+        | SByteVector xs -> xs |> Array.map string |> String.concat " " |> sprintf "#u8(%s)" |> cont
+        | SValues xs -> xs |> printListCPS (fun s -> s |> sprintf "(values %s)" |> cont)
+        | SRecord(_, typeName, _) -> typeName |> sprintf "#<%s>" |> cont
+        | SError(msg, irritants) ->
+            let prefix = msg.runes |> runesToString |> sprintf "#<error \"%s\""
+
+            match irritants with
+            | [] -> prefix + ">" |> cont
+            | _ -> irritants |> printListCPS (fun s -> prefix + " " + s + ">" |> cont)
+        | SQuote x -> x |> printCPS (fun s -> s |> sprintf "'%s" |> cont)
+        | SQuasiquote x -> x |> printCPS (fun s -> s |> sprintf "`%s" |> cont)
+        | SUnquote x -> x |> printCPS (fun s -> s |> sprintf ",%s" |> cont)
+        | SUnquoteSplicing x -> x |> printCPS (fun s -> s |> sprintf ",@%s" |> cont)
+        | SPromise _ -> "#<promise>" |> cont
+        | SParameter _ -> "#<parameter>" |> cont
+        | SSyntax _ -> "#<syntax>" |> cont
+        | SProcedure _ -> "#<procedure>" |> cont
+        | SContinuation _ -> "#<continuation>" |> cont
+
+    let print x = x |> printCPS id
+    let printList xs = xs |> printListCPS id
