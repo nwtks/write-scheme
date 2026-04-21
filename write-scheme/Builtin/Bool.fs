@@ -19,10 +19,7 @@ module Bool =
         args
         |> List.map (function
             | SBool b -> b
-            | x ->
-                Print.print (toSList [ x ])
-                |> sprintf "'%s' is not a boolean in boolean=?."
-                |> failwith)
+            | x -> [ x ] |> invalidParameter "'%s' is not a boolean in boolean=?.")
         |> List.pairwise
         |> List.forall (fun (a, b) -> a = b)
         |> toSBool

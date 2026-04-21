@@ -39,5 +39,5 @@ module Exception =
 
     let sErrorObjectIrritants envs cont =
         function
-        | [ SError(_, irritants) ] -> irritants |> toSList |> cont
+        | [ SError(_, irritants) ] -> irritants |> toSPair |> cont
         | x -> x |> invalidParameter "'%s' invalid error-object-irritants parameter."

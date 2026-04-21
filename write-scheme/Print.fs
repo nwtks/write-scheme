@@ -58,13 +58,35 @@ module Print =
                 c.ToString() |> sprintf "#\\%s"
 
     [<TailCall>]
-    let rec printListCPS cont =
+    let rec printListCPS visited cont =
         function
         | [] -> "" |> cont
-        | [ x ] -> x |> printCPS cont
-        | x :: xs -> x |> printCPS (fun s1 -> xs |> printListCPS (fun s2 -> s1 + " " + s2 |> cont))
+        | [ x ] -> x |> printCPS visited cont
+        | x :: xs ->
+            x
+            |> printCPS visited (fun s1 -> xs |> printListCPS visited (fun s2 -> s1 + " " + s2 |> cont))
 
-    and [<TailCall>] printCPS cont =
+    and [<TailCall>] formatPair visited cont acc pair =
+        if visited |> List.exists (fun p -> obj.ReferenceEquals(p, pair)) then
+            match acc with
+            | [] -> "..." |> cont
+            | _ -> acc |> List.rev |> printListCPS visited (fun s -> sprintf "(%s ...)" s |> cont)
+        else
+            let visited' = pair :: visited
+
+            match pair.cdr with
+            | SEmpty ->
+                pair.car :: acc
+                |> List.rev
+                |> printListCPS visited' (fun s -> s |> sprintf "(%s)" |> cont)
+            | SPair p -> p |> formatPair visited' cont (pair.car :: acc)
+            | _ ->
+                pair.car :: acc
+                |> List.rev
+                |> printListCPS visited' (fun s1 ->
+                    pair.cdr |> printCPS visited' (fun s2 -> sprintf "(%s . %s)" s1 s2 |> cont))
+
+    and [<TailCall>] printCPS visited cont =
         function
         | SUnspecified -> "#<unspecified>" |> cont
         | SEmpty -> "()" |> cont
@@ -76,34 +98,29 @@ module Print =
         | SString data -> formatString data |> cont
         | SChar x -> formatChar x |> cont
         | SSymbol x -> x |> cont
-        | SList xs -> xs |> printListCPS (fun s -> s |> sprintf "(%s)" |> cont)
-        | SPair(x1, x2) ->
-            match x2 with
-            | SEmpty -> x1 |> toSList |> printCPS cont
-            | SList x2' -> x1 @ x2' |> toSList |> printCPS cont
-            | SPair(y1, y2) -> SPair(x1 @ y1, y2) |> printCPS cont
-            | _ ->
-                x1
-                |> printListCPS (fun s1 -> x2 |> printCPS (fun s2 -> sprintf "(%s . %s)" s1 s2 |> cont))
-        | SVector xs -> xs |> Array.toList |> printListCPS (fun s -> s |> sprintf "#(%s)" |> cont)
+        | SPair p -> p |> formatPair visited cont []
+        | SVector xs ->
+            xs
+            |> Array.toList
+            |> printListCPS visited (fun s -> s |> sprintf "#(%s)" |> cont)
         | SByteVector xs -> xs |> Array.map string |> String.concat " " |> sprintf "#u8(%s)" |> cont
-        | SValues xs -> xs |> printListCPS (fun s -> s |> sprintf "(values %s)" |> cont)
+        | SValues xs -> xs |> printListCPS visited (fun s -> s |> sprintf "(values %s)" |> cont)
         | SRecord(_, typeName, _) -> typeName |> sprintf "#<%s>" |> cont
         | SError(msg, irritants) ->
             let prefix = msg.runes |> runesToString |> sprintf "#<error \"%s\""
 
             match irritants with
             | [] -> prefix + ">" |> cont
-            | _ -> irritants |> printListCPS (fun s -> prefix + " " + s + ">" |> cont)
-        | SQuote x -> x |> printCPS (fun s -> s |> sprintf "'%s" |> cont)
-        | SQuasiquote x -> x |> printCPS (fun s -> s |> sprintf "`%s" |> cont)
-        | SUnquote x -> x |> printCPS (fun s -> s |> sprintf ",%s" |> cont)
-        | SUnquoteSplicing x -> x |> printCPS (fun s -> s |> sprintf ",@%s" |> cont)
+            | _ -> irritants |> printListCPS visited (fun s -> prefix + " " + s + ">" |> cont)
+        | SQuote x -> x |> printCPS visited (fun s -> s |> sprintf "'%s" |> cont)
+        | SQuasiquote x -> x |> printCPS visited (fun s -> s |> sprintf "`%s" |> cont)
+        | SUnquote x -> x |> printCPS visited (fun s -> s |> sprintf ",%s" |> cont)
+        | SUnquoteSplicing x -> x |> printCPS visited (fun s -> s |> sprintf ",@%s" |> cont)
         | SPromise _ -> "#<promise>" |> cont
         | SParameter _ -> "#<parameter>" |> cont
         | SSyntax _ -> "#<syntax>" |> cont
         | SProcedure _ -> "#<procedure>" |> cont
         | SContinuation _ -> "#<continuation>" |> cont
 
-    let print x = x |> printCPS id
-    let printList xs = xs |> printListCPS id
+    let print x = x |> printCPS [] id
+    let printList xs = xs |> printListCPS [] id

@@ -14,7 +14,7 @@ module Char =
         args
         |> List.map (function
             | SChar c -> transformer c
-            | x -> Print.print x |> sprintf "'%s' is not a char in %s." name |> failwith)
+            | x -> x |> Print.print |> sprintf "'%s' is not a char in %s." name |> failwith)
         |> List.pairwise
         |> List.forall (fun (a, b) -> pred a b)
         |> toSBool
@@ -40,7 +40,8 @@ module Char =
         function
         | [ SChar c ] -> c |> pred |> toSBool |> cont
         | x ->
-            toSList x
+            x
+            |> toSPair
             |> Print.print
             |> sprintf "'%s' invalid parameter for %s." name
             |> failwith

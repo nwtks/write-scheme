@@ -50,13 +50,13 @@ module Vector =
         function
         | SVector xs :: _ as args ->
             match getVectorRange xs.Length args with
-            | Some(start, stop) -> xs.[start .. stop - 1] |> Array.toList |> toSList |> cont
+            | Some(start, stop) -> xs.[start .. stop - 1] |> Array.toList |> toSPair |> cont
             | None -> args |> invalidParameter "'%s' invalid vector->list parameter."
         | x -> x |> invalidParameter "'%s' invalid vector->list parameter."
 
     let sListToVector envs cont =
         function
-        | [ SList xs ] -> xs |> List.toArray |> SVector |> cont
+        | [ x ] when isProperList x -> x |> toList |> List.toArray |> SVector |> cont
         | [ SEmpty ] -> [||] |> SVector |> cont
         | x -> x |> invalidParameter "'%s' invalid list->vector parameter."
 
@@ -69,7 +69,7 @@ module Vector =
                     xs.[start .. stop - 1]
                     |> Array.map (function
                         | SChar c -> c
-                        | x -> Print.print x |> sprintf "'%s' is not a char." |> failwith)
+                        | x -> x |> invalid "'%s' is not a char.")
 
                 { runes = runes; isImmutable = false } |> SString |> cont
             | None -> args |> invalidParameter "'%s' invalid vector->string parameter."
@@ -105,7 +105,7 @@ module Vector =
         xs
         |> List.map (function
             | SVector v -> v
-            | x -> Print.print x |> sprintf "'%s' is not a vector." |> failwith)
+            | x -> x |> invalid "'%s' is not a vector.")
         |> Array.concat
         |> SVector
         |> cont

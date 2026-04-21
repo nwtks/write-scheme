@@ -54,8 +54,7 @@ module Type =
         | SString of SStringData
         | SChar of System.Text.Rune
         | SSymbol of string
-        | SList of SExpression list
-        | SPair of SExpression list * SExpression
+        | SPair of SPairData
         | SVector of SExpression array
         | SByteVector of byte array
         | SValues of SExpression list
@@ -70,6 +69,10 @@ module Type =
         | SSyntax of (Context -> SContinuation -> SExpression list -> SExpression)
         | SProcedure of (Context -> SContinuation -> SExpression list -> SExpression)
         | SContinuation of SContinuation
+
+    and [<ReferenceEquality>] SPairData =
+        { mutable car: SExpression
+          mutable cdr: SExpression }
 
     and SContinuation = SExpression -> SExpression
 
@@ -94,10 +97,38 @@ module Type =
 
     let toSBool x = if x then STrue else SFalse
 
-    let toSList =
+    let toSPair xs =
+        List.foldBack (fun x acc -> SPair { car = x; cdr = acc }) xs SEmpty
+
+    [<TailCall>]
+    let rec loopProperList tortoise =
         function
-        | [] -> SEmpty
-        | xs -> SList xs
+        | SEmpty -> true
+        | SPair pHare ->
+            match pHare.cdr with
+            | SEmpty -> true
+            | SPair pHareNext ->
+                match tortoise with
+                | SPair pTortoise when obj.ReferenceEquals(pTortoise, pHareNext) -> false
+                | SPair pTortoise -> pHareNext.cdr |> loopProperList pTortoise.cdr
+                | _ -> false
+            | _ -> false
+        | _ -> false
+
+    let isProperList =
+        function
+        | SEmpty -> true
+        | SPair p as expr -> p.cdr |> loopProperList expr
+        | _ -> false
+
+    [<TailCall>]
+    let rec loopToList acc =
+        function
+        | SEmpty -> List.rev acc
+        | SPair p -> loopToList (p.car :: acc) p.cdr
+        | _ -> failwith "not a proper list"
+
+    let toList expr = loopToList [] expr
 
     let newSRational (x1: bigint) (x2: bigint) =
         if x2.IsZero then

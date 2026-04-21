@@ -29,7 +29,7 @@ module Str =
             xs
             |> List.map (function
                 | SChar c -> c
-                | x -> Print.print x |> sprintf "'%s' is not a char." |> failwith)
+                | x -> x |> invalid "'%s' is not a char.")
             |> List.toArray
 
         { runes = runes; isImmutable = false } |> SString |> cont
@@ -59,7 +59,7 @@ module Str =
         args
         |> List.map (function
             | SString s -> s.runes |> runesToString |> transformer
-            | x -> Print.print x |> sprintf "'%s' is not a string in %s." name |> failwith)
+            | x -> x |> Print.print |> sprintf "'%s' is not a string in %s." name |> failwith)
         |> List.pairwise
         |> List.forall (fun (a, b) -> pred a b)
         |> toSBool
@@ -131,7 +131,7 @@ module Str =
             xs
             |> List.collect (function
                 | SString s -> s.runes |> Array.toList
-                | x -> Print.print x |> sprintf "'%s' is not a string." |> failwith)
+                | x -> x |> invalid "'%s' is not a string.")
             |> List.toArray
 
         { runes = runes; isImmutable = false } |> SString |> cont
@@ -142,18 +142,19 @@ module Str =
             runes.[start .. start + count - 1]
             |> Seq.map SChar
             |> Seq.toList
-            |> toSList
+            |> toSPair
             |> cont
         | None -> args |> invalidParameter "'%s' invalid string->list parameter."
 
     let sListToString envs cont =
         function
-        | [ SList xs ] ->
+        | [ x ] when isProperList x ->
             let runes =
-                xs
+                x
+                |> toList
                 |> List.map (function
                     | SChar c -> c
-                    | x -> Print.print x |> sprintf "'%s' is not a char." |> failwith)
+                    | x -> x |> invalid "'%s' is not a char.")
                 |> List.toArray
 
             { runes = runes; isImmutable = false } |> SString |> cont

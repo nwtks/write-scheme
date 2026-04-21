@@ -7,31 +7,23 @@ open Type
 module List =
     let isPair envs cont =
         function
-        | [ SList [] ] -> SFalse |> cont
-        | [ SList _ ]
         | [ SPair _ ] -> STrue |> cont
         | _ -> SFalse |> cont
 
     let sCons envs cont =
         function
-        | [ x; SEmpty ] -> [ x ] |> toSList |> cont
-        | [ x; SList xs ] -> x :: xs |> toSList |> cont
-        | [ x; SPair(y1, y2) ] -> SPair(x :: y1, y2) |> cont
-        | [ x; y ] -> SPair([ x ], y) |> cont
+        | [ x; y ] -> SPair { car = x; cdr = y } |> cont
         | x -> x |> invalidParameter "'%s' invalid cons parameter."
 
     let getCar =
         function
-        | SList(x :: _) -> x
-        | SPair(x :: _, _) -> x
-        | x -> Print.print x |> sprintf "'%s' invalid car parameter." |> failwith
+        | SPair p -> p.car
+        | x -> x |> invalid "'%s' invalid car parameter."
 
     let getCdr =
         function
-        | SList(_ :: xs) -> xs |> toSList
-        | SPair([ _ ], x2) -> x2
-        | SPair(_ :: xs, x2) -> SPair(xs, x2)
-        | x -> Print.print x |> sprintf "'%s' invalid cdr parameter." |> failwith
+        | SPair p -> p.cdr
+        | x -> x |> invalid "'%s' invalid cdr parameter."
 
     let sCar envs cont =
         function
@@ -42,6 +34,20 @@ module List =
         function
         | [ x ] -> x |> getCdr |> cont
         | x -> x |> invalidParameter "'%s' invalid cdr parameter."
+
+    let sSetCar envs cont =
+        function
+        | [ SPair p; x ] ->
+            p.car <- x
+            SUnspecified |> cont
+        | x -> x |> invalidParameter "'%s' invalid set-car! parameter."
+
+    let sSetCdr envs cont =
+        function
+        | [ SPair p; x ] ->
+            p.cdr <- x
+            SUnspecified |> cont
+        | x -> x |> invalidParameter "'%s' invalid set-cdr! parameter."
 
     let sCaar envs cont =
         function
@@ -70,79 +76,91 @@ module List =
 
     let isList envs cont =
         function
-        | [ SList _ ]
-        | [ SEmpty ] -> STrue |> cont
+        | [ x ] -> x |> isProperList |> toSBool |> cont
         | _ -> SFalse |> cont
 
     let sMakeList envs cont =
         function
-        | [ SRational(k, d) ] when d = 1I && k >= 0I -> List.replicate (int k) SUnspecified |> toSList |> cont
-        | [ SRational(k, d); fill ] when d = 1I && k >= 0I -> List.replicate (int k) fill |> toSList |> cont
+        | [ SRational(k, d) ] when d = 1I && k >= 0I -> List.replicate (int k) SUnspecified |> toSPair |> cont
+        | [ SRational(k, d); fill ] when d = 1I && k >= 0I -> List.replicate (int k) fill |> toSPair |> cont
         | x -> x |> invalidParameter "'%s' invalid make-list parameter."
 
-    let sList envs cont xs = xs |> toSList |> cont
+    let sList envs cont xs = xs |> toSPair |> cont
+
+    [<TailCall>]
+    let rec loopLength acc =
+        function
+        | SEmpty -> acc
+        | SPair p -> p.cdr |> loopLength (acc + 1I)
+        | _ -> failwith "not a proper list"
 
     let sLength envs cont =
         function
-        | [ SList xs ] -> newSRational (bigint xs.Length) 1I |> cont
-        | [ SEmpty ] -> SZero |> cont
+        | [ x ] when isProperList x -> newSRational (x |> loopLength 0I) 1I |> cont
         | x -> x |> invalidParameter "'%s' invalid length parameter."
 
-    [<TailCall>]
-    let rec foldAppend xs =
-        function
-        | [], []
-        | [], [ SEmpty ] -> SEmpty
-        | [], [ x ] -> x
-        | acc, []
-        | acc, [ SEmpty ] -> acc |> toSList
-        | acc, [ SList x ] -> acc @ x |> toSList
-        | acc, [ SPair(x1, x2) ] -> SPair(acc @ x1, x2)
-        | acc, [ x ] -> SPair(acc, x)
-        | acc, SEmpty :: x -> (acc, x) |> foldAppend xs
-        | acc, SList x1 :: x2 -> (acc @ x1, x2) |> foldAppend xs
-        | _ -> xs |> invalidParameter "'%s' invalid append parameter."
+    let appendTwo a b =
+        List.foldBack (fun h acc -> SPair { car = h; cdr = acc }) (a |> toList) b
 
-    let sAppend envs cont xs = ([], xs) |> foldAppend xs |> cont
+    [<TailCall>]
+    let rec loopAppend acc =
+        function
+        | [] -> acc
+        | [ last ] -> appendTwo acc last
+        | h :: t -> t |> loopAppend (appendTwo acc h)
+
+    let sAppend envs cont =
+        function
+        | [] -> SEmpty |> cont
+        | [ x ] -> x |> cont
+        | x :: xs -> xs |> loopAppend x |> cont
+
+    [<TailCall>]
+    let rec loopReverse acc =
+        function
+        | SEmpty -> acc
+        | SPair p -> p.cdr |> loopReverse (SPair { car = p.car; cdr = acc })
+        | _ -> failwith "impossible"
 
     let sReverse envs cont =
         function
-        | [ SList xs ] -> xs |> List.rev |> toSList |> cont
-        | [ SEmpty ] -> SEmpty |> cont
+        | [ x ] when isProperList x -> x |> loopReverse SEmpty |> cont
         | x -> x |> invalidParameter "'%s' invalid reverse parameter."
+
+    [<TailCall>]
+    let rec loopListTail n curr =
+        if n = 0I then
+            curr
+        else
+            match curr with
+            | SPair p -> p.cdr |> loopListTail (n - 1I)
+            | _ -> failwith "index out of range"
 
     let sListTail envs cont =
         function
-        | [ SList xs; SRational(k, d) ] when d = 1I && k >= 0I && k <= bigint xs.Length ->
-            xs |> List.skip (int k) |> toSList |> cont
-        | [ SEmpty; SRational(k, d) ] when d = 1I && k = 0I -> SEmpty |> cont
-        | [ SPair(xs, y); SRational(k, d) ] when d = 1I && k >= 0I && k <= bigint xs.Length ->
-            if k = bigint xs.Length then
-                y |> cont
-            else
-                SPair(xs |> List.skip (int k), y) |> cont
+        | [ x; SRational(k, d) ] when d = 1I && k >= 0I -> x |> loopListTail k |> cont
         | x -> x |> invalidParameter "'%s' invalid list-tail parameter."
+
+    [<TailCall>]
+    let rec loopListRef n =
+        function
+        | SPair p -> if n = 0I then p.car else p.cdr |> loopListRef (n - 1I)
+        | _ -> failwith "index out of range"
 
     let sListRef envs cont =
         function
-        | [ SList xs; SRational(k, d) ] when d = 1I && k >= 0I && k < bigint xs.Length -> xs.[int k] |> cont
-        | [ SPair(xs, _); SRational(k, d) ] when d = 1I && k >= 0I && k < bigint xs.Length -> xs.[int k] |> cont
+        | [ x; SRational(k, d) ] when d = 1I && k >= 0I -> x |> loopListRef k |> cont
         | x -> x |> invalidParameter "'%s' invalid list-ref parameter."
 
     [<TailCall>]
     let rec findMember comparer obj =
         function
         | SEmpty -> SFalse
-        | SList(x :: xs) ->
-            if comparer obj x then
-                SList(x :: xs)
+        | SPair p ->
+            if comparer obj p.car then
+                SPair p
             else
-                xs |> toSList |> findMember comparer obj
-        | SPair(x :: xs, y) ->
-            if comparer obj x then
-                SPair(x :: xs, y)
-            else
-                (if xs.IsEmpty then y else SPair(xs, y)) |> findMember comparer obj
+                p.cdr |> findMember comparer obj
         | _ -> SFalse
 
     let sMemq envs cont =
@@ -164,16 +182,11 @@ module List =
     let rec findAssoc comparer obj =
         function
         | SEmpty -> SFalse
-        | SList(x :: xs) ->
-            if comparer obj (getCar x) then
-                x
+        | SPair p ->
+            if comparer obj (getCar p.car) then
+                p.car
             else
-                xs |> toSList |> findAssoc comparer obj
-        | SPair(x :: xs, y) ->
-            if comparer obj (getCar x) then
-                x
-            else
-                (if xs.IsEmpty then y else SPair(xs, y)) |> findAssoc comparer obj
+                p.cdr |> findAssoc comparer obj
         | _ -> SFalse
 
     let sAssq envs cont =
@@ -191,10 +204,13 @@ module List =
         | [ obj; lst ] -> lst |> findAssoc (fun a b -> loopEqual [ a, b ]) obj |> cont
         | x -> x |> invalidParameter "'%s' invalid assoc parameter."
 
+    [<TailCall>]
+    let rec loopListCopy acc =
+        function
+        | SPair p -> p.cdr |> loopListCopy (p.car :: acc)
+        | x -> List.foldBack (fun h t -> SPair { car = h; cdr = t }) (acc |> List.rev) x
+
     let sListCopy envs cont =
         function
-        | [ SList xs ] -> [ for x in xs -> x ] |> toSList |> cont
-        | [ SEmpty ] -> SEmpty |> cont
-        | [ SPair(xs, y) ] -> SPair([ for x in xs -> x ], y) |> cont
-        | [ x ] -> x |> cont
+        | [ x ] -> x |> loopListCopy [] |> cont
         | x -> x |> invalidParameter "'%s' invalid list-copy parameter."

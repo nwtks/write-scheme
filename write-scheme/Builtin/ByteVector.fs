@@ -22,7 +22,7 @@ module ByteVector =
         xs
         |> List.map (function
             | SRational(num, den) when den = 1I && num >= 0I && num <= 255I -> byte num
-            | x -> Print.print x |> sprintf "'%s' invalid bytevector element." |> failwith)
+            | x -> x |> invalid "'%s' invalid bytevector element.")
         |> List.toArray
         |> SByteVector
         |> cont
@@ -79,7 +79,7 @@ module ByteVector =
         xs
         |> List.map (function
             | SByteVector v -> v
-            | x -> Print.print x |> sprintf "'%s' is not a bytevector." |> failwith)
+            | x -> x |> invalid "'%s' is not a bytevector.")
         |> Array.concat
         |> SByteVector
         |> cont

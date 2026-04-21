@@ -120,6 +120,8 @@ module Builtin =
               "cons", SProcedure sCons |> ref
               "car", SProcedure sCar |> ref
               "cdr", SProcedure sCdr |> ref
+              "set-car!", SProcedure sSetCar |> ref
+              "set-cdr!", SProcedure sSetCdr |> ref
               "caar", SProcedure sCaar |> ref
               "cadr", SProcedure sCadr |> ref
               "cdar", SProcedure sCdar |> ref

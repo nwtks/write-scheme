@@ -35,6 +35,26 @@ let cdr () =
     "(cdr '(1 2 . 3))" |> rep |> should equal "(2 . 3)"
 
 [<Fact>]
+let ``set-car!`` () =
+    "(let ((x (list 'a 'b 'c))) (set-car! x 'z) x)" |> rep |> should equal "(z b c)"
+    "(let ((x (cons 'a 'b))) (set-car! x 'z) x)" |> rep |> should equal "(z . b)"
+
+    "(let* ((x (list 'a 'b 'c)) (y x)) (set-car! x 'z) y)"
+    |> rep
+    |> should equal "(z b c)"
+
+    "(let* ((x (list 'a 'b 'c)) (y (cdr x))) (set-car! y 'z) x)"
+    |> rep
+    |> should equal "(a z c)"
+
+[<Fact>]
+let ``set-cdr!`` () =
+    "(let ((x (list 'a 'b 'c))) (set-cdr! x 'z) x)" |> rep |> should equal "(a . z)"
+    "(let ((x (cons 'a 'b))) (set-cdr! x 'z) x)" |> rep |> should equal "(a . z)"
+    "(let ((x (list 'a))) (set-cdr! x x) (car x))" |> rep |> should equal "a"
+    "(let ((x (list 'a))) (set-cdr! x x) x)" |> rep |> should equal "(a ...)"
+
+[<Fact>]
 let ``c...r`` () =
     "(caar '((1 2) 3))" |> rep |> should equal "1"
     "(cadr '(1 2 3))" |> rep |> should equal "2"

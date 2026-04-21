@@ -5,13 +5,14 @@ open Type
 
 [<AutoOpen>]
 module Helper =
-    let invalidParameter fmt =
-        toSList >> Print.print >> sprintf fmt >> failwith
+    let invalid fmt = Print.print >> sprintf fmt >> failwith
+    let invalidParameter fmt = toSPair >> invalid fmt
 
     let eachBinding =
         function
-        | SList [ SSymbol var; expr ] -> var, expr
-        | x -> Print.print x |> sprintf "'%s' not symbol." |> failwith
+        | SPair { car = SSymbol var
+                  cdr = SPair { car = expr; cdr = SEmpty } } -> var, expr
+        | x -> x |> invalid "'%s' invalid binding."
 
     [<TailCall>]
     let rec eqv =

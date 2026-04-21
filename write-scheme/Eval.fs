@@ -24,7 +24,7 @@ module Eval =
                     v |> cont
             | _ ->
                 args
-                |> toSList
+                |> toSPair
                 |> Print.print
                 |> sprintf "'%s' invalid parameter object call."
                 |> failwith
@@ -35,11 +35,11 @@ module Eval =
             | [ arg ] -> fn arg
             | _ ->
                 args
-                |> toSList
+                |> toSPair
                 |> Print.print
                 |> sprintf "'%s' invalid continuation parameter."
                 |> failwith
-        | x -> Print.print x |> sprintf "'%s' not operator." |> failwith
+        | x -> x |> Print.print |> sprintf "'%s' not operator." |> failwith
 
     [<TailCall>]
     let rec eval envs cont =
@@ -52,7 +52,6 @@ module Eval =
         | SComplex _
         | SString _
         | SChar _
-        | SPair _
         | SVector _
         | SByteVector _
         | SValues _
@@ -66,14 +65,13 @@ module Eval =
         | SProcedure _
         | SContinuation _ as x -> x |> cont
         | SSymbol x -> (Context.lookupEnvs envs x).Value |> cont
-        | SList [] -> SEmpty |> cont
-        | SList(operator :: operands) ->
-            operator
+        | SPair p ->
+            p.car
             |> eval envs (function
-                | SSyntax fn -> fn envs cont operands
-                | _ as op -> operands |> evalArgs envs cont (fun e c a -> op |> apply e c a) [])
-        | SQuote x -> [ SSymbol "quote"; x ] |> toSList |> eval envs cont
-        | SQuasiquote x -> [ SSymbol "quasiquote"; x ] |> toSList |> eval envs cont
+                | SSyntax fn -> p.cdr |> toList |> fn envs cont
+                | op -> p.cdr |> toList |> evalArgs envs cont (fun e c a -> op |> apply e c a) [])
+        | SQuote x -> [ SSymbol "quote"; x ] |> toSPair |> eval envs cont
+        | SQuasiquote x -> [ SSymbol "quasiquote"; x ] |> toSPair |> eval envs cont
 
     and [<TailCall>] evalArgs envs cont fn acc =
         function

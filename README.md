@@ -1,6 +1,6 @@
 # R7RS Scheme Interpreter in F#
 
-A subset R7RS Scheme interpreter written in F#. Features a CPS (Continuation-Passing Style) based evaluator with first-class continuations, hygienic macros, and a stack-safe execution model.
+A R7RS Scheme interpreter written in F#. Features a Continuation-Passing Style (CPS) evaluator with first-class continuations, hygienic macros, and a stack-safe execution model.
 
 ## Requirements
 
@@ -64,11 +64,13 @@ dotnet test
 
 ### Performance & Reliability
 
-- **Stack-Safe Evaluator**: The core evaluator uses a Jump-based Continuation-Passing Style (CPS) to ensure that Deep recursion (including tail calls) works indefinitely without consuming stack frames.
-- **First-Class Continuations**: Full support for `call/cc` enabled by the CPS architecture.
+- **Stack-Safe Evaluator**: Systematic use of Jump-based CPS and tail-recursive accumulators across the evaluator, macro engine, and list builtins ensures that deep recursion and large list processing never cause stack overflows.
+- **First-Class Continuations**: Full support for `call/cc` and `dynamic-wind` enabled by the CPS architecture.
+- **Hygienic Macros**: R7RS-compliant `syntax-rules` engine with support for flexible ellipsis positions, custom ellipsis symbols, and hygiene via automatic renaming.
 - **Robust Exception Handling**: R7RS `guard` and `with-exception-handler` integrated with the CPS flow for predictable and safe error management.
 - **Source-Mapped Errors**: Runtime errors include line and column information from the source.
-- **R7RS Compliant Unicode Support**: Full support for Unicode scalar values (Runes). Procedures like `string-ref`, `string-length`, and `string-map` are codepoint-aware and handle surrogate pairs (e.g., 🍎) correctly.
+- **R7RS Compliant Unicode Support**: Codepoint-aware string operations and full Unicode character support (Runes).
+- **Cycle Detection**: Robust handling of cyclic lists using Floyd's cycle-finding algorithm for predicates (`list?`, `length`) and visited-set tracking for the printer to prevent infinite loops.
 
 ### Built-in Procedures
 
@@ -82,7 +84,7 @@ dotnet test
 `not`, `boolean?`, `boolean=?`
 
 #### List Operations
-`cons`, `car`, `cdr`, `caar`...`cddr`, `pair?`, `null?`, `list?`, `make-list`, `list`, `length`, `append`, `reverse`, `list-tail`, `list-ref`, `memq`, `memv`, `member`, `assq`, `assv`, `assoc`, `list-copy`
+`cons`, `car`, `cdr`, `caar`...`cddr`, `set-car!`, `set-cdr!`, `pair?`, `null?`, `list?`, `make-list`, `list`, `length`, `append`, `reverse`, `list-tail`, `list-ref`, `memq`, `memv`, `member`, `assq`, `assv`, `assoc`, `list-copy`
 
 #### Symbol Operations
 `symbol?`, `symbol=?`, `symbol->string`, `string->symbol`
@@ -119,16 +121,11 @@ dotnet test
 
 ## R7RS Compliance & Known Issues
 
-This project aims for R7RS (Small) compliance, but some features are currently limited:
+This project aims for R7RS (Small) compliance. Current limitations and pending features include:
 
-### Mutability
-- **Strings**: Fully mutable and codepoint-aware. Procedures like `string-set!`, `string-copy!`, and `string-fill!` are supported.
-- **Pairs**: The internal representation uses optimized list structures, making `set-car!` and `set-cdr!` challenging. Full support for mutable pairs is a work-in-progress.
-
-### Other Limitations
-- **Number Tower**: Limited support for complex numbers and inexact reals.
-- **Macros**: `syntax-rules` support is limited in some edge cases.
-- **Libraries**: The `define-library` system is not yet fully implemented.
+- **Libraries**: The `define-library` system (modules) is not yet implemented.
+- **I/O**: File I/O procedures (ports) beyond `load` and `display` are not yet fully implemented.
+- **Macros**: While the `syntax-rules` engine is robust, some advanced R7RS edge cases in pattern matching may still be limited.
 
 ## Architecture
 

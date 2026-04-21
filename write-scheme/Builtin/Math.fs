@@ -110,7 +110,7 @@ module Math =
         | SRational(x1, x2) -> System.Numerics.Complex(toFloat x1 x2, 0.0)
         | SReal x -> System.Numerics.Complex(x, 0.0)
         | SComplex c -> c
-        | a -> sprintf "'%s' not number." (Print.print a) |> failwith
+        | x -> x |> invalid "'%s' not number."
 
     let comparePred pred1 pred2 pred3 =
         function
@@ -397,7 +397,7 @@ module Math =
         args
         |> List.map (function
             | SRational(n, d) when d = 1I -> n
-            | x -> failwithf "gcd requires integers, given %s" (Print.print x))
+            | x -> x |> invalid "gcd requires integers, given %s")
         |> List.fold gcd 0I
         |> fun v -> newSRational v 1I
         |> cont
@@ -409,7 +409,7 @@ module Math =
         args
         |> List.map (function
             | SRational(n, d) when d = 1I -> n
-            | x -> failwithf "lcm requires integers, given %s" (Print.print x))
+            | x -> x |> invalid "lcm requires integers, given %s")
         |> List.fold lcm 1I
         |> fun v -> newSRational v 1I
         |> cont

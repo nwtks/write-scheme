@@ -15,8 +15,8 @@ module Procedure =
     [<TailCall>]
     let rec foldApply xs =
         function
-        | acc, [ SEmpty ] -> List.rev acc
-        | acc, [ SList x ] -> List.rev acc @ x
+        | acc, [ SEmpty ] -> acc |> List.rev
+        | acc, [ x ] when isProperList x -> (acc |> List.rev) @ (x |> toList)
         | acc, [ _ ]
         | acc, [] -> xs |> invalidParameter "'%s' invalid apply parameter."
         | acc, x1 :: x2 -> (x1 :: acc, x2) |> foldApply xs
@@ -39,7 +39,7 @@ module Procedure =
     [<TailCall>]
     let rec mapMap envs cont proc acc =
         function
-        | [] -> List.rev acc |> toSList |> cont
+        | [] -> List.rev acc |> toSPair |> cont
         | x :: xs -> proc |> Eval.apply envs (fun a -> mapMap envs cont proc (a :: acc) xs) x
 
     let sMap envs cont =
@@ -49,7 +49,7 @@ module Procedure =
             lists
             |> List.map (function
                 | SEmpty -> []
-                | SList xs -> xs
+                | x when isProperList x -> x |> toList
                 | _ -> x |> invalidParameter "'%s' invalid map parameter.")
             |> transposeList
             |> mapMap envs cont proc []
@@ -63,7 +63,7 @@ module Procedure =
                 List.rev acc
                 |> List.map (function
                     | SChar c -> c
-                    | x -> Print.print x |> sprintf "'%s' is not a char." |> failwith)
+                    | x -> x |> invalid "'%s' is not a char.")
                 |> List.toArray
 
             { runes = runes; isImmutable = false } |> SString |> cont
@@ -112,7 +112,7 @@ module Procedure =
             lists
             |> List.map (function
                 | SEmpty -> []
-                | SList xs -> xs
+                | x when isProperList x -> x |> toList
                 | _ -> x |> invalidParameter "'%s' invalid for-each parameter.")
             |> transposeList
             |> loopForEach envs cont proc

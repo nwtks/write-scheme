@@ -11,11 +11,12 @@ module SavedParameter =
 
     let eachParamBinding =
         function
-        | SList [ param; expr ] -> param, expr
-        | x -> Print.print x |> sprintf "'%s' invalid parameterize binding." |> failwith
+        | SPair { car = param
+                  cdr = SPair { car = expr; cdr = SEmpty } } -> param, expr
+        | x -> x |> invalid "'%s' invalid parameterize binding."
 
     [<TailCall>]
-    let rec bindParameterize envs cont body saved acc =
+    let rec bindParameterize envs cont body saved =
         function
         | [] ->
             let id = Context.getNextWinderId envs
@@ -47,26 +48,27 @@ module SavedParameter =
                 SEmpty
         | (param, expr) :: xs ->
             param
-            |> Eval.eval envs (fun p ->
-                expr
-                |> Eval.eval envs (fun v ->
-                    match p with
-                    | SParameter(r, converterOpt) ->
+            |> Eval.eval envs (function
+                | SParameter(r, converterOpt) ->
+                    expr
+                    |> Eval.eval envs (fun v ->
                         match converterOpt with
                         | Some converter ->
                             converter
                             |> Eval.apply
                                 envs
-                                (fun converted -> setParameterize envs cont body saved acc xs r converted)
+                                (fun converted ->
+                                    let old = r.Value
+                                    r.Value <- converted
+                                    let s = { Ref = r; SavedValue = ref old }
+                                    bindParameterize envs cont body (s :: saved) xs)
                                 [ v ]
-                        | None -> setParameterize envs cont body saved acc xs r v
-                    | x -> Print.print x |> sprintf "'%s' is not a parameter object." |> failwith))
-
-    and [<TailCall>] setParameterize envs cont body saved acc xs r newVal =
-        let old = r.Value
-        r.Value <- newVal
-        let s = { Ref = r; SavedValue = ref old }
-        xs |> bindParameterize envs cont body (s :: saved) acc
+                        | None ->
+                            let old = r.Value
+                            r.Value <- v
+                            let s = { Ref = r; SavedValue = ref old }
+                            bindParameterize envs cont body (s :: saved) xs)
+                | _ -> [ param ] |> invalidParameter "'%s' not a parameter.")
 
     let sMakeParameter envs cont =
         function

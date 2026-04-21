@@ -145,6 +145,12 @@ let ``let`` () =
     |> rep
     |> should equal "15"
 
+    "(let loop ((i 0)) (if (< i 5) (loop (+ i 1)) i))" |> rep |> should equal "5"
+
+    "(let factorial ((n 5)) (if (= n 0) 1 (* n (factorial (- n 1)))))"
+    |> rep
+    |> should equal "120"
+
 [<Fact>]
 let ``let*`` () =
     "(let ((x 2) (y 3)) (let* ((x 7) (z (+ x y))) (* z x)))"

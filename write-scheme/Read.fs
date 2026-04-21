@@ -281,7 +281,7 @@ module Read =
     let parseDatum, parseDatumRef = createParserForwardedToRef ()
 
     let parseList =
-        between (pchar '(') (pchar ')') (pIntertokenSpace >>. many (parseDatum .>> pIntertokenSpace) |>> toSList)
+        between (pchar '(') (pchar ')') (pIntertokenSpace >>. many (parseDatum .>> pIntertokenSpace) |>> toSPair)
 
     let parseDotList =
         between
@@ -291,7 +291,7 @@ module Read =
              >>. pipe2
                  (many1 (parseDatum .>> pIntertokenSpace1))
                  (pchar '.' >>. pIntertokenSpace1 >>. parseDatum .>> pIntertokenSpace)
-                 (fun x1 x2 -> SPair(x1, x2)))
+                 (fun x1 x2 -> List.foldBack (fun h acc -> SPair { car = h; cdr = acc }) x1 x2))
 
     let parseVector =
         pstring "#(" >>. pIntertokenSpace >>. many (parseDatum .>> pIntertokenSpace)

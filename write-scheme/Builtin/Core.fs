@@ -16,16 +16,7 @@ module Core =
         | [] -> true
         | (a, b) :: xs ->
             match a, b with
-            | SList la, SList lb ->
-                if la.Length <> lb.Length then
-                    false
-                else
-                    List.zip la lb @ xs |> loopEqual
-            | SPair(la, ra), SPair(lb, rb) ->
-                if la.Length <> lb.Length then
-                    false
-                else
-                    List.zip la lb @ (ra, rb) :: xs |> loopEqual
+            | SPair pa, SPair pb -> (pa.car, pb.car) :: (pa.cdr, pb.cdr) :: xs |> loopEqual
             | SVector va, SVector vb ->
                 if va.Length <> vb.Length then
                     false
