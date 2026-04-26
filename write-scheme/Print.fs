@@ -86,41 +86,41 @@ module Print =
                 |> printListCPS visited' (fun s1 ->
                     pair.cdr |> printCPS visited' (fun s2 -> sprintf "(%s . %s)" s1 s2 |> cont))
 
-    and [<TailCall>] printCPS visited cont =
-        function
-        | SUnspecified -> "#<unspecified>" |> cont
-        | SEmpty -> "()" |> cont
-        | SBool true -> "#t" |> cont
-        | SBool false -> "#f" |> cont
-        | SRational(k, d) -> (if d = 1I then string k else sprintf "%A/%A" k d) |> cont
-        | SReal x -> formatFloat x false |> cont
-        | SComplex x -> formatComplex x |> cont
-        | SString data -> formatString data |> cont
-        | SChar x -> formatChar x |> cont
-        | SSymbol x -> x |> cont
-        | SPair p -> p |> formatPair visited cont []
-        | SVector xs ->
+    and [<TailCall>] printCPS visited cont (kind, _) =
+        match kind with
+        | SExpressionKind.SUnspecified -> "#<unspecified>" |> cont
+        | SExpressionKind.SEmpty -> "()" |> cont
+        | SExpressionKind.SBool true -> "#t" |> cont
+        | SExpressionKind.SBool false -> "#f" |> cont
+        | SExpressionKind.SRational(k, d) -> (if d = 1I then string k else sprintf "%A/%A" k d) |> cont
+        | SExpressionKind.SReal x -> formatFloat x false |> cont
+        | SExpressionKind.SComplex x -> formatComplex x |> cont
+        | SExpressionKind.SString data -> formatString data |> cont
+        | SExpressionKind.SChar x -> formatChar x |> cont
+        | SExpressionKind.SSymbol x -> x |> cont
+        | SExpressionKind.SPair p -> p |> formatPair visited cont []
+        | SExpressionKind.SVector xs ->
             xs
             |> Array.toList
             |> printListCPS visited (fun s -> s |> sprintf "#(%s)" |> cont)
-        | SByteVector xs -> xs |> Array.map string |> String.concat " " |> sprintf "#u8(%s)" |> cont
-        | SValues xs -> xs |> printListCPS visited (fun s -> s |> sprintf "(values %s)" |> cont)
-        | SRecord(_, typeName, _) -> typeName |> sprintf "#<%s>" |> cont
-        | SError(msg, irritants) ->
+        | SExpressionKind.SByteVector xs -> xs |> Array.map string |> String.concat " " |> sprintf "#u8(%s)" |> cont
+        | SExpressionKind.SValues xs -> xs |> printListCPS visited (fun s -> s |> sprintf "(values %s)" |> cont)
+        | SExpressionKind.SRecord(_, typeName, _) -> typeName |> sprintf "#<%s>" |> cont
+        | SExpressionKind.SError(msg, irritants) ->
             let prefix = msg.runes |> runesToString |> sprintf "#<error \"%s\""
 
             match irritants with
             | [] -> prefix + ">" |> cont
             | _ -> irritants |> printListCPS visited (fun s -> prefix + " " + s + ">" |> cont)
-        | SQuote x -> x |> printCPS visited (fun s -> s |> sprintf "'%s" |> cont)
-        | SQuasiquote x -> x |> printCPS visited (fun s -> s |> sprintf "`%s" |> cont)
-        | SUnquote x -> x |> printCPS visited (fun s -> s |> sprintf ",%s" |> cont)
-        | SUnquoteSplicing x -> x |> printCPS visited (fun s -> s |> sprintf ",@%s" |> cont)
-        | SPromise _ -> "#<promise>" |> cont
-        | SParameter _ -> "#<parameter>" |> cont
-        | SSyntax _ -> "#<syntax>" |> cont
-        | SProcedure _ -> "#<procedure>" |> cont
-        | SContinuation _ -> "#<continuation>" |> cont
+        | SExpressionKind.SQuote x -> x |> printCPS visited (fun s -> s |> sprintf "'%s" |> cont)
+        | SExpressionKind.SQuasiquote x -> x |> printCPS visited (fun s -> s |> sprintf "`%s" |> cont)
+        | SExpressionKind.SUnquote x -> x |> printCPS visited (fun s -> s |> sprintf ",%s" |> cont)
+        | SExpressionKind.SUnquoteSplicing x -> x |> printCPS visited (fun s -> s |> sprintf ",@%s" |> cont)
+        | SExpressionKind.SPromise _ -> "#<promise>" |> cont
+        | SExpressionKind.SParameter _ -> "#<parameter>" |> cont
+        | SExpressionKind.SSyntax _ -> "#<syntax>" |> cont
+        | SExpressionKind.SProcedure _ -> "#<procedure>" |> cont
+        | SExpressionKind.SContinuation _ -> "#<continuation>" |> cont
 
     let print x = x |> printCPS [] id
     let printList xs = xs |> printListCPS [] id

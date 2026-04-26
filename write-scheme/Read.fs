@@ -314,22 +314,8 @@ module Read =
     let parseUnquoteSplicing = pstring ",@" >>. parseDatum |>> SUnquoteSplicing
     let parseUnquoted = pchar ',' >>. parseDatum |>> SUnquote
 
-    let exprPositions =
-        new System.Runtime.CompilerServices.ConditionalWeakTable<SExpression, Position>()
-
-    let getExprPos (expr: SExpression) =
-        match exprPositions.TryGetValue expr with
-        | true, pos -> Some pos
-        | _ -> None
-
     let parseWithPos p =
-        pipe2 getPosition p (fun pos expr ->
-            try
-                exprPositions.Add(expr, pos)
-            with _ ->
-                ()
-
-            expr)
+        pipe2 getPosition p (fun pos expr -> fst expr, Some { Line = pos.Line; Column = pos.Column })
 
     parseDatumRef.Value <-
         choice
@@ -350,5 +336,11 @@ module Read =
 
     let read input =
         match input |> run (pIntertokenSpace >>. parseDatum .>> pIntertokenSpace .>> eof) with
-        | Failure(err, _, _) -> sprintf "No match %s" err |> failwith
-        | Success(x, _, _) -> x
+        | Failure(errorMsg, parserError, _) ->
+            sprintf
+                "Parse failed: %s (at line %d, column %d)"
+                errorMsg
+                parserError.Position.Line
+                parserError.Position.Column
+            |> failwith
+        | Success(result, _, _) -> result

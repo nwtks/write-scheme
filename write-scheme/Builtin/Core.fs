@@ -52,7 +52,7 @@ module Core =
                 && loopEqual xs
             | SChar a', SChar b' -> a' = b' && loopEqual xs
             | SSymbol a', SSymbol b' -> a' = b' && loopEqual xs
-            | a', b' -> a' = b' && loopEqual xs
+            | (a', _), (b', _) -> a' = b' && loopEqual xs
 
     let isEqual envs cont =
         function

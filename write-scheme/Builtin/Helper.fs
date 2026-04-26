@@ -25,7 +25,7 @@ module Helper =
         | SSymbol a, SSymbol b -> a = b
         | SQuote a, SQuote b -> (a, b) |> eqv
         | SUnquote a, SUnquote b -> (a, b) |> eqv
-        | a, b -> a = b
+        | (a, _), (b, _) -> a = b
 
     [<TailCall>]
     let rec loopDiffWinders sList tList lenS lenT accS accT =

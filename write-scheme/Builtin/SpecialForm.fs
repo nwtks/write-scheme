@@ -105,16 +105,16 @@ module SpecialForm =
             | SPair { car = test
                       cdr = SPair { car = SSymbol "=>"
                                     cdr = SPair { car = expr; cdr = SEmpty } } } ->
-                testCond envs cont (fun a -> [ expr; SQuote a ] |> toSPair |> Eval.eval envs cont) clauses test
+                test
+                |> Eval.eval envs (function
+                    | SBool false -> clauses |> sCond envs cont
+                    | a -> [ expr; SQuote a ] |> toSPair |> Eval.eval envs cont)
             | SPair { car = test; cdr = exprs } ->
-                testCond envs cont (fun a -> exprs |> toList |> Eval.eachEval envs cont a) clauses test
+                test
+                |> Eval.eval envs (function
+                    | SBool false -> clauses |> sCond envs cont
+                    | a -> exprs |> toList |> Eval.eachEval envs cont a)
             | x -> x |> invalid "'%s' invalid cond clause."
-
-    and [<TailCall>] testCond envs cont conseq clauses test =
-        test
-        |> Eval.eval envs (function
-            | SBool false -> sCond envs cont clauses
-            | x -> conseq x)
 
     [<TailCall>]
     let rec testCase envs cont key =

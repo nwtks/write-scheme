@@ -43,8 +43,10 @@ module Type =
 
         sb.ToString()
 
+    type Position = { Line: int64; Column: int64 }
+
     [<ReferenceEquality>]
-    type SExpression =
+    type SExpressionKind =
         | SUnspecified
         | SEmpty
         | SBool of bool
@@ -70,6 +72,8 @@ module Type =
         | SProcedure of (Context -> SContinuation -> SExpression list -> SExpression)
         | SContinuation of SContinuation
 
+    and SExpression = SExpressionKind * Position option
+
     and [<ReferenceEquality>] SPairData =
         { mutable car: SExpression
           mutable cdr: SExpression }
@@ -90,11 +94,153 @@ module Type =
           before: SExpression
           after: SExpression }
 
+    let (|SUnspecified|_|) =
+        function
+        | SUnspecified, _ -> Some()
+        | _ -> None
+
+    let (|SEmpty|_|) =
+        function
+        | SEmpty, _ -> Some()
+        | _ -> None
+
+    let (|SBool|_|) =
+        function
+        | SBool b, _ -> Some b
+        | _ -> None
+
+    let (|SRational|_|) =
+        function
+        | SRational(n, d), _ -> Some(n, d)
+        | _ -> None
+
+    let (|SReal|_|) =
+        function
+        | SReal r, _ -> Some r
+        | _ -> None
+
+    let (|SComplex|_|) =
+        function
+        | SComplex c, _ -> Some c
+        | _ -> None
+
+    let (|SString|_|) =
+        function
+        | SString s, _ -> Some s
+        | _ -> None
+
+    let (|SChar|_|) =
+        function
+        | SChar c, _ -> Some c
+        | _ -> None
+
+    let (|SSymbol|_|) =
+        function
+        | SSymbol s, _ -> Some s
+        | _ -> None
+
+    let (|SPair|_|) =
+        function
+        | SPair p, _ -> Some p
+        | _ -> None
+
+    let (|SVector|_|) =
+        function
+        | SVector v, _ -> Some v
+        | _ -> None
+
+    let (|SByteVector|_|) =
+        function
+        | SByteVector bv, _ -> Some bv
+        | _ -> None
+
+    let (|SValues|_|) =
+        function
+        | SValues vs, _ -> Some vs
+        | _ -> None
+
+    let (|SRecord|_|) =
+        function
+        | SRecord(id, n, fs), _ -> Some(id, n, fs)
+        | _ -> None
+
+    let (|SError|_|) =
+        function
+        | SError(m, i), _ -> Some(m, i)
+        | _ -> None
+
+    let (|SQuote|_|) =
+        function
+        | SQuote q, _ -> Some q
+        | _ -> None
+
+    let (|SQuasiquote|_|) =
+        function
+        | SQuasiquote q, _ -> Some q
+        | _ -> None
+
+    let (|SUnquote|_|) =
+        function
+        | SUnquote u, _ -> Some u
+        | _ -> None
+
+    let (|SUnquoteSplicing|_|) =
+        function
+        | SUnquoteSplicing u, _ -> Some u
+        | _ -> None
+
+    let (|SPromise|_|) =
+        function
+        | SPromise p, _ -> Some p
+        | _ -> None
+
+    let (|SParameter|_|) =
+        function
+        | SParameter(r, c), _ -> Some(r, c)
+        | _ -> None
+
+    let (|SSyntax|_|) =
+        function
+        | SSyntax s, _ -> Some s
+        | _ -> None
+
+    let (|SProcedure|_|) =
+        function
+        | SProcedure p, _ -> Some p
+        | _ -> None
+
+    let (|SContinuation|_|) =
+        function
+        | SContinuation c, _ -> Some c
+        | _ -> None
+
+    let SUnspecified: SExpression = SUnspecified, None
+    let SEmpty: SExpression = SEmpty, None
+    let SBool b : SExpression = SBool b, None
+    let SRational (n, d) : SExpression = SRational(n, d), None
+    let SReal r : SExpression = SReal r, None
+    let SComplex c : SExpression = SComplex c, None
+    let SString s : SExpression = SString s, None
+    let SChar c : SExpression = SChar c, None
+    let SSymbol s : SExpression = SSymbol s, None
+    let SPair p : SExpression = SPair p, None
+    let SVector v : SExpression = SVector v, None
+    let SByteVector bv : SExpression = SByteVector bv, None
+    let SValues vs : SExpression = SValues vs, None
+    let SRecord (id, name, fs) : SExpression = SRecord(id, name, fs), None
+    let SError (m, i) : SExpression = SError(m, i), None
+    let SQuote q : SExpression = SQuote q, None
+    let SQuasiquote q : SExpression = SQuasiquote q, None
+    let SUnquote u : SExpression = SUnquote u, None
+    let SUnquoteSplicing u : SExpression = SUnquoteSplicing u, None
+    let SPromise p : SExpression = SPromise p, None
+    let SParameter (r, c) : SExpression = SParameter(r, c), None
+    let SSyntax s : SExpression = SSyntax s, None
+    let SProcedure p : SExpression = SProcedure p, None
+    let SContinuation c : SExpression = SContinuation c, None
+
     let STrue = SBool true
     let SFalse = SBool false
-
-    let SZero = SRational(0I, 1I)
-
     let toSBool x = if x then STrue else SFalse
 
     let toSPair xs =
@@ -130,15 +276,23 @@ module Type =
 
     let toList expr = loopToList [] expr
 
-    let newSRational (x1: bigint) (x2: bigint) =
-        if x2.IsZero then
+    let SZero = SRational(0I, 1I)
+
+    let newSRational (numerator: bigint) (denominator: bigint) =
+        if denominator.IsZero then
             failwith "denominator zero."
-        elif x1.IsZero then
+        elif numerator.IsZero then
             SZero
         else
-            let gcd = bigint.GreatestCommonDivisor(abs x1, abs x2)
-            let x1', x2' = if x2.Sign < 0 then -x1, -x2 else x1, x2
-            SRational(x1' / gcd, x2' / gcd)
+            let gcd = bigint.GreatestCommonDivisor(abs numerator, abs denominator)
+
+            let numerator', denominator' =
+                if denominator.Sign < 0 then
+                    -numerator, -denominator
+                else
+                    numerator, denominator
+
+            SRational(numerator' / gcd, denominator' / gcd)
 
     let newSString isImmutable (str: string) =
         { runes = str.EnumerateRunes() |> Seq.toArray
