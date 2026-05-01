@@ -6,7 +6,7 @@ module Eval =
     [<TailCall>]
     let rec apply envs cont args =
         function
-        | SParameter(r, converterOpt) ->
+        | SParameter(r, converterOpt), pos ->
             match args with
             | [] -> r.Value |> cont
             | [ v ] ->
@@ -23,55 +23,53 @@ module Eval =
                     r.Value <- v
                     v |> cont
             | _ ->
-                args
-                |> toSPair
-                |> Print.print
-                |> sprintf "'%s' invalid parameter object call."
-                |> failwith
-        | SSyntax fn
-        | SProcedure fn -> args |> fn envs cont
-        | SContinuation fn ->
+                failwithf
+                    "'%s' invalid parameter object call.%s"
+                    (args |> toSPair |> Print.print)
+                    (pos |> formatPosition)
+        | SSyntax fn, pos
+        | SProcedure fn, pos -> args |> fn envs pos cont
+        | SContinuation fn, pos ->
             match args with
             | [ arg ] -> fn arg
             | _ ->
-                args
-                |> toSPair
-                |> Print.print
-                |> sprintf "'%s' invalid continuation parameter."
-                |> failwith
-        | x -> x |> Print.print |> sprintf "'%s' not operator." |> failwith
+                failwithf
+                    "'%s' invalid continuation parameter.%s"
+                    (args |> toSPair |> Print.print)
+                    (pos |> formatPosition)
+        | x -> failwithf "'%s' not operator.%s" (x |> Print.print) (x |> snd |> formatPosition)
 
     [<TailCall>]
-    let rec eval envs cont (kind, _ as expr) =
-        match kind with
-        | SExpressionKind.SEmpty -> failwith "() is not a valid expression. It must be quoted."
-        | SExpressionKind.SUnspecified
-        | SExpressionKind.SBool _
-        | SExpressionKind.SRational _
-        | SExpressionKind.SReal _
-        | SExpressionKind.SComplex _
-        | SExpressionKind.SString _
-        | SExpressionKind.SChar _
-        | SExpressionKind.SVector _
-        | SExpressionKind.SByteVector _
-        | SExpressionKind.SValues _
-        | SExpressionKind.SRecord _
-        | SExpressionKind.SError _
-        | SExpressionKind.SUnquote _
-        | SExpressionKind.SUnquoteSplicing _
-        | SExpressionKind.SPromise _
-        | SExpressionKind.SParameter _
-        | SExpressionKind.SSyntax _
-        | SExpressionKind.SProcedure _
-        | SExpressionKind.SContinuation _ -> expr |> cont
-        | SExpressionKind.SSymbol x -> (Context.lookupEnvs envs x).Value |> cont
-        | SExpressionKind.SPair p ->
+    let rec eval envs cont =
+        function
+        | SEmpty, pos -> failwithf "() is not a valid expression. %s" (pos |> formatPosition)
+        | SUnspecified, _
+        | SBool _, _
+        | SRational _, _
+        | SReal _, _
+        | SComplex _, _
+        | SString _, _
+        | SChar _, _
+        | SVector _, _
+        | SByteVector _, _
+        | SValues _, _
+        | SRecord _, _
+        | SError _, _
+        | SUnquote _, _
+        | SUnquoteSplicing _, _
+        | SPromise _, _
+        | SParameter _, _
+        | SSyntax _, _
+        | SProcedure _, _
+        | SContinuation _, _ as expr -> expr |> cont
+        | SSymbol x, pos -> (Context.lookupEnvs envs pos x).Value |> cont
+        | SPair p, _ ->
             p.car
             |> eval envs (function
-                | SSyntax fn -> p.cdr |> toList |> fn envs cont
+                | SSyntax fn, pos' -> p.cdr |> toList |> fn envs pos' cont
                 | op -> p.cdr |> toList |> evalArgs envs cont (fun e c a -> op |> apply e c a) [])
-        | SExpressionKind.SQuote x -> [ SSymbol "quote"; x ] |> toSPair |> eval envs cont
-        | SExpressionKind.SQuasiquote x -> [ SSymbol "quasiquote"; x ] |> toSPair |> eval envs cont
+        | SQuote x, pos -> [ SSymbol "quote", pos; x ] |> toSPair |> eval envs cont
+        | SQuasiquote x, pos -> [ SSymbol "quasiquote", pos; x ] |> toSPair |> eval envs cont
 
     and [<TailCall>] evalArgs envs cont fn acc =
         function
@@ -83,20 +81,3 @@ module Eval =
         function
         | [] -> acc |> cont
         | x :: xs -> x |> eval envs (fun a -> xs |> eachEval envs cont a)
-
-    let evalWrapped envs cont expr =
-        let processErr (e: exn) =
-            match e with
-            | :? SchemeRaise -> raise e
-            | _ ->
-                if e.Message.Contains " (at line " then
-                    raise e
-                else
-                    match expr with
-                    | _, Some pos -> failwithf "%s (at line %d, column %d)" e.Message pos.Line pos.Column
-                    | _ -> raise e
-
-        try
-            eval envs cont expr
-        with e ->
-            processErr e

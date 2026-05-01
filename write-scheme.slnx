@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="write-scheme/write-scheme.fsproj" />
+  <Project Path="write-scheme.test/write-scheme.test.fsproj" />
+</Solution>

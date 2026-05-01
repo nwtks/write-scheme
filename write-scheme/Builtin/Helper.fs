@@ -5,26 +5,31 @@ open Type
 
 [<AutoOpen>]
 module Helper =
-    let invalid fmt = Print.print >> sprintf fmt >> failwith
-    let invalidParameter fmt = toSPair >> invalid fmt
+    let invalid pos fmt =
+        Print.print
+        >> sprintf fmt
+        >> fun msg -> failwithf "%s%s" msg (pos |> formatPosition)
+
+    let invalidParameter pos fmt = toSPair >> invalid pos fmt
 
     let eachBinding =
         function
-        | SPair { car = SSymbol var
-                  cdr = SPair { car = expr; cdr = SEmpty } } -> var, expr
-        | x -> x |> invalid "'%s' invalid binding."
+        | SPair { car = SSymbol var, _
+                  cdr = SPair { car = expr; cdr = SEmpty, _ }, _ },
+          _ -> var, expr
+        | _, pos as x -> x |> invalid pos "'%s' invalid binding."
 
     [<TailCall>]
     let rec eqv =
         function
-        | SBool a, SBool b -> a = b
-        | SRational(a1, a2), SRational(b1, b2) -> a1 = b1 && a2 = b2
-        | SReal a, SReal b -> a = b
-        | SComplex a, SComplex b -> a = b
-        | SChar a, SChar b -> a = b
-        | SSymbol a, SSymbol b -> a = b
-        | SQuote a, SQuote b -> (a, b) |> eqv
-        | SUnquote a, SUnquote b -> (a, b) |> eqv
+        | (SBool a, _), (SBool b, _) -> a = b
+        | (SRational(a1, a2), _), (SRational(b1, b2), _) -> a1 = b1 && a2 = b2
+        | (SReal a', _), (SReal b', _) -> a' = b'
+        | (SComplex a', _), (SComplex b', _) -> a' = b'
+        | (SChar a', _), (SChar b', _) -> a' = b'
+        | (SSymbol a', _), (SSymbol b', _) -> a' = b'
+        | (SQuote a, _), (SQuote b, _) -> (a, b) |> eqv
+        | (SUnquote a, _), (SUnquote b, _) -> (a, b) |> eqv
         | (a, _), (b, _) -> a = b
 
     [<TailCall>]
@@ -32,11 +37,11 @@ module Helper =
         if lenS > lenT then
             match sList with
             | hd :: tl -> loopDiffWinders tl tList (lenS - 1) lenT (hd :: accS) accT
-            | [] -> failwith "unreachable"
+            | [] -> failwith "unreachable."
         elif lenT > lenS then
             match tList with
             | hd :: tl -> loopDiffWinders sList tl lenS (lenT - 1) accS (hd :: accT)
-            | [] -> failwith "unreachable"
+            | [] -> failwith "unreachable."
         else
             match sList, tList with
             | h1 :: _, h2 :: _ when h1.id = h2.id -> List.rev accS, List.rev accT

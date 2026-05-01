@@ -2,25 +2,21 @@ namespace WriteScheme
 
 module Repl =
     let rep envs =
-        Read.read >> Eval.evalWrapped envs id >> Print.print
+        Read.read >> Eval.eval envs id >> Print.print
 
     let newEnvs () = Context.extendEnvs Builtin.builtin []
 
     [<TailCall>]
-    let rec replInner envs output =
+    let rec repl envs output =
         printf "%s\n> " output
         let line = System.Console.ReadLine()
+        if isNull line then () else line |> rep envs |> repl envs
 
-        if isNull line then
-            ()
-        else
-            line |> rep envs |> replInner envs
-
-    let repl () =
+    let runRepl () =
         let envs = newEnvs ()
 
         try
-            replInner envs "Welcome"
+            "Welcome" |> repl envs
         with x ->
             Context.setWinders envs []
-            x.Message |> replInner envs
+            x.Message |> repl envs

@@ -7,236 +7,236 @@ module Builtin =
     let builtin =
         Context.extendEnvs
             Context.empty
-            [ "quote", SSyntax sQuote |> ref
-              "lambda", SSyntax sLambda |> ref
-              "if", SSyntax sIf |> ref
-              "set!", SSyntax sSet |> ref
-              "cond", SSyntax sCond |> ref
-              "case", SSyntax sCase |> ref
-              "and", SSyntax sAnd |> ref
-              "or", SSyntax sOr |> ref
-              "when", SSyntax sWhen |> ref
-              "unless", SSyntax sUnless |> ref
-              "let", SSyntax sLet |> ref
-              "let*", SSyntax sLetStar |> ref
-              "letrec", SSyntax sLetRec |> ref
-              "letrec*", SSyntax sLetRecStar |> ref
-              "let-values", SSyntax sLetValues |> ref
-              "let*-values", SSyntax sLetStarValues |> ref
-              "begin", SSyntax sBegin |> ref
-              "do", SSyntax sDo |> ref
-              "delay", SSyntax sDelay |> ref
-              "delay-force", SSyntax sDelayForce |> ref
-              "parameterize", SSyntax sParameterize |> ref
-              "guard", SSyntax sGuard |> ref
-              "let-syntax", SSyntax sLetSyntax |> ref
-              "letrec-syntax", SSyntax sLetRecSyntax |> ref
-              "quasiquote", SSyntax sQuasiquote |> ref
-              "syntax-rules", SSyntax sSyntaxRules |> ref
-              "syntax-error", SSyntax sSyntaxError |> ref
-              "define", SSyntax sDefine |> ref
-              "define-values", SSyntax sDefineValues |> ref
-              "define-syntax", SSyntax sDefineSyntax |> ref
-              "define-record-type", SSyntax sDefineRecordType |> ref
-              "force", SProcedure sForce |> ref
-              "promise?", SProcedure isPromise |> ref
-              "make-promise", SProcedure sMakePromise |> ref
-              "make-parameter", SProcedure sMakeParameter |> ref
-              "eqv?", SProcedure isEqv |> ref
-              "eq?", SProcedure isEqv |> ref
-              "equal?", SProcedure isEqual |> ref
-              "number?", SProcedure isNumber |> ref
-              "complex?", SProcedure isComplex |> ref
-              "real?", SProcedure isReal |> ref
-              "rational?", SProcedure isRational |> ref
-              "integer?", SProcedure isInteger |> ref
-              "exact?", SProcedure isExact |> ref
-              "inexact?", SProcedure isInexact |> ref
-              "exact-integer?", SProcedure isExactInteger |> ref
-              "finite?", SProcedure isFinite |> ref
-              "infinite?", SProcedure isInfinite |> ref
-              "nan?", SProcedure isNaN |> ref
-              "=", SProcedure equalNumber |> ref
-              "<", SProcedure lessNumber |> ref
-              ">", SProcedure greaterNumber |> ref
-              "<=", SProcedure lessEqualNumber |> ref
-              ">=", SProcedure greaterEqualNumber |> ref
-              "zero?", SProcedure isZero |> ref
-              "positive?", SProcedure isPositive |> ref
-              "negative?", SProcedure isNegative |> ref
-              "odd?", SProcedure isOdd |> ref
-              "even?", SProcedure isEven |> ref
-              "max", SProcedure sMax |> ref
-              "min", SProcedure sMin |> ref
-              "+", SProcedure addNumber |> ref
-              "*", SProcedure multiplyNumber |> ref
-              "-", SProcedure subtractNumber |> ref
-              "/", SProcedure divideNumber |> ref
-              "abs", SProcedure sAbs |> ref
-              "floor/", SProcedure sFloorDiv |> ref
-              "floor-quotient", SProcedure sFloorQuotient |> ref
-              "floor-remainder", SProcedure sFloorRemainder |> ref
-              "truncate/", SProcedure sTruncateDiv |> ref
-              "truncate-quotient", SProcedure sTruncateQuotient |> ref
-              "truncate-remainder", SProcedure sTruncateRemainder |> ref
-              "quotient", SProcedure sQuotient |> ref
-              "remainder", SProcedure sRemainder |> ref
-              "modulo", SProcedure sModulo |> ref
-              "gcd", SProcedure sGcd |> ref
-              "lcm", SProcedure sLcm |> ref
-              "numerator", SProcedure sNumerator |> ref
-              "denominator", SProcedure sDenominator |> ref
-              "floor", SProcedure sFloor |> ref
-              "ceiling", SProcedure sCeiling |> ref
-              "truncate", SProcedure sTruncate |> ref
-              "round", SProcedure sRound |> ref
-              "rationalize", SProcedure sRationalize |> ref
-              "exp", SProcedure sExp |> ref
-              "log", SProcedure sLog |> ref
-              "sin", SProcedure sSin |> ref
-              "cos", SProcedure sCos |> ref
-              "tan", SProcedure sTan |> ref
-              "asin", SProcedure sAsin |> ref
-              "acos", SProcedure sAcos |> ref
-              "atan", SProcedure sAtan |> ref
-              "square", SProcedure sSquare |> ref
-              "sqrt", SProcedure sSqrt |> ref
-              "exact-integer-sqrt", SProcedure sExactIntegerSqrt |> ref
-              "expt", SProcedure sExpt |> ref
-              "make-rectangular", SProcedure sMakeRectangular |> ref
-              "make-polar", SProcedure sMakePolar |> ref
-              "real-part", SProcedure sRealPart |> ref
-              "imag-part", SProcedure sImagPart |> ref
-              "magnitude", SProcedure sMagnitude |> ref
-              "angle", SProcedure sAngle |> ref
-              "inexact", SProcedure sInexact |> ref
-              "exact", SProcedure sExact |> ref
-              "number->string", SProcedure sNumberToString |> ref
-              "string->number", SProcedure sStringToNumber |> ref
-              "not", SProcedure sNot |> ref
-              "boolean?", SProcedure isBoolean |> ref
-              "boolean=?", SProcedure isBooleanEq |> ref
-              "pair?", SProcedure isPair |> ref
-              "cons", SProcedure sCons |> ref
-              "car", SProcedure sCar |> ref
-              "cdr", SProcedure sCdr |> ref
-              "set-car!", SProcedure sSetCar |> ref
-              "set-cdr!", SProcedure sSetCdr |> ref
-              "caar", SProcedure sCaar |> ref
-              "cadr", SProcedure sCadr |> ref
-              "cdar", SProcedure sCdar |> ref
-              "cddr", SProcedure sCddr |> ref
-              "null?", SProcedure isNull |> ref
-              "list?", SProcedure isList |> ref
-              "make-list", SProcedure sMakeList |> ref
-              "list", SProcedure sList |> ref
-              "length", SProcedure sLength |> ref
-              "append", SProcedure sAppend |> ref
-              "reverse", SProcedure sReverse |> ref
-              "list-tail", SProcedure sListTail |> ref
-              "list-ref", SProcedure sListRef |> ref
-              "memq", SProcedure sMemq |> ref
-              "memv", SProcedure sMemv |> ref
-              "member", SProcedure sMember |> ref
-              "assq", SProcedure sAssq |> ref
-              "assv", SProcedure sAssv |> ref
-              "assoc", SProcedure sAssoc |> ref
-              "list-copy", SProcedure sListCopy |> ref
-              "symbol?", SProcedure isSymbol |> ref
-              "symbol=?", SProcedure isSymbolEq |> ref
-              "symbol->string", SProcedure sSymbolToString |> ref
-              "string->symbol", SProcedure sStringToSymbol |> ref
-              "char?", SProcedure isChar |> ref
-              "char=?", SProcedure sCharEq |> ref
-              "char<?", SProcedure sCharLt |> ref
-              "char>?", SProcedure sCharGt |> ref
-              "char<=?", SProcedure sCharLe |> ref
-              "char>=?", SProcedure sCharGe |> ref
-              "char-ci=?", SProcedure sCharCiEq |> ref
-              "char-ci<?", SProcedure sCharCiLt |> ref
-              "char-ci>?", SProcedure sCharCiGt |> ref
-              "char-ci<=?", SProcedure sCharCiLe |> ref
-              "char-ci>=?", SProcedure sCharCiGe |> ref
-              "char-alphabetic?", SProcedure sCharAlphabetic |> ref
-              "char-numeric?", SProcedure sCharNumeric |> ref
-              "char-whitespace?", SProcedure sCharWhitespace |> ref
-              "char-upper-case?", SProcedure sCharUpperCase |> ref
-              "char-lower-case?", SProcedure sCharLowerCase |> ref
-              "digit-value", SProcedure sDigitValue |> ref
-              "char->integer", SProcedure sCharToInteger |> ref
-              "integer->char", SProcedure sIntegerToChar |> ref
-              "char-upcase", SProcedure sCharUpcase |> ref
-              "char-downcase", SProcedure sCharDowncase |> ref
-              "char-foldcase", SProcedure sCharFoldcase |> ref
-              "string?", SProcedure isString |> ref
-              "make-string", SProcedure sMakeString |> ref
-              "string", SProcedure sString |> ref
-              "string-length", SProcedure sStringLength |> ref
-              "string-ref", SProcedure sStringRef |> ref
-              "string-set!", SProcedure sStringSetBang |> ref
-              "string=?", SProcedure sStringEq |> ref
-              "string<?", SProcedure sStringLt |> ref
-              "string>?", SProcedure sStringGt |> ref
-              "string<=?", SProcedure sStringLe |> ref
-              "string>=?", SProcedure sStringGe |> ref
-              "string-ci=?", SProcedure sStringCiEq |> ref
-              "string-ci<?", SProcedure sStringCiLt |> ref
-              "string-ci>?", SProcedure sStringCiGt |> ref
-              "string-ci<=?", SProcedure sStringCiLe |> ref
-              "string-ci>=?", SProcedure sStringCiGe |> ref
-              "string-upcase", SProcedure sStringUpcase |> ref
-              "string-downcase", SProcedure sStringDowncase |> ref
-              "string-foldcase", SProcedure sStringFoldcase |> ref
-              "substring", SProcedure sSubstring |> ref
-              "string-append", SProcedure sStringAppend |> ref
-              "string->list", SProcedure sStringToList |> ref
-              "list->string", SProcedure sListToString |> ref
-              "string-copy", SProcedure sStringCopy |> ref
-              "string-copy!", SProcedure sStringCopyBang |> ref
-              "string-fill!", SProcedure sStringFillBang |> ref
-              "vector?", SProcedure isVector |> ref
-              "make-vector", SProcedure sMakeVector |> ref
-              "vector", SProcedure sVector |> ref
-              "vector-length", SProcedure sVectorLength |> ref
-              "vector-ref", SProcedure sVectorRef |> ref
-              "vector-set!", SProcedure sVectorSet |> ref
-              "vector->list", SProcedure sVectorToList |> ref
-              "list->vector", SProcedure sListToVector |> ref
-              "vector->string", SProcedure sVectorToString |> ref
-              "string->vector", SProcedure sStringToVector |> ref
-              "vector-copy", SProcedure sVectorCopy |> ref
-              "vector-copy!", SProcedure sVectorCopyBang |> ref
-              "vector-append", SProcedure sVectorAppend |> ref
-              "vector-fill!", SProcedure sVectorFill |> ref
-              "bytevector?", SProcedure isByteVector |> ref
-              "make-bytevector", SProcedure sMakeByteVector |> ref
-              "bytevector", SProcedure sByteVector |> ref
-              "bytevector-length", SProcedure sByteVectorLength |> ref
-              "bytevector-u8-ref", SProcedure sByteVectorU8Ref |> ref
-              "bytevector-u8-set!", SProcedure sByteVectorU8Set |> ref
-              "bytevector-copy", SProcedure sByteVectorCopy |> ref
-              "bytevector-copy!", SProcedure sByteVectorCopyBang |> ref
-              "bytevector-append", SProcedure sByteVectorAppend |> ref
-              "utf8->string", SProcedure sUtf8ToString |> ref
-              "string->utf8", SProcedure sStringToUtf8 |> ref
-              "procedure?", SProcedure isProcedure |> ref
-              "apply", SProcedure sApply |> ref
-              "map", SProcedure sMap |> ref
-              "string-map", SProcedure sStringMap |> ref
-              "vector-map", SProcedure sVectorMap |> ref
-              "for-each", SProcedure sForEach |> ref
-              "string-for-each", SProcedure sStringForEach |> ref
-              "vector-for-each", SProcedure sVectorForEach |> ref
-              "call-with-current-continuation", SProcedure sCallCC |> ref
-              "call/cc", SProcedure sCallCC |> ref
-              "values", SProcedure sValues |> ref
-              "call-with-values", SProcedure sCallWithValues |> ref
-              "dynamic-wind", SProcedure sDynamicWind |> ref
-              "with-exception-handler", SProcedure sWithExceptionHandler |> ref
-              "raise", SProcedure sRaise |> ref
-              "error", SProcedure sError |> ref
-              "error-object?", SProcedure isErrorObject |> ref
-              "error-object-message", SProcedure sErrorObjectMessage |> ref
-              "error-object-irritants", SProcedure sErrorObjectIrritants |> ref
-              "display", SProcedure sDisplay |> ref
-              "load", SProcedure sLoad |> ref ]
+            [ "quote", (SSyntax sQuote, None) |> ref
+              "lambda", (SSyntax sLambda, None) |> ref
+              "if", (SSyntax sIf, None) |> ref
+              "set!", (SSyntax sSet, None) |> ref
+              "cond", (SSyntax sCond, None) |> ref
+              "case", (SSyntax sCase, None) |> ref
+              "and", (SSyntax sAnd, None) |> ref
+              "or", (SSyntax sOr, None) |> ref
+              "when", (SSyntax sWhen, None) |> ref
+              "unless", (SSyntax sUnless, None) |> ref
+              "let", (SSyntax sLet, None) |> ref
+              "let*", (SSyntax sLetStar, None) |> ref
+              "letrec", (SSyntax sLetRec, None) |> ref
+              "letrec*", (SSyntax sLetRecStar, None) |> ref
+              "let-values", (SSyntax sLetValues, None) |> ref
+              "let*-values", (SSyntax sLetStarValues, None) |> ref
+              "begin", (SSyntax sBegin, None) |> ref
+              "do", (SSyntax sDo, None) |> ref
+              "delay", (SSyntax sDelay, None) |> ref
+              "delay-force", (SSyntax sDelayForce, None) |> ref
+              "parameterize", (SSyntax sParameterize, None) |> ref
+              "guard", (SSyntax sGuard, None) |> ref
+              "let-syntax", (SSyntax sLetSyntax, None) |> ref
+              "letrec-syntax", (SSyntax sLetRecSyntax, None) |> ref
+              "quasiquote", (SSyntax sQuasiquote, None) |> ref
+              "syntax-rules", (SSyntax sSyntaxRules, None) |> ref
+              "syntax-error", (SSyntax sSyntaxError, None) |> ref
+              "define", (SSyntax sDefine, None) |> ref
+              "define-values", (SSyntax sDefineValues, None) |> ref
+              "define-syntax", (SSyntax sDefineSyntax, None) |> ref
+              "define-record-type", (SSyntax sDefineRecordType, None) |> ref
+              "force", (SProcedure sForce, None) |> ref
+              "promise?", (SProcedure isPromise, None) |> ref
+              "make-promise", (SProcedure sMakePromise, None) |> ref
+              "make-parameter", (SProcedure sMakeParameter, None) |> ref
+              "eqv?", (SProcedure isEqv, None) |> ref
+              "eq?", (SProcedure isEqv, None) |> ref
+              "equal?", (SProcedure isEqual, None) |> ref
+              "number?", (SProcedure isNumber, None) |> ref
+              "complex?", (SProcedure isComplex, None) |> ref
+              "real?", (SProcedure isReal, None) |> ref
+              "rational?", (SProcedure isRational, None) |> ref
+              "integer?", (SProcedure isInteger, None) |> ref
+              "exact?", (SProcedure isExact, None) |> ref
+              "inexact?", (SProcedure isInexact, None) |> ref
+              "exact-integer?", (SProcedure isExactInteger, None) |> ref
+              "finite?", (SProcedure isFinite, None) |> ref
+              "infinite?", (SProcedure isInfinite, None) |> ref
+              "nan?", (SProcedure isNaN, None) |> ref
+              "=", (SProcedure equalNumber, None) |> ref
+              "<", (SProcedure lessNumber, None) |> ref
+              ">", (SProcedure greaterNumber, None) |> ref
+              "<=", (SProcedure lessEqualNumber, None) |> ref
+              ">=", (SProcedure greaterEqualNumber, None) |> ref
+              "zero?", (SProcedure isZero, None) |> ref
+              "positive?", (SProcedure isPositive, None) |> ref
+              "negative?", (SProcedure isNegative, None) |> ref
+              "odd?", (SProcedure isOdd, None) |> ref
+              "even?", (SProcedure isEven, None) |> ref
+              "max", (SProcedure sMax, None) |> ref
+              "min", (SProcedure sMin, None) |> ref
+              "+", (SProcedure addNumber, None) |> ref
+              "*", (SProcedure multiplyNumber, None) |> ref
+              "-", (SProcedure subtractNumber, None) |> ref
+              "/", (SProcedure divideNumber, None) |> ref
+              "abs", (SProcedure sAbs, None) |> ref
+              "floor/", (SProcedure sFloorDiv, None) |> ref
+              "floor-quotient", (SProcedure sFloorQuotient, None) |> ref
+              "floor-remainder", (SProcedure sFloorRemainder, None) |> ref
+              "truncate/", (SProcedure sTruncateDiv, None) |> ref
+              "truncate-quotient", (SProcedure sTruncateQuotient, None) |> ref
+              "truncate-remainder", (SProcedure sTruncateRemainder, None) |> ref
+              "quotient", (SProcedure sQuotient, None) |> ref
+              "remainder", (SProcedure sRemainder, None) |> ref
+              "modulo", (SProcedure sModulo, None) |> ref
+              "gcd", (SProcedure sGcd, None) |> ref
+              "lcm", (SProcedure sLcm, None) |> ref
+              "numerator", (SProcedure sNumerator, None) |> ref
+              "denominator", (SProcedure sDenominator, None) |> ref
+              "floor", (SProcedure sFloor, None) |> ref
+              "ceiling", (SProcedure sCeiling, None) |> ref
+              "truncate", (SProcedure sTruncate, None) |> ref
+              "round", (SProcedure sRound, None) |> ref
+              "rationalize", (SProcedure sRationalize, None) |> ref
+              "exp", (SProcedure sExp, None) |> ref
+              "log", (SProcedure sLog, None) |> ref
+              "sin", (SProcedure sSin, None) |> ref
+              "cos", (SProcedure sCos, None) |> ref
+              "tan", (SProcedure sTan, None) |> ref
+              "asin", (SProcedure sAsin, None) |> ref
+              "acos", (SProcedure sAcos, None) |> ref
+              "atan", (SProcedure sAtan, None) |> ref
+              "square", (SProcedure sSquare, None) |> ref
+              "sqrt", (SProcedure sSqrt, None) |> ref
+              "exact-integer-sqrt", (SProcedure sExactIntegerSqrt, None) |> ref
+              "expt", (SProcedure sExpt, None) |> ref
+              "make-rectangular", (SProcedure sMakeRectangular, None) |> ref
+              "make-polar", (SProcedure sMakePolar, None) |> ref
+              "real-part", (SProcedure sRealPart, None) |> ref
+              "imag-part", (SProcedure sImagPart, None) |> ref
+              "magnitude", (SProcedure sMagnitude, None) |> ref
+              "angle", (SProcedure sAngle, None) |> ref
+              "inexact", (SProcedure sInexact, None) |> ref
+              "exact", (SProcedure sExact, None) |> ref
+              "number->string", (SProcedure sNumberToString, None) |> ref
+              "string->number", (SProcedure sStringToNumber, None) |> ref
+              "not", (SProcedure sNot, None) |> ref
+              "boolean?", (SProcedure isBoolean, None) |> ref
+              "boolean=?", (SProcedure isBooleanEq, None) |> ref
+              "pair?", (SProcedure isPair, None) |> ref
+              "cons", (SProcedure sCons, None) |> ref
+              "car", (SProcedure sCar, None) |> ref
+              "cdr", (SProcedure sCdr, None) |> ref
+              "set-car!", (SProcedure sSetCar, None) |> ref
+              "set-cdr!", (SProcedure sSetCdr, None) |> ref
+              "caar", (SProcedure sCaar, None) |> ref
+              "cadr", (SProcedure sCadr, None) |> ref
+              "cdar", (SProcedure sCdar, None) |> ref
+              "cddr", (SProcedure sCddr, None) |> ref
+              "null?", (SProcedure isNull, None) |> ref
+              "list?", (SProcedure isList, None) |> ref
+              "make-list", (SProcedure sMakeList, None) |> ref
+              "list", (SProcedure sList, None) |> ref
+              "length", (SProcedure sLength, None) |> ref
+              "append", (SProcedure sAppend, None) |> ref
+              "reverse", (SProcedure sReverse, None) |> ref
+              "list-tail", (SProcedure sListTail, None) |> ref
+              "list-ref", (SProcedure sListRef, None) |> ref
+              "memq", (SProcedure sMemq, None) |> ref
+              "memv", (SProcedure sMemv, None) |> ref
+              "member", (SProcedure sMember, None) |> ref
+              "assq", (SProcedure sAssq, None) |> ref
+              "assv", (SProcedure sAssv, None) |> ref
+              "assoc", (SProcedure sAssoc, None) |> ref
+              "list-copy", (SProcedure sListCopy, None) |> ref
+              "symbol?", (SProcedure isSymbol, None) |> ref
+              "symbol=?", (SProcedure isSymbolEq, None) |> ref
+              "symbol->string", (SProcedure sSymbolToString, None) |> ref
+              "string->symbol", (SProcedure sStringToSymbol, None) |> ref
+              "char?", (SProcedure isChar, None) |> ref
+              "char=?", (SProcedure sCharEq, None) |> ref
+              "char<?", (SProcedure sCharLt, None) |> ref
+              "char>?", (SProcedure sCharGt, None) |> ref
+              "char<=?", (SProcedure sCharLe, None) |> ref
+              "char>=?", (SProcedure sCharGe, None) |> ref
+              "char-ci=?", (SProcedure sCharCiEq, None) |> ref
+              "char-ci<?", (SProcedure sCharCiLt, None) |> ref
+              "char-ci>?", (SProcedure sCharCiGt, None) |> ref
+              "char-ci<=?", (SProcedure sCharCiLe, None) |> ref
+              "char-ci>=?", (SProcedure sCharCiGe, None) |> ref
+              "char-alphabetic?", (SProcedure sCharAlphabetic, None) |> ref
+              "char-numeric?", (SProcedure sCharNumeric, None) |> ref
+              "char-whitespace?", (SProcedure sCharWhitespace, None) |> ref
+              "char-upper-case?", (SProcedure sCharUpperCase, None) |> ref
+              "char-lower-case?", (SProcedure sCharLowerCase, None) |> ref
+              "digit-value", (SProcedure sDigitValue, None) |> ref
+              "char->integer", (SProcedure sCharToInteger, None) |> ref
+              "integer->char", (SProcedure sIntegerToChar, None) |> ref
+              "char-upcase", (SProcedure sCharUpcase, None) |> ref
+              "char-downcase", (SProcedure sCharDowncase, None) |> ref
+              "char-foldcase", (SProcedure sCharFoldcase, None) |> ref
+              "string?", (SProcedure isString, None) |> ref
+              "make-string", (SProcedure sMakeString, None) |> ref
+              "string", (SProcedure sString, None) |> ref
+              "string-length", (SProcedure sStringLength, None) |> ref
+              "string-ref", (SProcedure sStringRef, None) |> ref
+              "string-set!", (SProcedure sStringSetBang, None) |> ref
+              "string=?", (SProcedure sStringEq, None) |> ref
+              "string<?", (SProcedure sStringLt, None) |> ref
+              "string>?", (SProcedure sStringGt, None) |> ref
+              "string<=?", (SProcedure sStringLe, None) |> ref
+              "string>=?", (SProcedure sStringGe, None) |> ref
+              "string-ci=?", (SProcedure sStringCiEq, None) |> ref
+              "string-ci<?", (SProcedure sStringCiLt, None) |> ref
+              "string-ci>?", (SProcedure sStringCiGt, None) |> ref
+              "string-ci<=?", (SProcedure sStringCiLe, None) |> ref
+              "string-ci>=?", (SProcedure sStringCiGe, None) |> ref
+              "string-upcase", (SProcedure sStringUpcase, None) |> ref
+              "string-downcase", (SProcedure sStringDowncase, None) |> ref
+              "string-foldcase", (SProcedure sStringFoldcase, None) |> ref
+              "substring", (SProcedure sSubstring, None) |> ref
+              "string-append", (SProcedure sStringAppend, None) |> ref
+              "string->list", (SProcedure sStringToList, None) |> ref
+              "list->string", (SProcedure sListToString, None) |> ref
+              "string-copy", (SProcedure sStringCopy, None) |> ref
+              "string-copy!", (SProcedure sStringCopyBang, None) |> ref
+              "string-fill!", (SProcedure sStringFillBang, None) |> ref
+              "vector?", (SProcedure isVector, None) |> ref
+              "make-vector", (SProcedure sMakeVector, None) |> ref
+              "vector", (SProcedure sVector, None) |> ref
+              "vector-length", (SProcedure sVectorLength, None) |> ref
+              "vector-ref", (SProcedure sVectorRef, None) |> ref
+              "vector-set!", (SProcedure sVectorSet, None) |> ref
+              "vector->list", (SProcedure sVectorToList, None) |> ref
+              "list->vector", (SProcedure sListToVector, None) |> ref
+              "vector->string", (SProcedure sVectorToString, None) |> ref
+              "string->vector", (SProcedure sStringToVector, None) |> ref
+              "vector-copy", (SProcedure sVectorCopy, None) |> ref
+              "vector-copy!", (SProcedure sVectorCopyBang, None) |> ref
+              "vector-append", (SProcedure sVectorAppend, None) |> ref
+              "vector-fill!", (SProcedure sVectorFill, None) |> ref
+              "bytevector?", (SProcedure isByteVector, None) |> ref
+              "make-bytevector", (SProcedure sMakeByteVector, None) |> ref
+              "bytevector", (SProcedure sByteVector, None) |> ref
+              "bytevector-length", (SProcedure sByteVectorLength, None) |> ref
+              "bytevector-u8-ref", (SProcedure sByteVectorU8Ref, None) |> ref
+              "bytevector-u8-set!", (SProcedure sByteVectorU8Set, None) |> ref
+              "bytevector-copy", (SProcedure sByteVectorCopy, None) |> ref
+              "bytevector-copy!", (SProcedure sByteVectorCopyBang, None) |> ref
+              "bytevector-append", (SProcedure sByteVectorAppend, None) |> ref
+              "utf8->string", (SProcedure sUtf8ToString, None) |> ref
+              "string->utf8", (SProcedure sStringToUtf8, None) |> ref
+              "procedure?", (SProcedure isProcedure, None) |> ref
+              "apply", (SProcedure sApply, None) |> ref
+              "map", (SProcedure sMap, None) |> ref
+              "string-map", (SProcedure sStringMap, None) |> ref
+              "vector-map", (SProcedure sVectorMap, None) |> ref
+              "for-each", (SProcedure sForEach, None) |> ref
+              "string-for-each", (SProcedure sStringForEach, None) |> ref
+              "vector-for-each", (SProcedure sVectorForEach, None) |> ref
+              "call-with-current-continuation", (SProcedure sCallCC, None) |> ref
+              "call/cc", (SProcedure sCallCC, None) |> ref
+              "values", (SProcedure sValues, None) |> ref
+              "call-with-values", (SProcedure sCallWithValues, None) |> ref
+              "dynamic-wind", (SProcedure sDynamicWind, None) |> ref
+              "with-exception-handler", (SProcedure sWithExceptionHandler, None) |> ref
+              "raise", (SProcedure sRaise, None) |> ref
+              "error", (SProcedure sError, None) |> ref
+              "error-object?", (SProcedure isErrorObject, None) |> ref
+              "error-object-message", (SProcedure sErrorObjectMessage, None) |> ref
+              "error-object-irritants", (SProcedure sErrorObjectIrritants, None) |> ref
+              "display", (SProcedure sDisplay, None) |> ref
+              "load", (SProcedure sLoad, None) |> ref ]

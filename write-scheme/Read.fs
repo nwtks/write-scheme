@@ -25,10 +25,13 @@ module Read =
     let pSubsequent = choice [ pInitial; pDigit; pSpecialSubsequent ]
     let hex2int x = (int x &&& 15) + (int x >>> 6) * 9
 
+    let parseWithPos p =
+        pipe2 getPosition p (fun pos expr -> expr, Some { Line = pos.Line; Column = pos.Column })
+
     let pHexScalarValue =
         pHexDigit |> many1Chars
         |>> fun x ->
-            x.ToCharArray()
+            x
             |> Seq.map hex2int
             |> Seq.fold (fun acc a -> acc * 16 + a) 0
             |> System.Char.ConvertFromUtf32
@@ -94,13 +97,13 @@ module Read =
                 anyChar
                 >>= fun c2 ->
                     if System.Char.IsLowSurrogate c2 then
-                        preturn (System.Text.Rune(c1, c2).ToString())
+                        System.Text.Rune(c1, c2) |> string |> preturn
                     else
-                        fail "invalid surrogate pair"
+                        fail "invalid surrogate pair."
             elif System.Char.IsLowSurrogate c1 then
-                fail "unexpected low surrogate"
+                fail "unexpected low surrogate."
             else
-                preturn (System.Text.Rune(c1).ToString())
+                System.Text.Rune c1 |> string |> preturn
 
     let pCharacter =
         choice
@@ -123,6 +126,7 @@ module Read =
                   (fun _ _ _ -> "") ]
 
     let pString = between (pchar '"') (pchar '"') (pStringElement |> manyStrings)
+
     let pSign = anyOf "+-" |> opt |>> Option.defaultValue '+'
 
     let toBigInteger radix x =
@@ -135,7 +139,7 @@ module Read =
             | 8 -> anyOf "01234567" |> many1Chars
             | 10 -> digit |> many1Chars
             | 16 -> hex |> many1Chars
-            | _ -> failwith "unsupported radix"
+            | x -> x |> failwithf "'%d' unsupported radix."
 
         pDigits |>> toBigInteger (bigint radix)
 
@@ -245,12 +249,12 @@ module Read =
 
     let pPrefix =
         choice
-            [ attempt (pipe2 pExactnessOnly (pRadixOnly |> opt) (fun e r -> (Some e, r)))
-              attempt (pipe2 pRadixOnly (pExactnessOnly |> opt) (fun r e -> (e, Some r)))
+            [ attempt (pipe2 pExactnessOnly (pRadixOnly |> opt) (fun e r -> Some e, r))
+              attempt (pipe2 pRadixOnly (pExactnessOnly |> opt) (fun r e -> e, Some r))
               preturn (None, None) ]
 
-    let parseExactnessRadix exactness radix =
-        pNumberBody (radix |> Option.defaultValue 10)
+    let parseExactnessRadixNumber exactness radix =
+        radix |> Option.defaultValue 10 |> pNumberBody
         |>> fun num ->
             match exactness with
             | Some true ->
@@ -265,7 +269,8 @@ module Read =
             | None -> num
 
     let parseNumber =
-        pPrefix >>= fun (exactness, radix) -> parseExactnessRadix exactness radix
+        pPrefix
+        >>= fun (exactness, radix) -> parseExactnessRadixNumber exactness radix |> parseWithPos
 
     let parseBool =
         choice
@@ -273,10 +278,29 @@ module Read =
               stringCIReturn "#t" STrue
               stringCIReturn "#false" SFalse
               stringCIReturn "#f" SFalse ]
+        |> parseWithPos
 
-    let parseSymbol = pIdentifier |>> SSymbol
-    let parseChar = pCharacter |>> fun s -> System.Text.Rune.GetRuneAt(s, 0) |> SChar
-    let parseString = pString |>> fun s -> newSString true s
+    let parseSymbol = pIdentifier |>> SSymbol |> parseWithPos
+
+    let parseChar =
+        pCharacter |>> (fun s -> System.Text.Rune.GetRuneAt(s, 0) |> SChar)
+        |> parseWithPos
+
+    let parseString = pString |>> (fun s -> newSString true s) |> parseWithPos
+
+    let parseByteVector =
+        pstringCI "#u8("
+        >>. pIntertokenSpace
+        >>. many (parseNumber .>> pIntertokenSpace)
+        .>> pchar ')'
+        |>> fun xs ->
+            xs
+            |> List.map (function
+                | SRational(num, den), _ when den = 1I && num >= 0I && num <= 255I -> byte num
+                | _ -> failwith "bytevector elements must be exact integers between 0 and 255.")
+            |> List.toArray
+            |> SByteVector
+        |> parseWithPos
 
     let parseDatum, parseDatumRef = createParserForwardedToRef ()
 
@@ -291,56 +315,44 @@ module Read =
              >>. pipe2
                  (many1 (parseDatum .>> pIntertokenSpace1))
                  (pchar '.' >>. pIntertokenSpace1 >>. parseDatum .>> pIntertokenSpace)
-                 (fun x1 x2 -> List.foldBack (fun h acc -> SPair { car = h; cdr = acc }) x1 x2))
+                 (fun xs x -> List.foldBack (fun h acc -> SPair { car = h; cdr = acc }, snd h) xs x))
 
     let parseVector =
         pstring "#(" >>. pIntertokenSpace >>. many (parseDatum .>> pIntertokenSpace)
         .>> pchar ')'
         |>> (List.toArray >> SVector)
+        |> parseWithPos
 
-    let parseByteVector =
-        pstringCI "#u8(" >>. pIntertokenSpace >>. many (parseDatum .>> pIntertokenSpace)
-        .>> pchar ')'
-        |>> fun xs ->
-            xs
-            |> List.map (function
-                | SRational(num, den) when den = 1I && num >= 0I && num <= 255I -> byte num
-                | _ -> failwith "bytevector elements must be exact integers between 0 and 255")
-            |> List.toArray
-            |> SByteVector
+    let parseQuoted = pchar '\'' >>. parseDatum |>> SQuote |> parseWithPos
+    let parseQuasiquote = pchar '`' >>. parseDatum |>> SQuasiquote |> parseWithPos
 
-    let parseQuoted = pchar '\'' >>. parseDatum |>> SQuote
-    let parseQuasiquote = pchar '`' >>. parseDatum |>> SQuasiquote
-    let parseUnquoteSplicing = pstring ",@" >>. parseDatum |>> SUnquoteSplicing
-    let parseUnquoted = pchar ',' >>. parseDatum |>> SUnquote
+    let parseUnquoteSplicing =
+        pstring ",@" >>. parseDatum |>> SUnquoteSplicing |> parseWithPos
 
-    let parseWithPos p =
-        pipe2 getPosition p (fun pos expr -> fst expr, Some { Line = pos.Line; Column = pos.Column })
+    let parseUnquoted = pchar ',' >>. parseDatum |>> SUnquote |> parseWithPos
 
     parseDatumRef.Value <-
         choice
             [ parseBool
               parseChar
               parseString
+              parseByteVector
               attempt parseNumber
+              attempt parseSymbol
+              parseVector
               attempt parseDotList
-              attempt parseVector
-              attempt parseByteVector
               parseList
               parseQuoted
               parseQuasiquote
-              attempt parseUnquoteSplicing
-              parseUnquoted
-              attempt parseSymbol ]
-        |> parseWithPos
+              parseUnquoteSplicing
+              parseUnquoted ]
 
     let read input =
         match input |> run (pIntertokenSpace >>. parseDatum .>> pIntertokenSpace .>> eof) with
+        | Success(result, _, _) -> result
         | Failure(errorMsg, parserError, _) ->
-            sprintf
+            failwithf
                 "Parse failed: %s (at line %d, column %d)"
                 errorMsg
                 parserError.Position.Line
                 parserError.Position.Column
-            |> failwith
-        | Success(result, _, _) -> result

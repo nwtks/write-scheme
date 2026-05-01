@@ -26,19 +26,16 @@ module Print =
         real + imag
 
     let formatString data =
-        let runes = data.runes
-        let sb = System.Text.StringBuilder runes.Length
+        let sb = System.Text.StringBuilder data.runes.Length
         sb.Append '"' |> ignore
 
-        for r in runes do
-            let s = r.ToString()
-
-            match s with
+        for r in data.runes do
+            match r |> string with
             | "\"" -> sb.Append "\\\"" |> ignore
-            | _ -> sb.Append s |> ignore
+            | x -> sb.Append x |> ignore
 
         sb.Append '"' |> ignore
-        sb.ToString()
+        sb |> string
 
     let formatChar (c: System.Text.Rune) =
         match c.Value with
@@ -55,72 +52,69 @@ module Print =
             if System.Text.Rune.IsControl c then
                 c.Value |> sprintf "#\\x%x"
             else
-                c.ToString() |> sprintf "#\\%s"
+                c |> string |> sprintf "#\\%s"
 
     [<TailCall>]
-    let rec printListCPS visited cont =
+    let rec formatList visited cont =
         function
         | [] -> "" |> cont
         | [ x ] -> x |> printCPS visited cont
         | x :: xs ->
             x
-            |> printCPS visited (fun s1 -> xs |> printListCPS visited (fun s2 -> s1 + " " + s2 |> cont))
+            |> printCPS visited (fun s1 -> xs |> formatList visited (fun s2 -> s1 + " " + s2 |> cont))
 
     and [<TailCall>] formatPair visited cont acc pair =
         if visited |> List.exists (fun p -> obj.ReferenceEquals(p, pair)) then
             match acc with
             | [] -> "..." |> cont
-            | _ -> acc |> List.rev |> printListCPS visited (fun s -> sprintf "(%s ...)" s |> cont)
+            | _ -> acc |> List.rev |> formatList visited (fun s -> s |> sprintf "(%s ...)" |> cont)
         else
             let visited' = pair :: visited
 
             match pair.cdr with
-            | SEmpty ->
+            | SEmpty, _ ->
                 pair.car :: acc
                 |> List.rev
-                |> printListCPS visited' (fun s -> s |> sprintf "(%s)" |> cont)
-            | SPair p -> p |> formatPair visited' cont (pair.car :: acc)
+                |> formatList visited' (fun s -> s |> sprintf "(%s)" |> cont)
+            | SPair p, _ -> p |> formatPair visited' cont (pair.car :: acc)
             | _ ->
                 pair.car :: acc
                 |> List.rev
-                |> printListCPS visited' (fun s1 ->
+                |> formatList visited' (fun s1 ->
                     pair.cdr |> printCPS visited' (fun s2 -> sprintf "(%s . %s)" s1 s2 |> cont))
 
-    and [<TailCall>] printCPS visited cont (kind, _) =
-        match kind with
-        | SExpressionKind.SUnspecified -> "#<unspecified>" |> cont
-        | SExpressionKind.SEmpty -> "()" |> cont
-        | SExpressionKind.SBool true -> "#t" |> cont
-        | SExpressionKind.SBool false -> "#f" |> cont
-        | SExpressionKind.SRational(k, d) -> (if d = 1I then string k else sprintf "%A/%A" k d) |> cont
-        | SExpressionKind.SReal x -> formatFloat x false |> cont
-        | SExpressionKind.SComplex x -> formatComplex x |> cont
-        | SExpressionKind.SString data -> formatString data |> cont
-        | SExpressionKind.SChar x -> formatChar x |> cont
-        | SExpressionKind.SSymbol x -> x |> cont
-        | SExpressionKind.SPair p -> p |> formatPair visited cont []
-        | SExpressionKind.SVector xs ->
-            xs
-            |> Array.toList
-            |> printListCPS visited (fun s -> s |> sprintf "#(%s)" |> cont)
-        | SExpressionKind.SByteVector xs -> xs |> Array.map string |> String.concat " " |> sprintf "#u8(%s)" |> cont
-        | SExpressionKind.SValues xs -> xs |> printListCPS visited (fun s -> s |> sprintf "(values %s)" |> cont)
-        | SExpressionKind.SRecord(_, typeName, _) -> typeName |> sprintf "#<%s>" |> cont
-        | SExpressionKind.SError(msg, irritants) ->
+    and [<TailCall>] printCPS visited cont =
+        function
+        | SUnspecified, _ -> "#<unspecified>" |> cont
+        | SEmpty, _ -> "()" |> cont
+        | SBool true, _ -> "#t" |> cont
+        | SBool false, _ -> "#f" |> cont
+        | SRational(k, d), _ -> (if d = 1I then string k else sprintf "%A/%A" k d) |> cont
+        | SReal x, _ -> formatFloat x false |> cont
+        | SComplex x, _ -> formatComplex x |> cont
+        | SString data, _ -> formatString data |> cont
+        | SChar x, _ -> formatChar x |> cont
+        | SSymbol x, _ -> x |> cont
+        | SPair p, _ -> p |> formatPair visited cont []
+        | SVector xs, _ -> xs |> Array.toList |> formatList visited (fun s -> s |> sprintf "#(%s)" |> cont)
+        | SByteVector xs, _ -> xs |> Array.map string |> String.concat " " |> sprintf "#u8(%s)" |> cont
+        | SValues xs, _ -> xs |> formatList visited (fun s -> s |> sprintf "(values %s)" |> cont)
+        | SRecord(_, typeName, _), _ -> typeName |> sprintf "#<%s>" |> cont
+        | SError(msg, irritants), _ ->
             let prefix = msg.runes |> runesToString |> sprintf "#<error \"%s\""
 
             match irritants with
             | [] -> prefix + ">" |> cont
-            | _ -> irritants |> printListCPS visited (fun s -> prefix + " " + s + ">" |> cont)
-        | SExpressionKind.SQuote x -> x |> printCPS visited (fun s -> s |> sprintf "'%s" |> cont)
-        | SExpressionKind.SQuasiquote x -> x |> printCPS visited (fun s -> s |> sprintf "`%s" |> cont)
-        | SExpressionKind.SUnquote x -> x |> printCPS visited (fun s -> s |> sprintf ",%s" |> cont)
-        | SExpressionKind.SUnquoteSplicing x -> x |> printCPS visited (fun s -> s |> sprintf ",@%s" |> cont)
-        | SExpressionKind.SPromise _ -> "#<promise>" |> cont
-        | SExpressionKind.SParameter _ -> "#<parameter>" |> cont
-        | SExpressionKind.SSyntax _ -> "#<syntax>" |> cont
-        | SExpressionKind.SProcedure _ -> "#<procedure>" |> cont
-        | SExpressionKind.SContinuation _ -> "#<continuation>" |> cont
+            | _ -> irritants |> formatList visited (fun s -> prefix + " " + s + ">" |> cont)
+        | SQuote x, _ -> x |> printCPS visited (fun s -> s |> sprintf "'%s" |> cont)
+        | SQuasiquote x, _ -> x |> printCPS visited (fun s -> s |> sprintf "`%s" |> cont)
+        | SUnquote x, _ -> x |> printCPS visited (fun s -> s |> sprintf ",%s" |> cont)
+        | SUnquoteSplicing x, _ -> x |> printCPS visited (fun s -> s |> sprintf ",@%s" |> cont)
+        | SPromise _, _ -> "#<promise>" |> cont
+        | SParameter _, _ -> "#<parameter>" |> cont
+        | SSyntax _, _ -> "#<syntax>" |> cont
+        | SProcedure _, _ -> "#<procedure>" |> cont
+        | SContinuation _, _ -> "#<continuation>" |> cont
 
-    let print x = x |> printCPS [] id
-    let printList xs = xs |> printListCPS [] id
+    let printList xs = xs |> formatList [] id
+    let print x = printList [ x ]

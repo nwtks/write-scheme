@@ -39,9 +39,9 @@ module Type =
         let sb = System.Text.StringBuilder runes.Length
 
         for r in runes do
-            sb.Append(r.ToString()) |> ignore
+            r |> string |> sb.Append |> ignore
 
-        sb.ToString()
+        sb |> string
 
     type Position = { Line: int64; Column: int64 }
 
@@ -68,8 +68,8 @@ module Type =
         | SUnquoteSplicing of SExpression
         | SPromise of (bool * SExpression) ref
         | SParameter of SExpression ref * SExpression option
-        | SSyntax of (Context -> SContinuation -> SExpression list -> SExpression)
-        | SProcedure of (Context -> SContinuation -> SExpression list -> SExpression)
+        | SSyntax of (Context -> Position option -> SContinuation -> SExpression list -> SExpression)
+        | SProcedure of (Context -> Position option -> SContinuation -> SExpression list -> SExpression)
         | SContinuation of SContinuation
 
     and SExpression = SExpressionKind * Position option
@@ -94,185 +94,46 @@ module Type =
           before: SExpression
           after: SExpression }
 
-    let (|SUnspecified|_|) =
-        function
-        | SUnspecified, _ -> Some()
-        | _ -> None
-
-    let (|SEmpty|_|) =
-        function
-        | SEmpty, _ -> Some()
-        | _ -> None
-
-    let (|SBool|_|) =
-        function
-        | SBool b, _ -> Some b
-        | _ -> None
-
-    let (|SRational|_|) =
-        function
-        | SRational(n, d), _ -> Some(n, d)
-        | _ -> None
-
-    let (|SReal|_|) =
-        function
-        | SReal r, _ -> Some r
-        | _ -> None
-
-    let (|SComplex|_|) =
-        function
-        | SComplex c, _ -> Some c
-        | _ -> None
-
-    let (|SString|_|) =
-        function
-        | SString s, _ -> Some s
-        | _ -> None
-
-    let (|SChar|_|) =
-        function
-        | SChar c, _ -> Some c
-        | _ -> None
-
-    let (|SSymbol|_|) =
-        function
-        | SSymbol s, _ -> Some s
-        | _ -> None
-
-    let (|SPair|_|) =
-        function
-        | SPair p, _ -> Some p
-        | _ -> None
-
-    let (|SVector|_|) =
-        function
-        | SVector v, _ -> Some v
-        | _ -> None
-
-    let (|SByteVector|_|) =
-        function
-        | SByteVector bv, _ -> Some bv
-        | _ -> None
-
-    let (|SValues|_|) =
-        function
-        | SValues vs, _ -> Some vs
-        | _ -> None
-
-    let (|SRecord|_|) =
-        function
-        | SRecord(id, n, fs), _ -> Some(id, n, fs)
-        | _ -> None
-
-    let (|SError|_|) =
-        function
-        | SError(m, i), _ -> Some(m, i)
-        | _ -> None
-
-    let (|SQuote|_|) =
-        function
-        | SQuote q, _ -> Some q
-        | _ -> None
-
-    let (|SQuasiquote|_|) =
-        function
-        | SQuasiquote q, _ -> Some q
-        | _ -> None
-
-    let (|SUnquote|_|) =
-        function
-        | SUnquote u, _ -> Some u
-        | _ -> None
-
-    let (|SUnquoteSplicing|_|) =
-        function
-        | SUnquoteSplicing u, _ -> Some u
-        | _ -> None
-
-    let (|SPromise|_|) =
-        function
-        | SPromise p, _ -> Some p
-        | _ -> None
-
-    let (|SParameter|_|) =
-        function
-        | SParameter(r, c), _ -> Some(r, c)
-        | _ -> None
-
-    let (|SSyntax|_|) =
-        function
-        | SSyntax s, _ -> Some s
-        | _ -> None
-
-    let (|SProcedure|_|) =
-        function
-        | SProcedure p, _ -> Some p
-        | _ -> None
-
-    let (|SContinuation|_|) =
-        function
-        | SContinuation c, _ -> Some c
-        | _ -> None
-
-    let SUnspecified: SExpression = SUnspecified, None
-    let SEmpty: SExpression = SEmpty, None
-    let SBool b : SExpression = SBool b, None
-    let SRational (n, d) : SExpression = SRational(n, d), None
-    let SReal r : SExpression = SReal r, None
-    let SComplex c : SExpression = SComplex c, None
-    let SString s : SExpression = SString s, None
-    let SChar c : SExpression = SChar c, None
-    let SSymbol s : SExpression = SSymbol s, None
-    let SPair p : SExpression = SPair p, None
-    let SVector v : SExpression = SVector v, None
-    let SByteVector bv : SExpression = SByteVector bv, None
-    let SValues vs : SExpression = SValues vs, None
-    let SRecord (id, name, fs) : SExpression = SRecord(id, name, fs), None
-    let SError (m, i) : SExpression = SError(m, i), None
-    let SQuote q : SExpression = SQuote q, None
-    let SQuasiquote q : SExpression = SQuasiquote q, None
-    let SUnquote u : SExpression = SUnquote u, None
-    let SUnquoteSplicing u : SExpression = SUnquoteSplicing u, None
-    let SPromise p : SExpression = SPromise p, None
-    let SParameter (r, c) : SExpression = SParameter(r, c), None
-    let SSyntax s : SExpression = SSyntax s, None
-    let SProcedure p : SExpression = SProcedure p, None
-    let SContinuation c : SExpression = SContinuation c, None
-
     let STrue = SBool true
     let SFalse = SBool false
     let toSBool x = if x then STrue else SFalse
 
     let toSPair xs =
-        List.foldBack (fun x acc -> SPair { car = x; cdr = acc }) xs SEmpty
+        List.foldBack (fun x acc -> SPair { car = x; cdr = acc }, snd x) xs (SEmpty, None)
 
+    // Floyd's cycle-finding algorithm
     [<TailCall>]
     let rec loopProperList tortoise =
         function
-        | SEmpty -> true
-        | SPair pHare ->
+        | SEmpty, _ -> true
+        | SPair pHare, _ ->
             match pHare.cdr with
-            | SEmpty -> true
-            | SPair pHareNext ->
+            | SEmpty, _ -> true
+            | SPair pHareNext, _ ->
                 match tortoise with
-                | SPair pTortoise when obj.ReferenceEquals(pTortoise, pHareNext) -> false
-                | SPair pTortoise -> pHareNext.cdr |> loopProperList pTortoise.cdr
+                | SPair pTortoise, _ when obj.ReferenceEquals(pTortoise, pHareNext) -> false
+                | SPair pTortoise, _ -> pHareNext.cdr |> loopProperList pTortoise.cdr
                 | _ -> false
             | _ -> false
         | _ -> false
 
     let isProperList =
         function
-        | SEmpty -> true
-        | SPair p as expr -> p.cdr |> loopProperList expr
+        | SEmpty, _ -> true
+        | SPair p, _ as expr -> p.cdr |> loopProperList expr
         | _ -> false
+
+    let formatPosition pos =
+        match pos with
+        | Some p -> sprintf " (at line %d, column %d)" p.Line p.Column
+        | None -> ""
 
     [<TailCall>]
     let rec loopToList acc =
         function
-        | SEmpty -> List.rev acc
-        | SPair p -> loopToList (p.car :: acc) p.cdr
-        | _ -> failwith "not a proper list"
+        | SEmpty, _ -> List.rev acc
+        | SPair p, _ -> loopToList (p.car :: acc) p.cdr
+        | x -> failwithf "not a proper list.%s" (x |> snd |> formatPosition)
 
     let toList expr = loopToList [] expr
 

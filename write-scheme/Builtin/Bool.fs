@@ -5,22 +5,22 @@ open Type
 
 [<AutoOpen>]
 module Bool =
-    let sNot envs cont =
+    let sNot envs pos cont =
         function
-        | [ SBool false ] -> STrue |> cont
-        | _ -> SFalse |> cont
+        | [ SBool false, _ ] -> (STrue, pos) |> cont
+        | _ -> (SFalse, pos) |> cont
 
-    let isBoolean envs cont =
+    let isBoolean envs pos cont =
         function
-        | [ SBool _ ] -> STrue |> cont
-        | _ -> SFalse |> cont
+        | [ SBool _, _ ] -> (STrue, pos) |> cont
+        | _ -> (SFalse, pos) |> cont
 
-    let isBooleanEq envs cont args =
-        args
-        |> List.map (function
-            | SBool b -> b
-            | x -> [ x ] |> invalidParameter "'%s' is not a boolean in boolean=?.")
-        |> List.pairwise
-        |> List.forall (fun (a, b) -> a = b)
-        |> toSBool
-        |> cont
+    let isBooleanEq envs pos cont =
+        List.map (function
+            | SBool b, _ -> b
+            | x -> x |> invalid (snd x) "'%s' is not a boolean in boolean=?.")
+        >> List.pairwise
+        >> List.forall (fun (a, b) -> a = b)
+        >> toSBool
+        >> fun x -> x, pos
+        >> cont

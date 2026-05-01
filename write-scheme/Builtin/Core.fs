@@ -5,10 +5,23 @@ open Type
 
 [<AutoOpen>]
 module Core =
-    let isEqv envs cont =
+    let isEqv envs pos cont =
         function
-        | [ a; b ] -> (a, b) |> eqv |> toSBool |> cont
-        | _ -> SFalse |> cont
+        | [ a; b ] -> ((a, b) |> eqv |> toSBool, pos) |> cont
+        | _ -> (SFalse, pos) |> cont
+
+    [<TailCall>]
+    let rec zipVectorEqual (a: SExpression array) (b: SExpression array) i acc =
+        if i < 0 then
+            acc
+        else
+            zipVectorEqual a b (i - 1) ((a.[i], b.[i]) :: acc)
+
+    [<TailCall>]
+    let rec loopByteVectorEqual (a: byte array) (b: byte array) i =
+        if i < 0 then true
+        elif a.[i] <> b.[i] then false
+        else loopByteVectorEqual a b (i - 1)
 
     [<TailCall>]
     let rec loopEqual =
@@ -16,66 +29,58 @@ module Core =
         | [] -> true
         | (a, b) :: xs ->
             match a, b with
-            | SPair pa, SPair pb -> (pa.car, pb.car) :: (pa.cdr, pb.cdr) :: xs |> loopEqual
-            | SVector va, SVector vb ->
+            | (SPair pa, _), (SPair pb, _) -> (pa.car, pb.car) :: (pa.cdr, pb.cdr) :: xs |> loopEqual
+            | (SVector va, _), (SVector vb, _) ->
                 if va.Length <> vb.Length then
                     false
                 else
-                    let rec zip i acc =
-                        if i < 0 then acc else zip (i - 1) ((va.[i], vb.[i]) :: acc)
-
-                    zip (va.Length - 1) xs |> loopEqual
-            | SByteVector va, SByteVector vb ->
+                    zipVectorEqual va vb (va.Length - 1) xs |> loopEqual
+            | (SByteVector va, _), (SByteVector vb, _) ->
                 if va.Length <> vb.Length then
                     false
                 else
-                    let rec loop i =
-                        if i < 0 then true
-                        elif va.[i] <> vb.[i] then false
-                        else loop (i - 1)
-
-                    loop (va.Length - 1) && loopEqual xs
-            | SValues va, SValues vb ->
+                    loopByteVectorEqual va vb (va.Length - 1) && loopEqual xs
+            | (SValues va, _), (SValues vb, _) ->
                 if va.Length <> vb.Length then
                     false
                 else
                     List.zip va vb @ xs |> loopEqual
-            | SQuote a', SQuote b' -> (a', b') :: xs |> loopEqual
-            | SUnquote a', SUnquote b' -> (a', b') :: xs |> loopEqual
-            | SBool a', SBool b' -> a' = b' && loopEqual xs
-            | SRational(a1, a2), SRational(b1, b2) -> a1 = b1 && a2 = b2 && loopEqual xs
-            | SReal a', SReal b' -> a' = b' && loopEqual xs
-            | SComplex a', SComplex b' -> a' = b' && loopEqual xs
-            | SString a', SString b' ->
+            | (SQuote a', _), (SQuote b', _) -> (a', b') :: xs |> loopEqual
+            | (SUnquote a', _), (SUnquote b', _) -> (a', b') :: xs |> loopEqual
+            | (SBool a', _), (SBool b', _) -> a' = b' && loopEqual xs
+            | (SRational(a1, a2), _), (SRational(b1, b2), _) -> a1 = b1 && a2 = b2 && loopEqual xs
+            | (SReal a', _), (SReal b', _) -> a' = b' && loopEqual xs
+            | (SComplex a', _), (SComplex b', _) -> a' = b' && loopEqual xs
+            | (SString a', _), (SString b', _) ->
                 a'.runes.Length = b'.runes.Length
                 && Array.forall2 (=) a'.runes b'.runes
                 && loopEqual xs
-            | SChar a', SChar b' -> a' = b' && loopEqual xs
-            | SSymbol a', SSymbol b' -> a' = b' && loopEqual xs
+            | (SChar a', _), (SChar b', _) -> a' = b' && loopEqual xs
+            | (SSymbol a', _), (SSymbol b', _) -> a' = b' && loopEqual xs
             | (a', _), (b', _) -> a' = b' && loopEqual xs
 
-    let isEqual envs cont =
+    let isEqual envs pos cont =
         function
-        | [ a; b ] -> [ a, b ] |> loopEqual |> toSBool |> cont
-        | _ -> SFalse |> cont
+        | [ a; b ] -> ([ a, b ] |> loopEqual |> toSBool, pos) |> cont
+        | _ -> (SFalse, pos) |> cont
 
-    let sDisplay envs cont =
+    let sDisplay envs pos cont =
         function
-        | [ SString x ] ->
+        | [ SString x, _ ] ->
             x.runes |> runesToString |> printf "%s"
-            SEmpty |> cont
-        | [ SChar x ] ->
-            x.ToString() |> printf "%s"
-            SEmpty |> cont
+            (SUnspecified, pos) |> cont
+        | [ SChar x, _ ] ->
+            x |> string |> printf "%s"
+            (SUnspecified, pos) |> cont
         | [ x ] ->
             x |> Print.print |> printf "%s"
-            SEmpty |> cont
-        | x -> x |> invalidParameter "'%s' invalid display parameter."
+            (SUnspecified, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid display parameter."
 
-    let sLoad envs cont =
+    let sLoad envs pos cont =
         function
-        | [ SString f ] ->
+        | [ SString f, _ ] ->
             let path = f.runes |> runesToString
-            System.IO.File.ReadAllText path |> Read.read |> Eval.eval envs cont |> ignore
-            sprintf "Loaded '%s'." path |> SSymbol |> cont
-        | x -> x |> invalidParameter "'%s' invalid load parameter."
+            path |> System.IO.File.ReadAllText |> Read.read |> Eval.eval envs cont |> ignore
+            (path |> sprintf "Loaded '%s'." |> SSymbol, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid load parameter."

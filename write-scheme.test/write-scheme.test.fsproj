@@ -40,7 +40,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\write-scheme\write-scheme.fsproj" />
+    <ProjectReference Include="../write-scheme/write-scheme.fsproj" />
   </ItemGroup>
 
 </Project>

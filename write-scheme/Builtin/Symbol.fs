@@ -5,28 +5,28 @@ open Type
 
 [<AutoOpen>]
 module Symbol =
-    let isSymbol envs cont =
+    let isSymbol envs pos cont =
         function
-        | [ SSymbol _ ] -> STrue |> cont
-        | [ _ ] -> SFalse |> cont
-        | x -> x |> invalidParameter "'%s' invalid symbol? parameter."
+        | [ SSymbol _, _ ] -> (STrue, pos) |> cont
+        | [ _ ] -> (SFalse, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid symbol? parameter."
 
-    let isSymbolEq envs cont args =
-        args
-        |> List.pairwise
-        |> List.forall (fun (a, b) ->
+    let isSymbolEq envs pos cont =
+        List.pairwise
+        >> List.forall (fun (a, b) ->
             match a, b with
-            | SSymbol s1, SSymbol s2 -> s1 = s2
+            | (SSymbol s1, _), (SSymbol s2, _) -> s1 = s2
             | _ -> false)
-        |> toSBool
-        |> cont
+        >> toSBool
+        >> fun x -> x, pos
+        >> cont
 
-    let sSymbolToString envs cont =
+    let sSymbolToString envs pos cont =
         function
-        | [ SSymbol s ] -> s |> newSString true |> cont
-        | x -> x |> invalidParameter "'%s' invalid symbol->string parameter."
+        | [ SSymbol s, _ ] -> (s |> newSString true, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid symbol->string parameter."
 
-    let sStringToSymbol envs cont =
+    let sStringToSymbol envs pos cont =
         function
-        | [ SString s ] -> s.runes |> runesToString |> SSymbol |> cont
-        | x -> x |> invalidParameter "'%s' invalid string->symbol parameter."
+        | [ SString s, _ ] -> (s.runes |> runesToString |> SSymbol, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid string->symbol parameter."

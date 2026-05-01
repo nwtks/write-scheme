@@ -30,10 +30,10 @@ module Context =
     let tryLookupEnvs envs symbol =
         List.tryPick (fun env -> tryLookupEnv env symbol) envs.environments
 
-    let lookupEnvs envs symbol =
+    let lookupEnvs envs pos symbol =
         match tryLookupEnvs envs symbol with
         | Some x -> x
-        | None -> sprintf "No binding for '%s'." symbol |> failwith
+        | None -> failwithf "No binding for '%s'.%s" symbol (pos |> formatPosition)
 
     let getNextRecordTypeId envs =
         envs.nextRecordTypeId <- envs.nextRecordTypeId + 1

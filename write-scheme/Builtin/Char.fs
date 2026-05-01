@@ -5,94 +5,90 @@ open Type
 
 [<AutoOpen>]
 module Char =
-    let isChar envs cont =
+    let isChar envs pos cont =
         function
-        | [ SChar _ ] -> STrue |> cont
-        | _ -> SFalse |> cont
+        | [ SChar _, _ ] -> (STrue, pos) |> cont
+        | _ -> (SFalse, pos) |> cont
 
-    let compareCharsBase transformer pred name cont args =
-        args
-        |> List.map (function
-            | SChar c -> transformer c
-            | x -> x |> Print.print |> sprintf "'%s' is not a char in %s." name |> failwith)
-        |> List.pairwise
-        |> List.forall (fun (a, b) -> pred a b)
-        |> toSBool
-        |> cont
+    let compareCharsBase transformer pred name pos cont =
+        List.map (function
+            | SChar c, _ -> transformer c
+            | x -> failwithf "'%s' is not a char in %s.%s" (x |> Print.print) name (x |> snd |> formatPosition))
+        >> List.pairwise
+        >> List.forall (fun (a, b) -> pred a b)
+        >> toSBool
+        >> fun x -> x, pos
+        >> cont
 
-    let compareChars pred name cont args = compareCharsBase id pred name cont args
+    let compareChars pred = compareCharsBase id pred
 
-    let compareCharsCi pred name cont args =
-        compareCharsBase (fun r -> r.ToString().ToLowerInvariant()) pred name cont args
+    let compareCharsCi pred =
+        compareCharsBase (fun r -> r.ToString().ToLowerInvariant()) pred
 
-    let sCharEq envs cont = compareChars (=) "char=?" cont
-    let sCharLt envs cont = compareChars (<) "char<?" cont
-    let sCharGt envs cont = compareChars (>) "char>?" cont
-    let sCharLe envs cont = compareChars (<=) "char<=?" cont
-    let sCharGe envs cont = compareChars (>=) "char>=?" cont
-    let sCharCiEq envs cont = compareCharsCi (=) "char-ci=?" cont
-    let sCharCiLt envs cont = compareCharsCi (<) "char-ci<?" cont
-    let sCharCiGt envs cont = compareCharsCi (>) "char-ci>?" cont
-    let sCharCiLe envs cont = compareCharsCi (<=) "char-ci<=?" cont
-    let sCharCiGe envs cont = compareCharsCi (>=) "char-ci>=?" cont
+    let sCharEq envs = compareChars (=) "char=?"
+    let sCharLt envs = compareChars (<) "char<?"
+    let sCharGt envs = compareChars (>) "char>?"
+    let sCharLe envs = compareChars (<=) "char<=?"
+    let sCharGe envs = compareChars (>=) "char>=?"
+    let sCharCiEq envs = compareCharsCi (=) "char-ci=?"
+    let sCharCiLt envs = compareCharsCi (<) "char-ci<?"
+    let sCharCiGt envs = compareCharsCi (>) "char-ci>?"
+    let sCharCiLe envs = compareCharsCi (<=) "char-ci<=?"
+    let sCharCiGe envs = compareCharsCi (>=) "char-ci>=?"
 
-    let checkCharProp pred name cont =
+    let checkCharProp pred name pos cont =
         function
-        | [ SChar c ] -> c |> pred |> toSBool |> cont
-        | x ->
-            x
-            |> toSPair
-            |> Print.print
-            |> sprintf "'%s' invalid parameter for %s." name
-            |> failwith
+        | [ SChar c, _ ] -> (c |> pred |> toSBool, pos) |> cont
+        | x -> failwithf "'%s' invalid %s parameter.%s" (x |> toSPair |> Print.print) name (pos |> formatPosition)
 
-    let sCharAlphabetic envs cont =
-        checkCharProp System.Text.Rune.IsLetter "char-alphabetic?" cont
+    let sCharAlphabetic envs =
+        checkCharProp System.Text.Rune.IsLetter "char-alphabetic?"
 
-    let sCharNumeric envs cont =
-        checkCharProp System.Text.Rune.IsNumber "char-numeric?" cont
+    let sCharNumeric envs =
+        checkCharProp System.Text.Rune.IsNumber "char-numeric?"
 
-    let sCharWhitespace envs cont =
-        checkCharProp System.Text.Rune.IsWhiteSpace "char-whitespace?" cont
+    let sCharWhitespace envs =
+        checkCharProp System.Text.Rune.IsWhiteSpace "char-whitespace?"
 
-    let sCharUpperCase envs cont =
-        checkCharProp System.Text.Rune.IsUpper "char-upper-case?" cont
+    let sCharUpperCase envs =
+        checkCharProp System.Text.Rune.IsUpper "char-upper-case?"
 
-    let sCharLowerCase envs cont =
-        checkCharProp System.Text.Rune.IsLower "char-lower-case?" cont
+    let sCharLowerCase envs =
+        checkCharProp System.Text.Rune.IsLower "char-lower-case?"
 
-    let sDigitValue envs cont =
+    let sDigitValue envs pos cont =
         function
-        | [ SChar c ] ->
+        | [ SChar c, _ ] ->
             let num = System.Text.Rune.GetNumericValue c
 
             if System.Text.Rune.IsDigit c && num >= 0.0 then
-                newSRational (bigint num) 1I |> cont
+                (newSRational (bigint num) 1I, pos) |> cont
             else
-                SFalse |> cont
-        | x -> x |> invalidParameter "'%s' invalid digit-value parameter."
+                (SFalse, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid digit-value parameter."
 
-    let sCharToInteger envs cont =
+    let sCharToInteger envs pos cont =
         function
-        | [ SChar c ] -> newSRational (bigint c.Value) 1I |> cont
-        | x -> x |> invalidParameter "'%s' invalid char->integer parameter."
+        | [ SChar c, _ ] -> (newSRational (bigint c.Value) 1I, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid char->integer parameter."
 
-    let sIntegerToChar envs cont =
+    let sIntegerToChar envs pos cont =
         function
-        | [ SRational(k, d) ] when d = 1I && System.Text.Rune.IsValid(int k) -> System.Text.Rune(int k) |> SChar |> cont
-        | x -> x |> invalidParameter "'%s' invalid integer->char parameter."
+        | [ SRational(k, d), _ ] when d = 1I && System.Text.Rune.IsValid(int k) ->
+            (int k |> System.Text.Rune |> SChar, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid integer->char parameter."
 
-    let sCharUpcase envs cont =
+    let sCharUpcase envs pos cont =
         function
-        | [ SChar c ] -> System.Text.Rune.ToUpperInvariant c |> SChar |> cont
-        | x -> x |> invalidParameter "'%s' invalid char-upcase parameter."
+        | [ SChar c, _ ] -> (System.Text.Rune.ToUpperInvariant c |> SChar, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid char-upcase parameter."
 
-    let sCharDowncase envs cont =
+    let sCharDowncase envs pos cont =
         function
-        | [ SChar c ] -> System.Text.Rune.ToLowerInvariant c |> SChar |> cont
-        | x -> x |> invalidParameter "'%s' invalid char-downcase parameter."
+        | [ SChar c, _ ] -> (System.Text.Rune.ToLowerInvariant c |> SChar, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid char-downcase parameter."
 
-    let sCharFoldcase envs cont =
+    let sCharFoldcase envs pos cont =
         function
-        | [ SChar c ] -> System.Text.Rune.ToLowerInvariant c |> SChar |> cont
-        | x -> x |> invalidParameter "'%s' invalid char-foldcase parameter."
+        | [ SChar c, _ ] -> (System.Text.Rune.ToLowerInvariant c |> SChar, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid char-foldcase parameter."

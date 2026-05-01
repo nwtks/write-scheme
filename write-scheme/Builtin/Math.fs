@@ -5,139 +5,122 @@ open Type
 
 [<AutoOpen>]
 module Math =
-    let isNumber envs cont =
+    let isNumber envs pos cont =
         function
-        | [ SRational _ ]
-        | [ SReal _ ]
-        | [ SComplex _ ] -> STrue |> cont
-        | _ -> SFalse |> cont
+        | [ SRational _, _ ]
+        | [ SReal _, _ ]
+        | [ SComplex _, _ ] -> (STrue, pos) |> cont
+        | _ -> (SFalse, pos) |> cont
 
-    let isComplex envs cont =
+    let isComplex envs pos cont =
         function
-        | [ SComplex _ ]
-        | [ SReal _ ]
-        | [ SRational _ ] -> STrue |> cont
-        | _ -> SFalse |> cont
+        | [ SComplex _, _ ]
+        | [ SReal _, _ ]
+        | [ SRational _, _ ] -> (STrue, pos) |> cont
+        | _ -> (SFalse, pos) |> cont
 
-    let isReal envs cont =
+    let isReal envs pos cont =
         function
-        | [ SRational _ ]
-        | [ SReal _ ] -> STrue |> cont
-        | [ SComplex c ] when c.Imaginary = 0.0 -> STrue |> cont
-        | [ SComplex _ ] -> SFalse |> cont
-        | _ -> SFalse |> cont
+        | [ SRational _, _ ]
+        | [ SReal _, _ ] -> (STrue, pos) |> cont
+        | [ SComplex c, _ ] when c.Imaginary = 0.0 -> (STrue, pos) |> cont
+        | [ SComplex _, _ ] -> (SFalse, pos) |> cont
+        | _ -> (SFalse, pos) |> cont
 
-    let isRational envs cont =
-        function
-        | [ SRational _ ] -> STrue |> cont
-        | [ SReal r ] when not (System.Double.IsInfinity r || System.Double.IsNaN r) -> STrue |> cont
-        | [ SComplex c ] when
-            c.Imaginary = 0.0
-            && not (System.Double.IsInfinity c.Real || System.Double.IsNaN c.Real)
-            ->
-            STrue |> cont
-        | _ -> SFalse |> cont
+    let finiteFloat d =
+        not (System.Double.IsInfinity d || System.Double.IsNaN d)
 
-    let isInteger envs cont =
-        function
-        | [ SRational(_, d) ] when d = 1I -> STrue |> cont
-        | [ SReal r ] when
-            not (System.Double.IsInfinity r || System.Double.IsNaN r)
-            && r = System.Math.Truncate r
-            ->
-            STrue |> cont
-        | [ SComplex c ] when
-            c.Imaginary = 0.0
-            && not (System.Double.IsInfinity c.Real || System.Double.IsNaN c.Real)
-            && c.Real = System.Math.Truncate c.Real
-            ->
-            STrue |> cont
-        | _ -> SFalse |> cont
+    let noFractionFloat (d: float) = d = System.Math.Truncate d
 
-    let isExact envs cont =
+    let isRational envs pos cont =
         function
-        | [ SRational _ ] -> STrue |> cont
-        | _ -> SFalse |> cont
+        | [ SRational _, _ ] -> (STrue, pos) |> cont
+        | [ SReal r, _ ] when finiteFloat r -> (STrue, pos) |> cont
+        | [ SComplex c, _ ] when c.Imaginary = 0.0 && finiteFloat c.Real -> (STrue, pos) |> cont
+        | _ -> (SFalse, pos) |> cont
 
-    let isInexact envs cont =
+    let isInteger envs pos cont =
         function
-        | [ SReal _ ]
-        | [ SComplex _ ] -> STrue |> cont
-        | _ -> SFalse |> cont
+        | [ SRational(_, d), _ ] when d = 1I -> (STrue, pos) |> cont
+        | [ SReal r, _ ] when finiteFloat r && noFractionFloat r -> (STrue, pos) |> cont
+        | [ SComplex c, _ ] when c.Imaginary = 0.0 && finiteFloat c.Real && noFractionFloat c.Real ->
+            (STrue, pos) |> cont
+        | _ -> (SFalse, pos) |> cont
 
-    let isExactInteger envs cont =
+    let isExact envs pos cont =
         function
-        | [ SRational(_, d) ] when d = 1I -> STrue |> cont
-        | _ -> SFalse |> cont
+        | [ SRational _, _ ] -> (STrue, pos) |> cont
+        | _ -> (SFalse, pos) |> cont
 
-    let isFinite envs cont =
+    let isInexact envs pos cont =
         function
-        | [ SRational _ ] -> STrue |> cont
-        | [ SReal r ] -> not (System.Double.IsInfinity r || System.Double.IsNaN r) |> toSBool |> cont
-        | [ SComplex c ] ->
-            not (
-                System.Double.IsInfinity c.Real
-                || System.Double.IsNaN c.Real
-                || System.Double.IsInfinity c.Imaginary
-                || System.Double.IsNaN c.Imaginary
-            )
-            |> toSBool
+        | [ SReal _, _ ]
+        | [ SComplex _, _ ] -> (STrue, pos) |> cont
+        | _ -> (SFalse, pos) |> cont
+
+    let isExactInteger envs pos cont =
+        function
+        | [ SRational(_, d), _ ] when d = 1I -> (STrue, pos) |> cont
+        | _ -> (SFalse, pos) |> cont
+
+    let isFinite envs pos cont =
+        function
+        | [ SRational _, _ ] -> (STrue, pos) |> cont
+        | [ SReal r, _ ] -> (finiteFloat r |> toSBool, pos) |> cont
+        | [ SComplex c, _ ] -> ((finiteFloat c.Real && finiteFloat c.Imaginary) |> toSBool, pos) |> cont
+        | _ -> (SFalse, pos) |> cont
+
+    let isInfinite envs pos cont =
+        function
+        | [ SReal r, _ ] -> (System.Double.IsInfinity r |> toSBool, pos) |> cont
+        | [ SComplex c, _ ] ->
+            ((System.Double.IsInfinity c.Real || System.Double.IsInfinity c.Imaginary)
+             |> toSBool,
+             pos)
             |> cont
-        | _ -> SFalse |> cont
+        | _ -> (SFalse, pos) |> cont
 
-    let isInfinite envs cont =
+    let isNaN envs pos cont =
         function
-        | [ SReal r ] -> System.Double.IsInfinity r |> toSBool |> cont
-        | [ SComplex c ] ->
-            (System.Double.IsInfinity c.Real || System.Double.IsInfinity c.Imaginary)
-            |> toSBool
+        | [ SReal r, _ ] -> (System.Double.IsNaN r |> toSBool, pos) |> cont
+        | [ SComplex c, _ ] ->
+            ((System.Double.IsNaN c.Real || System.Double.IsNaN c.Imaginary) |> toSBool, pos)
             |> cont
-        | _ -> SFalse |> cont
-
-    let isNaN envs cont =
-        function
-        | [ SReal r ] -> System.Double.IsNaN r |> toSBool |> cont
-        | [ SComplex c ] ->
-            (System.Double.IsNaN c.Real || System.Double.IsNaN c.Imaginary)
-            |> toSBool
-            |> cont
-        | _ -> SFalse |> cont
+        | _ -> (SFalse, pos) |> cont
 
     let toFloat x y = float x / float y
 
     let toComplex =
         function
-        | SRational(x1, x2) -> System.Numerics.Complex(toFloat x1 x2, 0.0)
-        | SReal x -> System.Numerics.Complex(x, 0.0)
-        | SComplex c -> c
-        | x -> x |> invalid "'%s' not number."
+        | SRational(x1, x2), _ -> System.Numerics.Complex(toFloat x1 x2, 0.0)
+        | SReal x, _ -> System.Numerics.Complex(x, 0.0)
+        | SComplex c, _ -> c
+        | x -> x |> invalid (snd x) "'%s' is not a number."
 
     let comparePred pred1 pred2 pred3 =
         function
-        | SRational(a1, a2), SRational(b1, b2) -> pred1 (a1 * b2) (b1 * a2)
-        | SRational(a1, a2), SReal b -> pred2 (toFloat a1 a2) b
-        | SReal a, SRational(b1, b2) -> pred2 a (toFloat b1 b2)
-        | SReal a, SReal b -> pred2 a b
-        | SComplex _, _
-        | _, SComplex _ as pair ->
-            let x, y = fst pair |> toComplex, snd pair |> toComplex
-            pred3 x y
+        | (SRational(a1, a2), _), (SRational(b1, b2), _) -> pred1 (a1 * b2) (b1 * a2)
+        | (SRational(a1, a2), _), (SReal b, _) -> pred2 (toFloat a1 a2) b
+        | (SReal a, _), (SRational(b1, b2), _) -> pred2 a (toFloat b1 b2)
+        | (SReal a, _), (SReal b, _) -> pred2 a b
+        | (SComplex _, _), _
+        | _, (SComplex _, _) as pair -> pred3 (fst pair |> toComplex) (snd pair |> toComplex)
         | _ -> false
 
     [<TailCall>]
-    let rec compare pred1 pred2 pred3 n =
+    let rec compare pos pred1 pred2 pred3 n =
         function
-        | [] -> STrue
+        | [] -> STrue, pos
         | x :: xs ->
             if comparePred pred1 pred2 pred3 (n, x) then
-                compare pred1 pred2 pred3 x xs
+                compare pos pred1 pred2 pred3 x xs
             else
-                SFalse
+                SFalse, pos
 
-    let compareNumber pred1 pred2 pred3 cont =
+    let compareNumber pred1 pred2 pred3 pos cont =
         function
-        | [] -> STrue |> cont
-        | x :: xs -> xs |> compare pred1 pred2 pred3 x |> cont
+        | [] -> (STrue, pos) |> cont
+        | x :: xs -> xs |> compare pos pred1 pred2 pred3 x |> cont
 
     let complexReal op (x: System.Numerics.Complex) (y: System.Numerics.Complex) =
         if x.Imaginary = 0.0 && y.Imaginary = 0.0 then
@@ -145,76 +128,57 @@ module Math =
         else
             failwith "Ordering on complex numbers with non-zero imaginary parts is undefined."
 
-    let equalNumber envs cont args = compareNumber (=) (=) (=) cont args
+    let equalNumber envs = compareNumber (=) (=) (=)
 
-    let lessNumber envs cont args =
-        compareNumber (<) (<) (complexReal (<)) cont args
+    let lessNumber envs = compareNumber (<) (<) (complexReal (<))
 
-    let greaterNumber envs cont args =
-        compareNumber (>) (>) (complexReal (>)) cont args
+    let greaterNumber envs = compareNumber (>) (>) (complexReal (>))
 
-    let lessEqualNumber envs cont args =
-        compareNumber (<=) (<=) (complexReal (<=)) cont args
+    let lessEqualNumber envs =
+        compareNumber (<=) (<=) (complexReal (<=))
 
-    let greaterEqualNumber envs cont args =
-        compareNumber (>=) (>=) (complexReal (>=)) cont args
+    let greaterEqualNumber envs =
+        compareNumber (>=) (>=) (complexReal (>=))
 
-    let isZero envs cont =
+    let isZero envs pos cont =
         function
-        | [ x ] -> equalNumber envs cont [ x; SZero ]
-        | _ -> SFalse |> cont
+        | [ x ] -> equalNumber envs pos cont [ x; SZero, pos ]
+        | _ -> (SFalse, pos) |> cont
 
-    let isPositive envs cont =
+    let isPositive envs pos cont =
         function
-        | [ x ] -> greaterNumber envs cont [ x; SZero ]
-        | _ -> SFalse |> cont
+        | [ x ] -> greaterNumber envs pos cont [ x; SZero, pos ]
+        | _ -> (SFalse, pos) |> cont
 
-    let isNegative envs cont =
+    let isNegative envs pos cont =
         function
-        | [ x ] -> lessNumber envs cont [ x; SZero ]
-        | _ -> SFalse |> cont
+        | [ x ] -> lessNumber envs pos cont [ x; SZero, pos ]
+        | _ -> (SFalse, pos) |> cont
 
-    let isOdd envs cont =
+    let isOdd envs pos cont =
         function
-        | [ SRational(n, d) ] when d = 1I -> abs n % 2I = 1I |> toSBool |> cont
-        | [ SReal r ] when
-            not (System.Double.IsInfinity r || System.Double.IsNaN r)
-            && r = System.Math.Truncate r
-            ->
-            abs r % 2.0 = 1.0 |> toSBool |> cont
-        | [ SComplex c ] when
-            c.Imaginary = 0.0
-            && not (System.Double.IsInfinity c.Real || System.Double.IsNaN c.Real)
-            && c.Real = System.Math.Truncate c.Real
-            ->
-            abs c.Real % 2.0 = 1.0 |> toSBool |> cont
-        | x -> sprintf "'odd?' requires an integer, given %s" (Print.printList x) |> failwith
+        | [ SRational(n, d), _ ] when d = 1I -> (abs n % 2I = 1I |> toSBool, pos) |> cont
+        | [ SReal r, _ ] when finiteFloat r && noFractionFloat r -> (abs r % 2.0 = 1.0 |> toSBool, pos) |> cont
+        | [ SComplex c, _ ] when c.Imaginary = 0.0 && finiteFloat c.Real && noFractionFloat c.Real ->
+            (abs c.Real % 2.0 = 1.0 |> toSBool, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid odd? parameter."
 
-    let isEven envs cont =
+    let isEven envs pos cont =
         function
-        | [ SRational(n, d) ] when d = 1I -> n % 2I = 0I |> toSBool |> cont
-        | [ SReal r ] when
-            not (System.Double.IsInfinity r || System.Double.IsNaN r)
-            && r = System.Math.Truncate r
-            ->
-            r % 2.0 = 0.0 |> toSBool |> cont
-        | [ SComplex c ] when
-            c.Imaginary = 0.0
-            && not (System.Double.IsInfinity c.Real || System.Double.IsNaN c.Real)
-            && c.Real = System.Math.Truncate c.Real
-            ->
-            c.Real % 2.0 = 0.0 |> toSBool |> cont
-        | x -> sprintf "'even?' requires an integer, given %s" (Print.printList x) |> failwith
+        | [ SRational(n, d), _ ] when d = 1I -> (n % 2I = 0I |> toSBool, pos) |> cont
+        | [ SReal r, _ ] when finiteFloat r && noFractionFloat r -> (r % 2.0 = 0.0 |> toSBool, pos) |> cont
+        | [ SComplex c, _ ] when c.Imaginary = 0.0 && finiteFloat c.Real && noFractionFloat c.Real ->
+            (c.Real % 2.0 = 0.0 |> toSBool, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid even? parameter."
 
-    let isAnyInexact args =
-        args
-        |> List.exists (function
-            | SRational _ -> false
+    let isAnyInexact =
+        List.exists (function
+            | SRational _, _ -> false
             | _ -> true)
 
-    let sMax envs cont args =
+    let sMax envs pos cont args =
         if List.isEmpty args then
-            args |> invalidParameter "'max' required at least 1 argument. Given: %s"
+            args |> invalidParameter pos "'%s' invalid max parameter."
         else
             let maxVal =
                 args
@@ -226,15 +190,15 @@ module Math =
 
             if isAnyInexact args then
                 match maxVal with
-                | SRational(n, d) -> SReal(float n / float d)
-                | _ -> maxVal
+                | SRational(n, d), _ -> SReal(float n / float d), pos
+                | x -> x
             else
                 maxVal
             |> cont
 
-    let sMin envs cont args =
+    let sMin envs pos cont args =
         if List.isEmpty args then
-            args |> invalidParameter "'min' required at least 1 argument. Given: %s"
+            args |> invalidParameter pos "'%s' invalid min parameter."
         else
             let minVal =
                 args
@@ -246,31 +210,32 @@ module Math =
 
             if isAnyInexact args then
                 match minVal with
-                | SRational(n, d) -> SReal(float n / float d)
-                | _ -> minVal
+                | SRational(n, d), _ -> SReal(float n / float d), pos
+                | x -> x
             else
                 minVal
             |> cont
 
-    let calc op1 op2 op3 ident1 ident2 ident3 cont =
+    let calc op1 op2 op3 ident1 ident2 ident3 pos cont =
         let op x y =
             match x, y with
-            | SRational(a1, a2), SRational(b1, b2) -> op1 a1 a2 b1 b2
-            | SRational(a1, a2), SReal b -> op2 (toFloat a1 a2) b
-            | SReal a, SRational(b1, b2) -> op2 a (toFloat b1 b2)
-            | SReal a, SReal b -> op2 a b
-            | SComplex _, _
-            | _, SComplex _ -> op3 (toComplex x) (toComplex y)
-            | a, b -> sprintf "'%s', '%s' not number." (Print.print a) (Print.print b) |> failwith
+            | (SRational(a1, a2), _), (SRational(b1, b2), _) -> op1 a1 a2 b1 b2, pos
+            | (SRational(a1, a2), _), (SReal b, _) -> op2 (toFloat a1 a2) b, pos
+            | (SReal a, _), (SRational(b1, b2), _) -> op2 a (toFloat b1 b2), pos
+            | (SReal a, _), (SReal b, _) -> op2 a b, pos
+            | (SComplex _, _), (_, _) -> op3 (toComplex x) (toComplex y), pos
+            | (_, _), (SComplex _, _) -> op3 (toComplex x) (toComplex y), pos
+            | a, b ->
+                failwithf "'%s', '%s' not number. %s" (a |> Print.print) (b |> Print.print) (a |> snd |> formatPosition)
 
         function
-        | [] -> SRational(ident1, 1I) |> cont
-        | [ SRational(x1, x2) ] -> op1 ident1 1I x1 x2 |> cont
-        | [ SReal x ] -> op2 ident2 x |> cont
-        | [ SComplex c ] -> op3 ident3 c |> cont
+        | [] -> (SRational(ident1, 1I), pos) |> cont
+        | [ SRational(x1, x2), _ ] -> (op1 ident1 1I x1 x2, pos) |> cont
+        | [ SReal x, _ ] -> (op2 ident2 x, pos) |> cont
+        | [ SComplex c, _ ] -> (op3 ident3 c, pos) |> cont
         | x :: xs -> List.fold op x xs |> cont
 
-    let addNumber envs cont args =
+    let addNumber envs =
         calc
             (fun a1 a2 b1 b2 -> newSRational (a1 * b2 + b1 * a2) (a2 * b2))
             (fun n1 n2 -> n1 + n2 |> SReal)
@@ -278,10 +243,8 @@ module Math =
             0I
             0.0
             System.Numerics.Complex.Zero
-            cont
-            args
 
-    let multiplyNumber envs cont args =
+    let multiplyNumber envs =
         calc
             (fun a1 a2 b1 b2 -> newSRational (a1 * b1) (a2 * b2))
             (fun n1 n2 -> n1 * n2 |> SReal)
@@ -289,10 +252,8 @@ module Math =
             1I
             1.0
             System.Numerics.Complex.One
-            cont
-            args
 
-    let subtractNumber envs cont args =
+    let subtractNumber envs =
         calc
             (fun a1 a2 b1 b2 -> newSRational (a1 * b2 - b1 * a2) (a2 * b2))
             (fun n1 n2 -> n1 - n2 |> SReal)
@@ -300,10 +261,8 @@ module Math =
             0I
             0.0
             System.Numerics.Complex.Zero
-            cont
-            args
 
-    let divideNumber envs cont args =
+    let divideNumber envs =
         calc
             (fun a1 a2 b1 b2 -> newSRational (a1 * b2) (a2 * b1))
             (fun n1 n2 -> n1 / n2 |> SReal)
@@ -311,15 +270,13 @@ module Math =
             1I
             1.0
             System.Numerics.Complex.One
-            cont
-            args
 
-    let sAbs envs cont =
+    let sAbs envs pos cont =
         function
-        | [ SRational(n, d) ] -> newSRational (abs n) d |> cont
-        | [ SReal r ] -> abs r |> SReal |> cont
-        | [ SComplex c ] -> c.Magnitude |> SReal |> cont
-        | x -> x |> invalidParameter "'%s' invalid abs parameter."
+        | [ SRational(n, d), _ ] -> (newSRational (abs n) d, pos) |> cont
+        | [ SReal r, _ ] -> (abs r |> SReal, pos) |> cont
+        | [ SComplex c, _ ] -> (c.Magnitude |> SReal, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid abs parameter."
 
     let truncateDiv n d = n / d, n % d
 
@@ -327,265 +284,262 @@ module Math =
         let q, r = truncateDiv n d
         if r <> 0I && n.Sign <> d.Sign then q - 1I, r + d else q, r
 
-    let sFloorDiv envs cont =
+    let sFloorDiv envs pos cont =
         function
-        | [ SRational(n1, d1); SRational(n2, d2) ] when d1 = 1I && d2 = 1I ->
+        | [ SRational(n1, d1), _; SRational(n2, d2), _ ] when d1 = 1I && d2 = 1I ->
             let q, r = floorDiv n1 n2
-            SValues [ newSRational q 1I; newSRational r 1I ] |> cont
-        | x -> x |> invalidParameter "'%s' invalid floor/ parameter."
+            (SValues [ newSRational q 1I, pos; newSRational r 1I, pos ], pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid floor/ parameter."
 
-    let sFloorQuotient envs cont =
+    let sFloorQuotient envs pos cont =
         function
-        | [ SRational(n1, d1); SRational(n2, d2) ] when d1 = 1I && d2 = 1I ->
+        | [ SRational(n1, d1), _; SRational(n2, d2), _ ] when d1 = 1I && d2 = 1I ->
             let q, _ = floorDiv n1 n2
-            newSRational q 1I |> cont
-        | x -> x |> invalidParameter "'%s' invalid floor-quotient parameter."
+            (newSRational q 1I, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid floor-quotient parameter."
 
-    let sFloorRemainder envs cont =
+    let sFloorRemainder envs pos cont =
         function
-        | [ SRational(n1, d1); SRational(n2, d2) ] when d1 = 1I && d2 = 1I ->
+        | [ SRational(n1, d1), _; SRational(n2, d2), _ ] when d1 = 1I && d2 = 1I ->
             let _, r = floorDiv n1 n2
-            newSRational r 1I |> cont
-        | x -> x |> invalidParameter "'%s' invalid floor-remainder parameter."
+            (newSRational r 1I, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid floor-remainder parameter."
 
-    let sTruncateDiv envs cont =
+    let sTruncateDiv envs pos cont =
         function
-        | [ SRational(n1, d1); SRational(n2, d2) ] when d1 = 1I && d2 = 1I ->
+        | [ SRational(n1, d1), _; SRational(n2, d2), _ ] when d1 = 1I && d2 = 1I ->
             let q, r = truncateDiv n1 n2
-            SValues [ newSRational q 1I; newSRational r 1I ] |> cont
-        | x -> x |> invalidParameter "'%s' invalid truncate/ parameter."
+            (SValues [ newSRational q 1I, pos; newSRational r 1I, pos ], pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid truncate/ parameter."
 
-    let sTruncateQuotient envs cont =
+    let sTruncateQuotient envs pos cont =
         function
-        | [ SRational(n1, d1); SRational(n2, d2) ] when d1 = 1I && d2 = 1I ->
+        | [ SRational(n1, d1), _; SRational(n2, d2), _ ] when d1 = 1I && d2 = 1I ->
             let q, _ = truncateDiv n1 n2
-            newSRational q 1I |> cont
-        | x -> x |> invalidParameter "'%s' invalid truncate-quotient parameter."
+            (newSRational q 1I, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid truncate-quotient parameter."
 
-    let sTruncateRemainder envs cont =
+    let sTruncateRemainder envs pos cont =
         function
-        | [ SRational(n1, d1); SRational(n2, d2) ] when d1 = 1I && d2 = 1I ->
+        | [ SRational(n1, d1), _; SRational(n2, d2), _ ] when d1 = 1I && d2 = 1I ->
             let _, r = truncateDiv n1 n2
-            newSRational r 1I |> cont
-        | x -> x |> invalidParameter "'%s' invalid truncate-remainder parameter."
+            (newSRational r 1I, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid truncate-remainder parameter."
 
-    let sQuotient envs cont =
+    let sQuotient envs pos cont =
         function
-        | [ SRational(n1, d1); SRational(n2, d2) ] when d1 = 1I && d2 = 1I -> newSRational (n1 / n2) 1I |> cont
-        | x -> x |> invalidParameter "'%s' invalid quotient parameter."
+        | [ SRational(n1, d1), _; SRational(n2, d2), _ ] when d1 = 1I && d2 = 1I ->
+            (newSRational (n1 / n2) 1I, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid quotient parameter."
 
-    let sRemainder envs cont =
+    let sRemainder envs pos cont =
         function
-        | [ SRational(n1, d1); SRational(n2, d2) ] when d1 = 1I && d2 = 1I -> newSRational (n1 % n2) 1I |> cont
-        | x -> x |> invalidParameter "'%s' invalid remainder parameter."
+        | [ SRational(n1, d1), _; SRational(n2, d2), _ ] when d1 = 1I && d2 = 1I ->
+            (newSRational (n1 % n2) 1I, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid remainder parameter."
 
-    let sModulo envs cont =
+    let sModulo envs pos cont =
         function
-        | [ SRational(n1, d1); SRational(n2, d2) ] when d1 = 1I && d2 = 1I ->
+        | [ SRational(n1, d1), _; SRational(n2, d2), _ ] when d1 = 1I && d2 = 1I ->
             let r = n1 % n2
 
             if r <> 0I && n1.Sign <> n2.Sign then
-                newSRational (r + n2) 1I
+                newSRational (r + n2) 1I, pos
             else
-                newSRational r 1I
+                newSRational r 1I, pos
             |> cont
-        | x -> x |> invalidParameter "'%s' invalid modulo parameter."
+        | x -> x |> invalidParameter pos "'%s' invalid modulo parameter."
 
     let gcd a b = bigint.GreatestCommonDivisor(a, b)
 
-    let sGcd envs cont args =
-        args
-        |> List.map (function
-            | SRational(n, d) when d = 1I -> n
-            | x -> x |> invalid "gcd requires integers, given %s")
-        |> List.fold gcd 0I
-        |> fun v -> newSRational v 1I
-        |> cont
+    let sGcd envs pos cont =
+        List.map (function
+            | SRational(n, d), _ when d = 1I -> n
+            | x -> x |> invalid (snd x) "'%s' is not an integer in gcd.")
+        >> List.fold gcd 0I
+        >> fun v -> newSRational v 1I, pos
+        >> cont
 
     let lcm a b =
         if a = 0I || b = 0I then 0I else abs (a * b) / gcd a b
 
-    let sLcm envs cont args =
-        args
-        |> List.map (function
-            | SRational(n, d) when d = 1I -> n
-            | x -> x |> invalid "lcm requires integers, given %s")
-        |> List.fold lcm 1I
-        |> fun v -> newSRational v 1I
-        |> cont
+    let sLcm envs pos cont =
+        List.map (function
+            | SRational(n, d), _ when d = 1I -> n
+            | x -> x |> invalid (snd x) "'%s' is not an integer in lcm.")
+        >> List.fold lcm 1I
+        >> fun v -> newSRational v 1I, pos
+        >> cont
 
-    let sNumerator envs cont =
+    let sNumerator envs pos cont =
         function
-        | [ SRational(n, _) ] -> newSRational n 1I |> cont
-        | x -> x |> invalidParameter "'%s' invalid numerator parameter."
+        | [ SRational(n, _), _ ] -> (newSRational n 1I, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid numerator parameter."
 
-    let sDenominator envs cont =
+    let sDenominator envs pos cont =
         function
-        | [ SRational(_, d) ] -> newSRational d 1I |> cont
-        | x -> x |> invalidParameter "'%s' invalid denominator parameter."
+        | [ SRational(_, d), _ ] -> (newSRational d 1I, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid denominator parameter."
 
-    let sFloor envs cont =
+    let sFloor envs pos cont =
         function
-        | [ SRational(n, d) ] ->
+        | [ SRational(n, d), _ ] ->
             let q, r = truncateDiv n d
 
             if r <> 0I && n.Sign <> d.Sign then q - 1I else q
-            |> fun v -> newSRational v 1I
+            |> fun v -> newSRational v 1I, pos
             |> cont
-        | [ SReal r ] -> floor r |> SReal |> cont
-        | x -> x |> invalidParameter "'%s' invalid floor parameter."
+        | [ SReal r, _ ] -> (r |> floor |> SReal, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid floor parameter."
 
-    let sCeiling envs cont =
+    let sCeiling envs pos cont =
         function
-        | [ SRational(n, d) ] ->
+        | [ SRational(n, d), _ ] ->
             let q, r = truncateDiv n d
 
             if r <> 0I && n.Sign = d.Sign then q + 1I else q
-            |> fun v -> newSRational v 1I
+            |> fun v -> newSRational v 1I, pos
             |> cont
-        | [ SReal r ] -> ceil r |> SReal |> cont
-        | x -> x |> invalidParameter "'%s' invalid ceiling parameter."
+        | [ SReal r, _ ] -> (r |> ceil |> SReal, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid ceiling parameter."
 
-    let sTruncate envs cont =
+    let sTruncate envs pos cont =
         function
-        | [ SRational(n, d) ] -> newSRational (n / d) 1I |> cont
-        | [ SReal r ] -> truncate r |> SReal |> cont
-        | x -> x |> invalidParameter "'%s' invalid truncate parameter."
+        | [ SRational(n, d), _ ] -> (newSRational (n / d) 1I, pos) |> cont
+        | [ SReal r, _ ] -> (r |> truncate |> SReal, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid truncate parameter."
 
-    let sRound envs cont =
+    let sRound envs pos cont =
         function
-        | [ SRational(n, d) ] ->
-            let r = float n / float d
-            newSRational (round r |> bigint) 1I |> cont
-        | [ SReal r ] -> round r |> SReal |> cont
-        | x -> x |> invalidParameter "'%s' invalid round parameter."
+        | [ SRational(n, d), _ ] -> (newSRational (float n / float d |> round |> bigint) 1I, pos) |> cont
+        | [ SReal r, _ ] -> (r |> round |> SReal, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid round parameter."
 
     [<TailCall>]
-    let rec simplestRational l r cont =
+    let rec simplestRational l r pos cont =
         let nl, dl =
             match l with
-            | SRational(n, d) -> n, d
-            | _ -> failwith "simplestRational: l not rational"
+            | SRational(n, d), _ -> n, d
+            | x -> x |> invalid (snd x) " '%s' is not a rational."
 
         let nr, dr =
             match r with
-            | SRational(n, d) -> n, d
-            | _ -> failwith "simplestRational: r not rational"
+            | SRational(n, d), _ -> n, d
+            | x -> x |> invalid (snd x) " '%s' is not a rational."
 
         let floorL = if nl >= 0I then nl / dl else (nl - dl + 1I) / dl
         let ceilL = if nl % dl = 0I then floorL else floorL + 1I
         let floorR = if nr >= 0I then nr / dr else (nr - dr + 1I) / dr
 
         if ceilL <= floorR then
-            if ceilL > 0I then newSRational ceilL 1I |> cont
-            elif floorR < 0I then newSRational floorR 1I |> cont
-            else newSRational 0I 1I |> cont
+            if ceilL > 0I then (newSRational ceilL 1I, pos) |> cont
+            elif floorR < 0I then (newSRational floorR 1I, pos) |> cont
+            else (newSRational 0I 1I, pos) |> cont
         else
-            simplestRational (newSRational dr (nr - floorL * dr)) (newSRational dl (nl - floorL * dl)) (function
-                | SRational(pn, pd) -> newSRational (floorL * pn + pd) pn |> cont
-                | _ -> failwith "simplestRational: unexpected result")
+            simplestRational
+                (newSRational dr (nr - floorL * dr), pos)
+                (newSRational dl (nl - floorL * dl), pos)
+                pos
+                (function
+                 | SRational(pn, pd), _ -> (newSRational (floorL * pn + pd) pn, pos) |> cont
+                 | x -> x |> invalid (snd x) " '%s' is not a rational.")
 
-    let sRationalize envs cont =
-        let toExactValue x =
-            match x with
-            | SRational _ -> x
-            | SReal r ->
-                if System.Double.IsInfinity r || System.Double.IsNaN r then
-                    x
+    let sRationalize envs pos cont =
+        let toExactValue =
+            function
+            | SRational _, _ as x -> x
+            | SReal r, _ when finiteFloat r ->
+                let s = (r |> sprintf "%.15f").TrimEnd('0').TrimEnd('.')
+
+                if s.Contains(".") then
+                    let parts = s.Split('.')
+                    let nStr = (if parts.[0] = "0" then "" else parts.[0]) + parts.[1]
+                    let n = if nStr = "" || nStr = "-" then 0I else bigint.Parse nStr
+                    let d = bigint.Pow(10I, parts.[1].Length)
+                    newSRational n d, pos
                 else
-                    let s =
-                        r.ToString("F15", System.Globalization.CultureInfo.InvariantCulture).TrimEnd('0').TrimEnd('.')
-
-                    if s.Contains(".") then
-                        let parts = s.Split('.')
-                        let nStr = (if parts.[0] = "0" then "" else parts.[0]) + parts.[1]
-                        let n = if nStr = "" || nStr = "-" then 0I else bigint.Parse nStr
-                        let d = bigint.Pow(10I, parts.[1].Length)
-                        newSRational n d
-                    else
-                        try
-                            newSRational (bigint.Parse s) 1I
-                        with _ ->
-                            newSRational (bigint r) 1I
-            | _ -> x
+                    try
+                        newSRational (bigint.Parse s) 1I, pos
+                    with _ ->
+                        newSRational (bigint r) 1I, pos
+            | x -> x
 
         function
         | [ x; e ] ->
             match toExactValue x, toExactValue e with
-            | SRational _, SRational _ as exacts ->
+            | (SRational _, _), (SRational _, _) as exacts ->
                 let xVal = fst exacts
                 let eVal = snd exacts
-                let l = subtractNumber envs id [ xVal; eVal ]
-                let r = addNumber envs id [ xVal; eVal ]
+                let l = subtractNumber envs pos id [ xVal; eVal ]
+                let r = addNumber envs pos id [ xVal; eVal ]
 
                 match l, r with
-                | SRational _, SRational _ -> simplestRational l r cont
+                | (SRational _, _), (SRational _, _) -> simplestRational l r pos cont
                 | _ -> x |> cont
             | _ -> x |> cont
-        | x -> x |> invalidParameter "'%s' invalid rationalize parameter."
+        | x -> x |> invalidParameter pos "'%s' invalid rationalize parameter."
 
-    let sExp envs cont =
+    let sExp envs pos cont =
         function
-        | [ SReal r ] -> exp r |> SReal |> cont
-        | [ SComplex c ] -> System.Numerics.Complex.Exp c |> SComplex |> cont
-        | [ SRational(n, d) ] -> exp (float n / float d) |> SReal |> cont
-        | x -> x |> invalidParameter "'%s' invalid exp parameter."
+        | [ SReal r, _ ] -> (r |> exp |> SReal, pos) |> cont
+        | [ SComplex c, _ ] -> (c |> System.Numerics.Complex.Exp |> SComplex, pos) |> cont
+        | [ SRational(n, d), _ ] -> (float n / float d |> exp |> SReal, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid exp parameter."
 
-    let sLog envs cont =
+    let sLog envs pos cont =
         function
-        | [ SReal r ] -> log r |> SReal |> cont
-        | [ SComplex c ] -> System.Numerics.Complex.Log c |> SComplex |> cont
-        | [ SRational(n, d) ] -> log (float n / float d) |> SReal |> cont
-        | [ x; base_ ] ->
-            let xc = toComplex x
-            let bc = toComplex base_
-            let res = System.Numerics.Complex.Log xc / System.Numerics.Complex.Log bc
+        | [ SReal r, _ ] -> (r |> log |> SReal, pos) |> cont
+        | [ SComplex c, _ ] -> (c |> System.Numerics.Complex.Log |> SComplex, pos) |> cont
+        | [ SRational(n, d), _ ] -> (float n / float d |> log |> SReal, pos) |> cont
+        | [ x; b ] ->
+            let res =
+                (x |> toComplex |> System.Numerics.Complex.Log)
+                / (b |> toComplex |> System.Numerics.Complex.Log)
 
-            if res.Imaginary = 0.0 then SReal res.Real else SComplex res
-            |> cont
-        | x -> x |> invalidParameter "'%s' invalid log parameter."
+            ((if res.Imaginary = 0.0 then SReal res.Real else SComplex res), pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid log parameter."
 
-    let sSin envs cont =
+    let sSin envs pos cont =
         function
-        | [ SReal r ] -> sin r |> SReal |> cont
-        | [ SComplex c ] -> System.Numerics.Complex.Sin c |> SComplex |> cont
-        | [ SRational(n, d) ] -> sin (float n / float d) |> SReal |> cont
-        | x -> x |> invalidParameter "'%s' invalid sin parameter."
+        | [ SReal r, _ ] -> (r |> sin |> SReal, pos) |> cont
+        | [ SComplex c, _ ] -> (c |> System.Numerics.Complex.Sin |> SComplex, pos) |> cont
+        | [ SRational(n, d), _ ] -> (float n / float d |> sin |> SReal, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid sin parameter."
 
-    let sCos envs cont =
+    let sCos envs pos cont =
         function
-        | [ SReal r ] -> cos r |> SReal |> cont
-        | [ SComplex c ] -> System.Numerics.Complex.Cos c |> SComplex |> cont
-        | [ SRational(n, d) ] -> cos (float n / float d) |> SReal |> cont
-        | x -> x |> invalidParameter "'%s' invalid cos parameter."
+        | [ SReal r, _ ] -> (r |> cos |> SReal, pos) |> cont
+        | [ SComplex c, _ ] -> (c |> System.Numerics.Complex.Cos |> SComplex, pos) |> cont
+        | [ SRational(n, d), _ ] -> (float n / float d |> cos |> SReal, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid cos parameter."
 
-    let sTan envs cont =
+    let sTan envs pos cont =
         function
-        | [ SReal r ] -> tan r |> SReal |> cont
-        | [ SComplex c ] -> System.Numerics.Complex.Tan c |> SComplex |> cont
-        | [ SRational(n, d) ] -> tan (float n / float d) |> SReal |> cont
-        | x -> x |> invalidParameter "'%s' invalid tan parameter."
+        | [ SReal r, _ ] -> (r |> tan |> SReal, pos) |> cont
+        | [ SComplex c, _ ] -> (c |> System.Numerics.Complex.Tan |> SComplex, pos) |> cont
+        | [ SRational(n, d), _ ] -> (float n / float d |> tan |> SReal, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid tan parameter."
 
-    let sAsin envs cont =
+    let sAsin envs pos cont =
         function
-        | [ SReal r ] -> asin r |> SReal |> cont
-        | [ SComplex c ] -> System.Numerics.Complex.Asin c |> SComplex |> cont
-        | [ SRational(n, d) ] -> asin (float n / float d) |> SReal |> cont
-        | x -> x |> invalidParameter "'%s' invalid asin parameter."
+        | [ SReal r, _ ] -> (r |> asin |> SReal, pos) |> cont
+        | [ SComplex c, _ ] -> (c |> System.Numerics.Complex.Asin |> SComplex, pos) |> cont
+        | [ SRational(n, d), _ ] -> (float n / float d |> asin |> SReal, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid asin parameter."
 
-    let sAcos envs cont =
+    let sAcos envs pos cont =
         function
-        | [ SReal r ] -> acos r |> SReal |> cont
-        | [ SComplex c ] -> System.Numerics.Complex.Acos c |> SComplex |> cont
-        | [ SRational(n, d) ] -> acos (float n / float d) |> SReal |> cont
-        | x -> x |> invalidParameter "'%s' invalid acos parameter."
+        | [ SReal r, _ ] -> (r |> acos |> SReal, pos) |> cont
+        | [ SComplex c, _ ] -> (c |> System.Numerics.Complex.Acos |> SComplex, pos) |> cont
+        | [ SRational(n, d), _ ] -> (float n / float d |> acos |> SReal, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid acos parameter."
 
-    let sAtan envs cont =
+    let sAtan envs pos cont =
         function
-        | [ SReal r ] -> atan r |> SReal |> cont
-        | [ SComplex c ] -> System.Numerics.Complex.Atan c |> SComplex |> cont
-        | [ SRational(n, d) ] -> atan (float n / float d) |> SReal |> cont
-        | [ y; x ] ->
+        | [ SReal r, _ ] -> (r |> atan |> SReal, pos) |> cont
+        | [ SComplex c, _ ] -> (c |> System.Numerics.Complex.Atan |> SComplex, pos) |> cont
+        | [ SRational(n, d), _ ] -> (float n / float d |> atan |> SReal, pos) |> cont
+        | [ y, _; x, _ ] ->
             let yVal =
                 match y with
                 | SReal r -> r
@@ -598,28 +552,29 @@ module Math =
                 | SRational(n, d) -> float n / float d
                 | _ -> 0.0
 
-            System.Math.Atan2(yVal, xVal) |> SReal |> cont
-        | x -> x |> invalidParameter "'%s' invalid atan parameter."
+            (System.Math.Atan2(yVal, xVal) |> SReal, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid atan parameter."
 
-    let sSquare envs cont =
+    let sSquare envs pos cont =
         function
-        | [ x ] -> multiplyNumber envs cont [ x; x ]
-        | x -> x |> invalidParameter "'%s' invalid square parameter."
+        | [ x ] -> multiplyNumber envs pos cont [ x; x ]
+        | x -> x |> invalidParameter pos "'%s' invalid square parameter."
 
-    let sSqrt envs cont =
+    let sSqrt envs pos cont =
         function
-        | [ SRational(n, d) ] when n >= 0I -> sqrt (float n / float d) |> SReal |> cont
-        | [ SRational(n, d) ] ->
-            System.Numerics.Complex.Sqrt(System.Numerics.Complex(float n / float d, 0.0))
-            |> SComplex
+        | [ SRational(n, d), _ ] when n >= 0I -> (float n / float d |> sqrt |> SReal, pos) |> cont
+        | [ SRational(n, d), _ ] ->
+            (System.Numerics.Complex(float n / float d, 0.0)
+             |> System.Numerics.Complex.Sqrt
+             |> SComplex,
+             pos)
             |> cont
-        | [ SReal r ] when r >= 0.0 -> sqrt r |> SReal |> cont
-        | [ SReal r ] ->
-            System.Numerics.Complex.Sqrt(System.Numerics.Complex(r, 0.0))
-            |> SComplex
+        | [ SReal r, _ ] when r >= 0.0 -> (r |> sqrt |> SReal, pos) |> cont
+        | [ SReal r, _ ] ->
+            (System.Numerics.Complex(r, 0.0) |> System.Numerics.Complex.Sqrt |> SComplex, pos)
             |> cont
-        | [ SComplex c ] -> System.Numerics.Complex.Sqrt c |> SComplex |> cont
-        | x -> x |> invalidParameter "'%s' invalid sqrt parameter."
+        | [ SComplex c, _ ] -> (c |> System.Numerics.Complex.Sqrt |> SComplex, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid sqrt parameter."
 
     [<TailCall>]
     let rec bigintSqrt low high n =
@@ -633,120 +588,111 @@ module Math =
             else
                 bigintSqrt low mid n
 
-    let sExactIntegerSqrt envs cont =
+    let sExactIntegerSqrt envs pos cont =
         function
-        | [ SRational(k, d) ] when d = 1I && k >= 0I ->
+        | [ SRational(k, d), _ ] when d = 1I && k >= 0I ->
             let s = if k < 2I then k else bigintSqrt 1I (k + 1I) k
             let r = k - s * s
-            SValues [ newSRational s 1I; newSRational r 1I ] |> cont
-        | x -> x |> invalidParameter "'%s' invalid exact-integer-sqrt parameter."
+            (SValues [ newSRational s 1I, pos; newSRational r 1I, pos ], pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid exact-integer-sqrt parameter."
 
-    let sExpt envs cont =
+    let sExpt envs pos cont =
         function
         | [ x; y ] ->
             match x, y with
-            | SRational(n1, d1), SRational(n2, d2) when d1 = 1I && d2 = 1I && n2 >= 0I ->
-                bigint.Pow(n1, int n2) |> fun v -> newSRational v 1I |> cont
-            | _ ->
-                let xc = toComplex x
-                let yc = toComplex y
-                System.Numerics.Complex.Pow(xc, yc) |> SComplex |> cont
-        | x -> x |> invalidParameter "'%s' invalid expt parameter."
+            | (SRational(n1, d1), _), (SRational(n2, d2), _) when d1 = 1I && d2 = 1I && n2 >= 0I ->
+                bigint.Pow(n1, int n2) |> fun v -> (newSRational v 1I, pos) |> cont
+            | _ -> (System.Numerics.Complex.Pow(toComplex x, toComplex y) |> SComplex, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid expt parameter."
 
-    let sMakeRectangular envs cont =
+    let sMakeRectangular envs pos cont =
         function
         | [ r; i ] ->
-            System.Numerics.Complex((toComplex r).Real, (toComplex i).Real)
-            |> SComplex
+            (System.Numerics.Complex((toComplex r).Real, (toComplex i).Real) |> SComplex, pos)
             |> cont
-        | args ->
-            sprintf "'make-rectangular' required 2 arguments, but %d" args.Length
-            |> failwith
+        | x -> x |> invalidParameter pos "'%s' invalid make-rectangular parameter."
 
-    let sMakePolar envs cont =
+    let sMakePolar envs pos cont =
         function
         | [ r; theta ] ->
-            System.Numerics.Complex.FromPolarCoordinates((toComplex r).Real, (toComplex theta).Real)
-            |> SComplex
+            (System.Numerics.Complex.FromPolarCoordinates((toComplex r).Real, (toComplex theta).Real)
+             |> SComplex,
+             pos)
             |> cont
-        | args -> sprintf "'make-polar' required 2 arguments, but %d" args.Length |> failwith
+        | x -> x |> invalidParameter pos "'%s' invalid make-polar parameter."
 
-    let sRealPart envs cont =
+    let sRealPart envs pos cont =
         function
-        | [ x ] -> (toComplex x).Real |> SReal |> cont
-        | args -> sprintf "'real-part' required 1 argument, but %d" args.Length |> failwith
+        | [ x ] -> ((toComplex x).Real |> SReal, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid real-part parameter."
 
-    let sImagPart envs cont =
+    let sImagPart envs pos cont =
         function
-        | [ x ] -> (toComplex x).Imaginary |> SReal |> cont
-        | args -> sprintf "'imag-part' required 1 argument, but %d" args.Length |> failwith
+        | [ x ] -> ((toComplex x).Imaginary |> SReal, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid imag-part parameter."
 
-    let sMagnitude envs cont =
+    let sMagnitude envs pos cont =
         function
-        | [ x ] -> (toComplex x).Magnitude |> SReal |> cont
-        | args -> sprintf "'magnitude' required 1 argument, but %d" args.Length |> failwith
+        | [ x ] -> ((toComplex x).Magnitude |> SReal, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid magnitude parameter."
 
-    let sAngle envs cont =
+    let sAngle envs pos cont =
         function
-        | [ x ] -> (toComplex x).Phase |> SReal |> cont
-        | args -> sprintf "'angle' required 1 argument, but %d" args.Length |> failwith
+        | [ x ] -> ((toComplex x).Phase |> SReal, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid angle parameter."
 
-    let sInexact envs cont =
+    let sInexact envs pos cont =
         function
-        | [ SRational(n, d) ] -> SReal(float n / float d) |> cont
-        | [ SReal _ ] as x -> x.Head |> cont
-        | [ SComplex _ ] as x -> x.Head |> cont
-        | x -> x |> invalidParameter "'%s' invalid inexact parameter."
+        | [ SRational(n, d), _ ] -> (SReal(float n / float d), pos) |> cont
+        | [ SReal _, _ ] as x -> x.Head |> cont
+        | [ SComplex _, _ ] as x -> x.Head |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid inexact parameter."
 
-    let sExact envs cont =
+    let sExact envs pos cont =
         function
-        | [ SRational _ ] as x -> x.Head |> cont
-        | [ SReal r ] ->
-            if System.Double.IsInfinity r || System.Double.IsNaN r then
-                failwith "exact: cannot convert infinity or NaN to exact"
-
-            let s = r.ToString("G17", System.Globalization.CultureInfo.InvariantCulture)
-
+        | [ SRational _, _ ] as x -> x.Head |> cont
+        | [ SReal r, _ ] when finiteFloat r ->
             try
-                match Read.read s with
-                | SRational _ as res -> res |> cont
-                | _ -> newSRational (bigint r) 1I |> cont
+                match r |> sprintf "%.17g" |> Read.read with
+                | SRational _, _ as res -> res |> cont
+                | _ -> (newSRational (bigint r) 1I, pos) |> cont
             with _ ->
-                newSRational (bigint r) 1I |> cont
-        | x -> x |> invalidParameter "'%s' invalid exact parameter."
+                (newSRational (bigint r) 1I, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid exact parameter."
 
-    let sNumberToString envs cont =
+    let sNumberToString envs pos cont =
         function
-        | [ n ] -> n |> Print.print |> newSString true |> cont
-        | [ n; SRational(radix, d) ] when d = 1I ->
+        | [ n ] -> (n |> Print.print |> newSString true, pos) |> cont
+        | [ n; SRational(radix, d), _ ] when d = 1I ->
             match n with
-            | SRational(k, d') ->
-                if d' = 1I then
-                    match int radix with
-                    | 2 -> System.Convert.ToString(int64 k, 2)
-                    | 8 -> System.Convert.ToString(int64 k, 8)
-                    | 10 -> string k
-                    | 16 -> System.Convert.ToString(int64 k, 16)
-                    | _ -> failwith "number->string: unsupported radix"
-                else
-                    sprintf "%A/%A" k d'
-                |> newSString true
+            | SRational(k, d'), _ ->
+                (if d' = 1I then
+                     match int radix with
+                     | 2 -> System.Convert.ToString(int64 k, 2)
+                     | 8 -> System.Convert.ToString(int64 k, 8)
+                     | 10 -> string k
+                     | 16 -> System.Convert.ToString(int64 k, 16)
+                     | x -> failwithf "'%d' unsupported radix in number->string.%s" x (pos |> formatPosition)
+                 else
+                     sprintf "%A/%A" k d'
+                 |> newSString true,
+                 pos)
                 |> cont
-            | _ -> n |> Print.print |> newSString true |> cont
-        | x -> x |> invalidParameter "'%s' invalid number->string parameter."
+            | _ -> (n |> Print.print |> newSString true, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid number->string parameter."
 
-    let sStringToNumber envs cont =
+    let sStringToNumber envs pos cont =
         function
-        | [ SString s ] ->
+        | [ SString s, _ ] ->
             try
                 match s.runes |> runesToString |> Read.read with
-                | SRational _
-                | SReal _
-                | SComplex _ as n -> n |> cont
-                | _ -> SFalse |> cont
+                | SRational _, _
+                | SReal _, _
+                | SComplex _, _ as n -> n |> cont
+                | _ -> (SFalse, pos) |> cont
             with _ ->
-                SFalse |> cont
-        | [ SString data; SRational(radix, d) ] when d = 1I ->
+                (SFalse, pos) |> cont
+        | [ SString data, _; SRational(radix, d), _ ] when d = 1I ->
             try
                 let s = data.runes |> runesToString
 
@@ -756,9 +702,9 @@ module Math =
                     | 8 -> System.Convert.ToInt64(s, 8) |> bigint
                     | 10 -> bigint.Parse s
                     | 16 -> System.Convert.ToInt64(s, 16) |> bigint
-                    | _ -> failwith "unsupported radix"
+                    | x -> failwithf "'%d' unsupported radix in string->number.%s" x (pos |> formatPosition)
 
-                newSRational v 1I |> cont
+                (newSRational v 1I, pos) |> cont
             with _ ->
-                SFalse |> cont
-        | x -> x |> invalidParameter "'%s' invalid string->number parameter."
+                (SFalse, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid string->number parameter."

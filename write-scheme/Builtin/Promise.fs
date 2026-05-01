@@ -5,15 +5,15 @@ open Type
 
 [<AutoOpen>]
 module Promise =
-    let isPromise envs cont =
+    let isPromise envs pos cont =
         function
-        | [ SPromise _ ] -> STrue |> cont
-        | _ -> SFalse |> cont
+        | [ SPromise _, _ ] -> (STrue, pos) |> cont
+        | _ -> (SFalse, pos) |> cont
 
     [<TailCall>]
-    let rec sForce envs cont =
+    let rec sForce envs pos cont =
         function
-        | [ SPromise r ] ->
+        | [ SPromise r, _ ] ->
             match r.Value with
             | true, value -> value |> cont
             | false, thunk ->
@@ -21,18 +21,18 @@ module Promise =
                 |> Eval.apply
                     envs
                     (function
-                    | SPromise r2 ->
+                    | SPromise r2, p2 ->
                         r.Value <- r2.Value
-                        sForce envs cont [ SPromise r ]
+                        sForce envs p2 cont [ (SPromise r, p2) ]
                     | value ->
                         r.Value <- true, value
                         value |> cont)
                     []
         | [ x ] -> x |> cont
-        | x -> x |> invalidParameter "'%s' invalid force parameter."
+        | x -> x |> invalidParameter pos "'%s' invalid force parameter."
 
-    let sMakePromise envs cont =
+    let sMakePromise envs pos cont =
         function
-        | [ SPromise _ as p ] -> p |> cont
-        | [ x ] -> SPromise(ref (true, x)) |> cont
-        | x -> x |> invalidParameter "'%s' invalid make-promise parameter."
+        | [ SPromise _, _ as p ] -> p |> cont
+        | [ x ] -> (SPromise(ref (true, x)), pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid make-promise parameter."
