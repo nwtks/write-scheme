@@ -55,19 +55,19 @@ module Print =
                 c |> string |> sprintf "#\\%s"
 
     [<TailCall>]
-    let rec formatList visited cont =
+    let rec formatList visited next =
         function
-        | [] -> "" |> cont
-        | [ x ] -> x |> printCPS visited cont
+        | [] -> "" |> next
+        | [ x ] -> x |> printCPS visited next
         | x :: xs ->
             x
-            |> printCPS visited (fun s1 -> xs |> formatList visited (fun s2 -> s1 + " " + s2 |> cont))
+            |> printCPS visited (fun s1 -> xs |> formatList visited (fun s2 -> s1 + " " + s2 |> next))
 
-    and [<TailCall>] formatPair visited cont acc pair =
+    and [<TailCall>] formatPair visited next acc pair =
         if visited |> List.exists (fun p -> obj.ReferenceEquals(p, pair)) then
             match acc with
-            | [] -> "..." |> cont
-            | _ -> acc |> List.rev |> formatList visited (fun s -> s |> sprintf "(%s ...)" |> cont)
+            | [] -> "..." |> next
+            | _ -> acc |> List.rev |> formatList visited (fun s -> s |> sprintf "(%s ...)" |> next)
         else
             let visited' = pair :: visited
 
@@ -75,46 +75,48 @@ module Print =
             | SEmpty, _ ->
                 pair.car :: acc
                 |> List.rev
-                |> formatList visited' (fun s -> s |> sprintf "(%s)" |> cont)
-            | SPair p, _ -> p |> formatPair visited' cont (pair.car :: acc)
+                |> formatList visited' (fun s -> s |> sprintf "(%s)" |> next)
+            | SPair p, _ -> p |> formatPair visited' next (pair.car :: acc)
             | _ ->
                 pair.car :: acc
                 |> List.rev
                 |> formatList visited' (fun s1 ->
-                    pair.cdr |> printCPS visited' (fun s2 -> sprintf "(%s . %s)" s1 s2 |> cont))
+                    pair.cdr |> printCPS visited' (fun s2 -> sprintf "(%s . %s)" s1 s2 |> next))
 
-    and [<TailCall>] printCPS visited cont =
+    and [<TailCall>] printCPS visited next =
         function
-        | SUnspecified, _ -> "#<unspecified>" |> cont
-        | SEmpty, _ -> "()" |> cont
-        | SBool true, _ -> "#t" |> cont
-        | SBool false, _ -> "#f" |> cont
-        | SRational(k, d), _ -> (if d = 1I then string k else sprintf "%A/%A" k d) |> cont
-        | SReal x, _ -> formatFloat x false |> cont
-        | SComplex x, _ -> formatComplex x |> cont
-        | SString data, _ -> formatString data |> cont
-        | SChar x, _ -> formatChar x |> cont
-        | SSymbol x, _ -> x |> cont
-        | SPair p, _ -> p |> formatPair visited cont []
-        | SVector xs, _ -> xs |> Array.toList |> formatList visited (fun s -> s |> sprintf "#(%s)" |> cont)
-        | SByteVector xs, _ -> xs |> Array.map string |> String.concat " " |> sprintf "#u8(%s)" |> cont
-        | SValues xs, _ -> xs |> formatList visited (fun s -> s |> sprintf "(values %s)" |> cont)
-        | SRecord(_, typeName, _), _ -> typeName |> sprintf "#<%s>" |> cont
+        | SUnspecified, _ -> "#<unspecified>" |> next
+        | SEmpty, _ -> "()" |> next
+        | SBool true, _ -> "#t" |> next
+        | SBool false, _ -> "#f" |> next
+        | SRational(k, d), _ -> (if d = 1I then string k else sprintf "%A/%A" k d) |> next
+        | SReal x, _ -> formatFloat x false |> next
+        | SComplex x, _ -> formatComplex x |> next
+        | SString data, _ -> formatString data |> next
+        | SChar x, _ -> formatChar x |> next
+        | SSymbol x, _ -> x |> next
+        | SPair p, _ -> p |> formatPair visited next []
+        | SVector xs, _ -> xs |> Array.toList |> formatList visited (fun s -> s |> sprintf "#(%s)" |> next)
+        | SByteVector xs, _ -> xs |> Array.map string |> String.concat " " |> sprintf "#u8(%s)" |> next
+        | SValues xs, _ -> xs |> formatList visited (fun s -> s |> sprintf "(values %s)" |> next)
+        | SRecord(_, typeName, _), _ -> typeName |> sprintf "#<%s>" |> next
         | SError(msg, irritants), _ ->
             let prefix = msg.runes |> runesToString |> sprintf "#<error \"%s\""
 
             match irritants with
-            | [] -> prefix + ">" |> cont
-            | _ -> irritants |> formatList visited (fun s -> prefix + " " + s + ">" |> cont)
-        | SQuote x, _ -> x |> printCPS visited (fun s -> s |> sprintf "'%s" |> cont)
-        | SQuasiquote x, _ -> x |> printCPS visited (fun s -> s |> sprintf "`%s" |> cont)
-        | SUnquote x, _ -> x |> printCPS visited (fun s -> s |> sprintf ",%s" |> cont)
-        | SUnquoteSplicing x, _ -> x |> printCPS visited (fun s -> s |> sprintf ",@%s" |> cont)
-        | SPromise _, _ -> "#<promise>" |> cont
-        | SParameter _, _ -> "#<parameter>" |> cont
-        | SSyntax _, _ -> "#<syntax>" |> cont
-        | SProcedure _, _ -> "#<procedure>" |> cont
-        | SContinuation _, _ -> "#<continuation>" |> cont
+            | [] -> prefix + ">" |> next
+            | _ -> irritants |> formatList visited (fun s -> prefix + " " + s + ">" |> next)
+        | SQuote x, _ -> x |> printCPS visited (fun s -> s |> sprintf "'%s" |> next)
+        | SQuasiquote x, _ -> x |> printCPS visited (fun s -> s |> sprintf "`%s" |> next)
+        | SUnquote x, _ -> x |> printCPS visited (fun s -> s |> sprintf ",%s" |> next)
+        | SUnquoteSplicing x, _ -> x |> printCPS visited (fun s -> s |> sprintf ",@%s" |> next)
+        | SDatumLabel(n, d), _ -> d |> printCPS visited (fun s -> s |> sprintf "#%d=%s" n |> next)
+        | SDatumRef n, _ -> sprintf "#%d#" n |> next
+        | SPromise _, _ -> "#<promise>" |> next
+        | SParameter _, _ -> "#<parameter>" |> next
+        | SSyntax _, _ -> "#<syntax>" |> next
+        | SProcedure _, _ -> "#<procedure>" |> next
+        | SContinuation _, _ -> "#<continuation>" |> next
 
     let printList xs = xs |> formatList [] id
     let print x = printList [ x ]

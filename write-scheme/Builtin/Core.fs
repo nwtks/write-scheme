@@ -81,6 +81,13 @@ module Core =
         function
         | [ SString f, _ ] ->
             let path = f.runes |> runesToString
-            path |> System.IO.File.ReadAllText |> Read.read |> Eval.eval envs cont |> ignore
+
+            path
+            |> System.IO.File.ReadAllText
+            |> Read.read
+            |> Eval.resolveLabels
+            |> Eval.eval envs cont
+            |> ignore
+
             (path |> sprintf "Loaded '%s'." |> SSymbol, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid load parameter."

@@ -2,7 +2,7 @@ namespace WriteScheme
 
 module Repl =
     let rep envs =
-        Read.read >> Eval.eval envs id >> Print.print
+        Read.read >> Eval.resolveLabels >> Eval.eval envs id >> Print.print
 
     let newEnvs () = Context.extendEnvs Builtin.builtin []
 

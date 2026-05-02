@@ -66,6 +66,8 @@ module Type =
         | SQuasiquote of SExpression
         | SUnquote of SExpression
         | SUnquoteSplicing of SExpression
+        | SDatumLabel of int * SExpression
+        | SDatumRef of int
         | SPromise of (bool * SExpression) ref
         | SParameter of SExpression ref * SExpression option
         | SSyntax of (Context -> Position option -> SContinuation -> SExpression list -> SExpression)

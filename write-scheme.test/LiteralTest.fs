@@ -229,3 +229,21 @@ let bytevector () =
 let ``comments`` () =
     "; comment\n1" |> rep |> should equal "1"
     "#| block comment |# 42" |> rep |> should equal "42"
+
+[<Fact>]
+let ``datum labels`` () =
+    "'(#1=1 #1#)" |> rep |> should equal "(1 1)"
+    "'#1=(#1#)" |> rep |> should equal "(...)"
+    "'(#1=1 #2=2 (#1# . #2#))" |> rep |> should equal "(1 2 (1 . 2))"
+    "'#1=(1 . #1#)" |> rep |> should equal "(1 ...)"
+
+    (fun () -> "'(#1# #1=1)" |> rep |> ignore)
+    |> should throw typeof<System.Exception>
+
+    (fun () -> "'(#1=1 #1=2)" |> rep |> ignore)
+    |> should throw typeof<System.Exception>
+
+    (fun () -> "'#1=#1#" |> rep |> ignore) |> should throw typeof<System.Exception>
+
+    (fun () -> "'(#1=#2# #2=#1# #1#)" |> rep |> ignore)
+    |> should throw typeof<System.Exception>

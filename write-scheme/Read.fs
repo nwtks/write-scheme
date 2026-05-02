@@ -331,6 +331,16 @@ module Read =
 
     let parseUnquoted = pchar ',' >>. parseDatum |>> SUnquote |> parseWithPos
 
+    let parseDatumLabelDef =
+        attempt (pchar '#' >>. (digit |> many1Chars |>> int) .>> pchar '=')
+        >>= fun n -> parseDatum |>> fun d -> SDatumLabel(n, d)
+        |> parseWithPos
+
+    let parseDatumLabelRef =
+        attempt (pchar '#' >>. (digit |> many1Chars |>> int) .>> pchar '#')
+        |>> SDatumRef
+        |> parseWithPos
+
     parseDatumRef.Value <-
         choice
             [ parseBool
@@ -345,7 +355,9 @@ module Read =
               parseQuoted
               parseQuasiquote
               parseUnquoteSplicing
-              parseUnquoted ]
+              parseUnquoted
+              parseDatumLabelDef
+              parseDatumLabelRef ]
 
     let read input =
         match input |> run (pIntertokenSpace >>. parseDatum .>> pIntertokenSpace .>> eof) with
