@@ -85,9 +85,12 @@ module Core =
             path
             |> System.IO.File.ReadAllText
             |> Read.read
-            |> Eval.resolveLabels
-            |> Eval.eval envs cont
-            |> ignore
-
-            (path |> sprintf "Loaded '%s'." |> SSymbol, pos) |> cont
+            |> Result.bind Eval.resolveLabels
+            |> Result.map (Eval.eval envs id)
+            |> Result.map (fun _ -> path |> sprintf "Loaded '%s'." |> SSymbol, pos)
+            |> Result.defaultWith (fun e ->
+                match e with
+                | ParseError(msg, pos) -> newSString true msg, pos
+                | EvalError(msg, pos) -> newSString true msg, pos)
+            |> cont
         | x -> x |> invalidParameter pos "'%s' invalid load parameter."

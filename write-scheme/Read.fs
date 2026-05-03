@@ -289,17 +289,15 @@ module Read =
     let parseString = pString |>> (fun s -> newSString true s) |> parseWithPos
 
     let parseByteVector =
-        pstringCI "#u8("
-        >>. pIntertokenSpace
-        >>. many (parseNumber .>> pIntertokenSpace)
+        let parseByte =
+            parseNumber
+            >>= function
+                | SRational(num, den), _ when den = 1I && num >= 0I && num <= 255I -> byte num |> preturn
+                | _ -> fail "bytevector elements must be exact integers between 0 and 255."
+
+        pstringCI "#u8(" >>. pIntertokenSpace >>. many (parseByte .>> pIntertokenSpace)
         .>> pchar ')'
-        |>> fun xs ->
-            xs
-            |> List.map (function
-                | SRational(num, den), _ when den = 1I && num >= 0I && num <= 255I -> byte num
-                | _ -> failwith "bytevector elements must be exact integers between 0 and 255.")
-            |> List.toArray
-            |> SByteVector
+        |>> (List.toArray >> SByteVector)
         |> parseWithPos
 
     let parseDatum, parseDatumRef = createParserForwardedToRef ()
@@ -361,10 +359,13 @@ module Read =
 
     let read input =
         match input |> run (pIntertokenSpace >>. parseDatum .>> pIntertokenSpace .>> eof) with
-        | Success(result, _, _) -> result
-        | Failure(errorMsg, parserError, _) ->
-            failwithf
-                "Parse failed: %s (at line %d, column %d)"
-                errorMsg
-                parserError.Position.Line
-                parserError.Position.Column
+        | Success(res, _, _) -> Result.Ok res
+        | Failure(msg, error, _) ->
+            Result.Error(
+                ParseError(
+                    msg,
+                    Some
+                        { Line = int64 error.Position.Line
+                          Column = int64 error.Position.Column }
+                )
+            )

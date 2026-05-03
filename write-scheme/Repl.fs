@@ -1,8 +1,19 @@
 namespace WriteScheme
 
+open Type
+
 module Repl =
     let rep envs =
-        Read.read >> Eval.resolveLabels >> Eval.eval envs id >> Print.print
+        Read.read
+        >> Result.bind Eval.resolveLabels
+        >> Result.map (Eval.eval envs id)
+        >> Result.map Print.print
+        >> Result.defaultWith (fun e ->
+            Context.setWinders envs []
+
+            match e with
+            | ParseError(msg, pos) -> sprintf "%s%s" msg (pos |> formatPosition)
+            | EvalError(msg, pos) -> sprintf "%s%s" msg (pos |> formatPosition))
 
     let newEnvs () = Context.extendEnvs Builtin.builtin []
 
@@ -14,9 +25,4 @@ module Repl =
 
     let runRepl () =
         let envs = newEnvs ()
-
-        try
-            "Welcome" |> repl envs
-        with x ->
-            Context.setWinders envs []
-            x.Message |> repl envs
+        "Welcome" |> repl envs

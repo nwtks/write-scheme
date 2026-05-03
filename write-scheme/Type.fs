@@ -45,6 +45,10 @@ module Type =
 
     type Position = { Line: int64; Column: int64 }
 
+    type SkipResult =
+        | ParseError of string * Position option
+        | EvalError of string * Position option
+
     [<ReferenceEquality>]
     type SExpressionKind =
         | SUnspecified

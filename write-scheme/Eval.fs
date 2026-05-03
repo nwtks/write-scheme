@@ -93,15 +93,15 @@ module Eval =
     [<TailCall>]
     let rec collectDatum labels =
         function
-        | [] -> labels
+        | [] -> Ok labels
         | e :: rest ->
             match e with
             | SDatumLabel(n, d), pos ->
                 if Map.containsKey n labels then
-                    failwithf "Duplicate datum label definition: #%d=%s" n (pos |> formatPosition)
-
-                let labels' = Map.add n (unwrapDatumLabel d, pos) labels
-                d :: rest |> collectDatum labels'
+                    Error(EvalError(sprintf "Duplicate datum label definition: #%d=" n, pos))
+                else
+                    let labels' = Map.add n (unwrapDatumLabel d, pos) labels
+                    d :: rest |> collectDatum labels'
             | SPair p, _ -> p.car :: p.cdr :: rest |> collectDatum labels
             | SVector v, _ -> Array.foldBack (fun e s -> e :: s) v rest |> collectDatum labels
             | SRecord(_, _, fields), _ ->
@@ -123,17 +123,17 @@ module Eval =
     [<TailCall>]
     let rec resolveLabel n pos labels visited =
         if Set.contains n visited then
-            failwithf "Invalid circular reference for datum label: #%d#%s" n (pos |> formatPosition)
-
-        match Map.tryFind n labels with
-        | None -> failwithf "Undefined datum label: #%d#%s" n (pos |> formatPosition)
-        | Some(v, defPos) ->
-            if isBefore pos defPos then
-                failwithf "Invalid forward reference for datum label: #%d#%s" n (pos |> formatPosition)
-
-            match v with
-            | SDatumRef m, refPos -> resolveLabel m refPos labels (Set.add n visited)
-            | _ -> v
+            Error(EvalError(sprintf "Invalid circular reference for datum label: #%d#" n, pos))
+        else
+            match Map.tryFind n labels with
+            | None -> Error(EvalError(sprintf "Undefined datum label: #%d#" n, pos))
+            | Some(v, defPos) ->
+                if isBefore pos defPos then
+                    Error(EvalError(sprintf "Invalid forward reference for datum label: #%d#" n, pos))
+                else
+                    match v with
+                    | SDatumRef m, refPos -> resolveLabel m refPos labels (Set.add n visited)
+                    | _ -> Ok v
 
     [<TailCall>]
     let rec resolveDatumRef labels next =
@@ -142,17 +142,17 @@ module Eval =
         | SDatumRef n, pos -> resolveLabel n pos labels Set.empty |> next
         | SPair p, pos ->
             p.car
-            |> resolveDatumRef labels (fun car ->
+            |> resolveDatumRefBind labels (fun car ->
                 p.car <- car
 
                 p.cdr
-                |> resolveDatumRef labels (fun cdr ->
+                |> resolveDatumRefBind labels (fun cdr ->
                     p.cdr <- cdr
-                    (SPair p, pos) |> next))
+                    Ok(SPair p, pos) |> next))
 
         | SVector v, pos ->
             resolveDatumRefArray labels 0 v.Length (fun i -> v.[i]) (fun i r -> v.[i] <- r) (fun () ->
-                (SVector v, pos) |> next)
+                Ok(SVector v, pos) |> next)
         | SRecord(id, name, fields), pos ->
             resolveDatumRefArray
                 labels
@@ -160,25 +160,28 @@ module Eval =
                 fields.Length
                 (fun i -> fields.[i].Value)
                 (fun i r -> fields.[i].Value <- r)
-                (fun () -> (SRecord(id, name, fields), pos) |> next)
+                (fun () -> Ok(SRecord(id, name, fields), pos) |> next)
         | SError(msg, args), pos ->
             args
-            |> resolveDatumRefList labels [] (fun resolved -> (SError(msg, resolved), pos) |> next)
+            |> resolveDatumRefList labels [] (fun resolved -> Ok(SError(msg, resolved), pos) |> next)
         | SValues args, pos ->
             args
-            |> resolveDatumRefList labels [] (fun resolved -> (SValues resolved, pos) |> next)
-        | SQuote d, pos -> d |> resolveDatumRef labels (fun x -> (SQuote x, pos) |> next)
-        | SQuasiquote d, pos -> d |> resolveDatumRef labels (fun x -> (SQuasiquote x, pos) |> next)
-        | SUnquote d, pos -> d |> resolveDatumRef labels (fun x -> (SUnquote x, pos) |> next)
-        | SUnquoteSplicing d, pos -> d |> resolveDatumRef labels (fun x -> (SUnquoteSplicing x, pos) |> next)
-        | x -> x |> next
+            |> resolveDatumRefList labels [] (fun resolved -> Ok(SValues resolved, pos) |> next)
+        | SQuote d, pos -> d |> resolveDatumRefBind labels (fun x -> Ok(SQuote x, pos) |> next)
+        | SQuasiquote d, pos -> d |> resolveDatumRefBind labels (fun x -> Ok(SQuasiquote x, pos) |> next)
+        | SUnquote d, pos -> d |> resolveDatumRefBind labels (fun x -> Ok(SUnquote x, pos) |> next)
+        | SUnquoteSplicing d, pos -> d |> resolveDatumRefBind labels (fun x -> Ok(SUnquoteSplicing x, pos) |> next)
+        | x -> Ok x |> next
+
+    and resolveDatumRefBind labels next data =
+        data |> resolveDatumRef labels (Result.bind next)
 
     and [<TailCall>] resolveDatumRefArray labels i len get set next =
         if i = len then
             next ()
         else
             get i
-            |> resolveDatumRef labels (fun r ->
+            |> resolveDatumRefBind labels (fun r ->
                 set i r
                 resolveDatumRefArray labels (i + 1) len get set next)
 
@@ -187,8 +190,9 @@ module Eval =
         | [] -> List.rev acc |> next
         | x :: xs ->
             x
-            |> resolveDatumRef labels (fun r -> xs |> resolveDatumRefList labels (r :: acc) next)
+            |> resolveDatumRefBind labels (fun r -> xs |> resolveDatumRefList labels (r :: acc) next)
 
     let resolveLabels expr =
-        let labels = [ expr ] |> collectDatum Map.empty
-        expr |> resolveDatumRef labels id
+        [ expr ]
+        |> collectDatum Map.empty
+        |> Result.bind (fun labels -> expr |> resolveDatumRef labels id)

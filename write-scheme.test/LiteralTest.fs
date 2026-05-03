@@ -218,12 +218,10 @@ let bytevector () =
     "'#u8(1 2)" |> rep |> should equal "#u8(1 2)"
     "#U8(1 2)" |> rep |> should equal "#u8(1 2)"
     "#u8(  1   2   )" |> rep |> should equal "#u8(1 2)"
-    (fun () -> "#u8(256)" |> rep |> ignore) |> should throw typeof<System.Exception>
-    (fun () -> "#u8(-1)" |> rep |> ignore) |> should throw typeof<System.Exception>
-    (fun () -> "#u8(1.0)" |> rep |> ignore) |> should throw typeof<System.Exception>
-
-    (fun () -> "#u8(1+2i)" |> rep |> ignore)
-    |> should throw typeof<System.Exception>
+    "#u8(256)" |> rep |> should startWith "Error"
+    "#u8(-1)" |> rep |> should startWith "Error"
+    "#u8(1.0)" |> rep |> should startWith "Error"
+    "#u8(1+2i)" |> rep |> should startWith "Error"
 
 [<Fact>]
 let ``comments`` () =
@@ -236,14 +234,7 @@ let ``datum labels`` () =
     "'#1=(#1#)" |> rep |> should equal "(...)"
     "'(#1=1 #2=2 (#1# . #2#))" |> rep |> should equal "(1 2 (1 . 2))"
     "'#1=(1 . #1#)" |> rep |> should equal "(1 ...)"
-
-    (fun () -> "'(#1# #1=1)" |> rep |> ignore)
-    |> should throw typeof<System.Exception>
-
-    (fun () -> "'(#1=1 #1=2)" |> rep |> ignore)
-    |> should throw typeof<System.Exception>
-
-    (fun () -> "'#1=#1#" |> rep |> ignore) |> should throw typeof<System.Exception>
-
-    (fun () -> "'(#1=#2# #2=#1# #1#)" |> rep |> ignore)
-    |> should throw typeof<System.Exception>
+    "'(#1# #1=1)" |> rep |> should startWith "Invalid forward reference"
+    "'(#1=1 #1=2)" |> rep |> should startWith "Duplicate datum label"
+    "'#1=#1#" |> rep |> should startWith "Invalid circular reference"
+    "'(#1=#2# #2=#1# #1#)" |> rep |> should startWith "Invalid forward reference"

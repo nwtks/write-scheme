@@ -652,12 +652,14 @@ module Math =
         function
         | [ SRational _, _ ] as x -> x.Head |> cont
         | [ SReal r, _ ] when finiteFloat r ->
-            try
-                match r |> sprintf "%.17g" |> Read.read with
-                | SRational _, _ as res -> res |> cont
-                | _ -> (newSRational (bigint r) 1I, pos) |> cont
-            with _ ->
-                (newSRational (bigint r) 1I, pos) |> cont
+            r
+            |> sprintf "%.17g"
+            |> Read.read
+            |> Result.map (function
+                | SRational _, _ as res -> res
+                | _ -> newSRational (bigint r) 1I, pos)
+            |> Result.defaultWith (fun _ -> newSRational (bigint r) 1I, pos)
+            |> cont
         | x -> x |> invalidParameter pos "'%s' invalid exact parameter."
 
     let sNumberToString envs pos cont =
@@ -684,14 +686,16 @@ module Math =
     let sStringToNumber envs pos cont =
         function
         | [ SString s, _ ] ->
-            try
-                match s.runes |> runesToString |> Read.read with
+            s.runes
+            |> runesToString
+            |> Read.read
+            |> Result.map (function
                 | SRational _, _
                 | SReal _, _
-                | SComplex _, _ as n -> n |> cont
-                | _ -> (SFalse, pos) |> cont
-            with _ ->
-                (SFalse, pos) |> cont
+                | SComplex _, _ as n -> n
+                | _ -> SFalse, pos)
+            |> Result.defaultWith (fun _ -> SFalse, pos)
+            |> cont
         | [ SString data, _; SRational(radix, d), _ ] when d = 1I ->
             try
                 let s = data.runes |> runesToString
