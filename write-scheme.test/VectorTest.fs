@@ -46,6 +46,10 @@ let ``vector-set!`` () =
     |> rep
     |> should equal "#(1 2 20)"
 
+    "(let ((v (vector 1 2 3))) (vector-set! v 1 v) v)"
+    |> rep
+    |> should equal "#(1 ... 3)"
+
 [<Fact>]
 let ``vector->list`` () =
     "(vector->list #(1 2 3))" |> rep |> should equal "(1 2 3)"

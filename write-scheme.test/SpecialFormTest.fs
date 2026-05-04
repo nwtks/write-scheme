@@ -112,6 +112,7 @@ let ``unless`` () =
 
 [<Fact>]
 let ``let`` () =
+    "(let ((a 1) (A 2)) (list a A))" |> rep |> should equal "(1 2)"
     "(let ((x 2) (y 3)) (* x y))" |> rep |> should equal "6"
 
     "(let ((x 2) (y 3)) (let ((x 7) (z (+ x y))) (* z x)))"

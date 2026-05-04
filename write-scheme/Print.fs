@@ -32,6 +32,7 @@ module Print =
         for r in data.runes do
             match r |> string with
             | "\"" -> sb.Append "\\\"" |> ignore
+            | "\\" -> sb.Append "\\\\" |> ignore
             | x -> sb.Append x |> ignore
 
         sb.Append '"' |> ignore
@@ -39,7 +40,7 @@ module Print =
 
     let formatChar (c: System.Text.Rune) =
         match c.Value with
-        | 32 -> "#\\ "
+        | 32 -> "#\\space"
         | 10 -> "#\\newline"
         | 13 -> "#\\return"
         | 9 -> "#\\tab"
@@ -54,34 +55,33 @@ module Print =
             else
                 c |> string |> sprintf "#\\%s"
 
+    let isVisited visited x =
+        visited |> List.exists (fun v -> obj.ReferenceEquals(v, x))
+
     [<TailCall>]
-    let rec formatList visited next =
+    let rec formatList next =
         function
         | [] -> "" |> next
-        | [ x ] -> x |> printCPS visited next
-        | x :: xs ->
+        | [ visited, x ] -> x |> printCPS visited next
+        | (visited, x) :: xs ->
             x
-            |> printCPS visited (fun s1 -> xs |> formatList visited (fun s2 -> s1 + " " + s2 |> next))
+            |> printCPS visited (fun s1 -> xs |> formatList (fun s2 -> s1 + " " + s2 |> next))
 
     and [<TailCall>] formatPair visited next acc pair =
-        if visited |> List.exists (fun p -> obj.ReferenceEquals(p, pair)) then
+        if isVisited visited pair then
             match acc with
             | [] -> "..." |> next
-            | _ -> acc |> List.rev |> formatList visited (fun s -> s |> sprintf "(%s ...)" |> next)
+            | _ -> acc |> List.rev |> formatList (sprintf "(%s ...)" >> next)
         else
-            let visited' = pair :: visited
+            let visited' = (pair :> obj) :: visited
 
             match pair.cdr with
-            | SEmpty, _ ->
-                pair.car :: acc
-                |> List.rev
-                |> formatList visited' (fun s -> s |> sprintf "(%s)" |> next)
-            | SPair p, _ -> p |> formatPair visited' next (pair.car :: acc)
+            | SEmpty, _ -> (visited', pair.car) :: acc |> List.rev |> formatList (sprintf "(%s)" >> next)
+            | SPair p, _ -> p |> formatPair visited' next ((visited', pair.car) :: acc)
             | _ ->
-                pair.car :: acc
+                (visited', pair.car) :: acc
                 |> List.rev
-                |> formatList visited' (fun s1 ->
-                    pair.cdr |> printCPS visited' (fun s2 -> sprintf "(%s . %s)" s1 s2 |> next))
+                |> formatList (fun s1 -> pair.cdr |> printCPS visited' (fun s2 -> sprintf "(%s . %s)" s1 s2 |> next))
 
     and [<TailCall>] printCPS visited next =
         function
@@ -96,21 +96,40 @@ module Print =
         | SChar x, _ -> formatChar x |> next
         | SSymbol x, _ -> x |> next
         | SPair p, _ -> p |> formatPair visited next []
-        | SVector xs, _ -> xs |> Array.toList |> formatList visited (fun s -> s |> sprintf "#(%s)" |> next)
+        | SVector xs, _ ->
+            if isVisited visited xs then
+                "..." |> next
+            else
+                xs
+                |> Array.toList
+                |> List.map (fun e -> (xs :> obj) :: visited, e)
+                |> formatList (sprintf "#(%s)" >> next)
         | SByteVector xs, _ -> xs |> Array.map string |> String.concat " " |> sprintf "#u8(%s)" |> next
-        | SValues xs, _ -> xs |> formatList visited (fun s -> s |> sprintf "(values %s)" |> next)
+        | SValues xs, _ ->
+            if isVisited visited xs then
+                "..." |> next
+            else
+                xs
+                |> List.map (fun e -> (xs :> obj) :: visited, e)
+                |> formatList (sprintf "(values %s)" >> next)
         | SRecord(_, typeName, _), _ -> typeName |> sprintf "#<%s>" |> next
         | SError(msg, irritants), _ ->
             let prefix = msg.runes |> runesToString |> sprintf "#<error \"%s\""
 
             match irritants with
             | [] -> prefix + ">" |> next
-            | _ -> irritants |> formatList visited (fun s -> prefix + " " + s + ">" |> next)
-        | SQuote x, _ -> x |> printCPS visited (fun s -> s |> sprintf "'%s" |> next)
-        | SQuasiquote x, _ -> x |> printCPS visited (fun s -> s |> sprintf "`%s" |> next)
-        | SUnquote x, _ -> x |> printCPS visited (fun s -> s |> sprintf ",%s" |> next)
-        | SUnquoteSplicing x, _ -> x |> printCPS visited (fun s -> s |> sprintf ",@%s" |> next)
-        | SDatumLabel(n, d), _ -> d |> printCPS visited (fun s -> s |> sprintf "#%d=%s" n |> next)
+            | _ ->
+                if isVisited visited irritants then
+                    "..." |> next
+                else
+                    irritants
+                    |> List.map (fun e -> (irritants :> obj) :: visited, e)
+                    |> formatList (fun s -> prefix + " " + s + ">" |> next)
+        | SQuote x, _ -> x |> printCPS visited (sprintf "'%s" >> next)
+        | SQuasiquote x, _ -> x |> printCPS visited (sprintf "`%s" >> next)
+        | SUnquote x, _ -> x |> printCPS visited (sprintf ",%s" >> next)
+        | SUnquoteSplicing x, _ -> x |> printCPS visited (sprintf ",@%s" >> next)
+        | SDatumLabel(n, d), _ -> d |> printCPS visited (sprintf "#%d=%s" n >> next)
         | SDatumRef n, _ -> sprintf "#%d#" n |> next
         | SPromise _, _ -> "#<promise>" |> next
         | SParameter _, _ -> "#<parameter>" |> next
@@ -118,5 +137,7 @@ module Print =
         | SProcedure _, _ -> "#<procedure>" |> next
         | SContinuation _, _ -> "#<continuation>" |> next
 
-    let printList xs = xs |> formatList [] id
+    let printList xs =
+        xs |> List.map (fun x -> [], x) |> formatList id
+
     let print x = printList [ x ]

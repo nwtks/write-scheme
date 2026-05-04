@@ -54,6 +54,14 @@ let ``set-cdr!`` () =
     "(let ((x (list 'a))) (set-cdr! x x) (car x))" |> rep |> should equal "a"
     "(let ((x (list 'a))) (set-cdr! x x) x)" |> rep |> should equal "(a ...)"
 
+    "(let ((x (list 1 2))) (set-cdr! (cdr x) x) x)"
+    |> rep
+    |> should equal "(1 2 ...)"
+
+    "(let ((x (list 1 2)) (y (list 3 4))) (set-cdr! (cdr x) y) (set-cdr! (cdr y) x) x)"
+    |> rep
+    |> should equal "(1 2 3 4 ...)"
+
 [<Fact>]
 let ``c...r`` () =
     "(caar '((1 2) 3))" |> rep |> should equal "1"
@@ -72,6 +80,7 @@ let ``list?`` () =
     "(list? '(a . b))" |> rep |> should equal "#f"
     "(list? '(a b c))" |> rep |> should equal "#t"
     "(list? '())" |> rep |> should equal "#t"
+    "(let ((x (list 'a))) (set-cdr! x x) (list? x))" |> rep |> should equal "#f"
 
 [<Fact>]
 let ``make-list`` () =
@@ -89,6 +98,13 @@ let ``length`` () =
     "(length '(a b c))" |> rep |> should equal "3"
     "(length '(a (b) (c d e)))" |> rep |> should equal "3"
     "(length '())" |> rep |> should equal "0"
+
+    "(let ((x (list 'a))) (set-cdr! x x) (length x))"
+    |> rep
+    |> should startWith "circular list"
+
+    "(length 'a)" |> rep |> should startWith "not a proper list"
+    "(length '(a . b))" |> rep |> should startWith "not a proper list"
 
 [<Fact>]
 let append () =
@@ -130,6 +146,20 @@ let ``list-ref`` () =
     "(list-ref '(a b . c) 1)" |> rep |> should equal "b"
 
 [<Fact>]
+let ``list-set!`` () =
+    "(let ((x (list 'a 'b 'c))) (list-set! x 1 'z) x)"
+    |> rep
+    |> should equal "(a z c)"
+
+    "(let ((x (list 'a 'b 'c))) (list-set! x 3 'z))"
+    |> rep
+    |> should startWith "Out of range "
+
+    "(let ((x (list 'a 'b 'c))) (list-set! x -1 'z))"
+    |> rep
+    |> should startWith "'((a b c) -1 z)' invalid list-set!"
+
+[<Fact>]
 let ``memq`` () =
     "(memq 'a '(a b c))" |> rep |> should equal "(a b c)"
     "(memq 'b '(a b c))" |> rep |> should equal "(b c)"
@@ -145,6 +175,13 @@ let ``memv`` () =
 [<Fact>]
 let ``member`` () =
     "(member (list 'a) '(b (a) c))" |> rep |> should equal "((a) c)"
+
+    "(member \"B\" '(\"a\" \"b\" \"c\") string-ci=?)"
+    |> rep
+    |> should equal "(\"b\" \"c\")"
+
+    "(member 2.0 '(1 2 3) =)" |> rep |> should equal "(2 3)"
+    "(member 2.0 '(1 2 3) eqv?)" |> rep |> should equal "#f"
 
 [<Fact>]
 let ``assq`` () =
@@ -162,6 +199,14 @@ let ``assv`` () =
 [<Fact>]
 let ``assoc`` () =
     "(assoc (list 'a) '(((a)) ((b)) ((c))))" |> rep |> should equal "((a))"
+
+    "(assoc 2.0 '((1 \"a\") (2 \"b\") (3 \"c\")) =)"
+    |> rep
+    |> should equal "(2 \"b\")"
+
+    "(assoc \"B\" '((\"a\" 1) (\"b\" 2)) string-ci=?)"
+    |> rep
+    |> should equal "(\"b\" 2)"
 
 [<Fact>]
 let ``list-copy`` () =

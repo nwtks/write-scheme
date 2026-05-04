@@ -279,9 +279,9 @@ module Read =
 
     let parseBool =
         choice
-            [ stringCIReturn "#true" STrue
+            [ attempt (stringCIReturn "#true" STrue)
+              attempt (stringCIReturn "#false" SFalse)
               stringCIReturn "#t" STrue
-              stringCIReturn "#false" SFalse
               stringCIReturn "#f" SFalse ]
         |> parseWithPos
 

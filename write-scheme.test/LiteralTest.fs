@@ -94,6 +94,8 @@ let number () =
     "#e1.0" |> rep |> should equal "1"
     "#e0.5" |> rep |> should equal "1/2"
     "#e-0.25" |> rep |> should equal "-1/4"
+    "#E1.5" |> rep |> should equal "3/2"
+    "#Xff" |> rep |> should equal "255"
 
 [<Fact>]
 let bool () =
@@ -163,6 +165,7 @@ let char () =
     "#\\\\" |> rep |> should equal "#\\\\"
     "#\\x1f" |> rep |> should equal "#\\x1f"
     "#\\x1F" |> rep |> should equal "#\\x1f"
+    "#\\x03bb" |> rep |> should equal "#\\λ"
     "#\\alarm" |> rep |> should equal "#\\alarm"
     "#\\aLaRm" |> rep |> should equal "#\\alarm"
     "#\\Alarm" |> rep |> should equal "#\\alarm"
@@ -178,8 +181,8 @@ let char () =
     "#\\Null" |> rep |> should equal "#\\null"
     "#\\return" |> rep |> should equal "#\\return"
     "#\\Return" |> rep |> should equal "#\\return"
-    "#\\space" |> rep |> should equal "#\\ "
-    "#\\Space" |> rep |> should equal "#\\ "
+    "#\\space" |> rep |> should equal "#\\space"
+    "#\\Space" |> rep |> should equal "#\\space"
     "#\\tab" |> rep |> should equal "#\\tab"
     "#\\Tab" |> rep |> should equal "#\\tab"
     "#\\🍎" |> rep |> should equal "#\\🍎"
@@ -196,12 +199,16 @@ let string () =
     "\"\\x3071;\"" |> rep |> should equal "\"ぱ\""
     "\"\\x1F600;\"" |> rep |> should equal "\"😀\""
     "\"foo\\ \n  bar\"" |> rep |> should equal "\"foobar\""
+    "\"a\\\"b\"" |> rep |> should equal "\"a\\\"b\""
+    "\"a\\\\b\"" |> rep |> should equal "\"a\\\\b\""
+    "\"a\\x20;b\"" |> rep |> should equal "\"a b\""
+    "\"abc\\   \ndef\"" |> rep |> should equal "\"abcdef\""
     "\"a\\vb\"" |> rep |> should equal "\"a\u000bb\""
     "\"a\\fb\"" |> rep |> should equal "\"a\u000cb\""
 
     "\"1\\a2\\b3\\t4\\n5\\r6\\\"7\\\\8|90\""
     |> rep
-    |> should equal "\"1\a2\b3\t4\n5\r6\\\"7\\8|90\""
+    |> should equal "\"1\a2\b3\t4\n5\r6\\\"7\\\\8|90\""
 
 [<Fact>]
 let vector () =
@@ -248,6 +255,12 @@ let ``datum labels`` () =
     "'#1=(#1#)" |> rep |> should equal "(...)"
     "'(#1=1 #2=2 (#1# . #2#))" |> rep |> should equal "(1 2 (1 . 2))"
     "'#1=(1 . #1#)" |> rep |> should equal "(1 ...)"
+    "'(#1=(1) . #1#)" |> rep |> should equal "((1) 1)"
+    "'(#1=a #1#)" |> rep |> should equal "(a a)"
+    "'(#1=(#1#) #1#)" |> rep |> should equal "((...) (...))"
+    "'(#1=(1 . #2=(2 . #1#)) . #2#)" |> rep |> should equal "((1 2 ...) 2 1 ...)"
+    "'(#1=#(#1#))" |> rep |> should equal "(#(...))"
+    "'(#1=(#2#) #2=(#1#))" |> rep |> should startWith "Invalid forward reference"
     "'(#1# #1=1)" |> rep |> should startWith "Invalid forward reference"
     "'(#1=1 #1=2)" |> rep |> should startWith "Duplicate datum label"
     "'#1=#1#" |> rep |> should startWith "Invalid circular reference"

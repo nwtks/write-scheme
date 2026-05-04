@@ -135,6 +135,7 @@ module Builtin =
               "reverse", (SProcedure sReverse, None) |> ref
               "list-tail", (SProcedure sListTail, None) |> ref
               "list-ref", (SProcedure sListRef, None) |> ref
+              "list-set!", (SProcedure sListSet, None) |> ref
               "memq", (SProcedure sMemq, None) |> ref
               "memv", (SProcedure sMemv, None) |> ref
               "member", (SProcedure sMember, None) |> ref

@@ -81,34 +81,40 @@ module Type =
 
     // Floyd's cycle-finding algorithm
     [<TailCall>]
-    let rec loopProperList tortoise =
-        function
-        | SEmpty, _ -> true
+    let rec loopListInfo tortoise hare accLength accList =
+        match hare with
+        | SEmpty, _ -> Ok(accList |> Option.map List.rev, accLength)
         | SPair pHare, _ ->
             match pHare.cdr with
-            | SEmpty, _ -> true
+            | SEmpty, _ -> Ok(accList |> Option.map (fun l -> pHare.car :: l |> List.rev), accLength + 1I)
             | SPair pHareNext, _ ->
                 match tortoise with
-                | SPair pTortoise, _ when obj.ReferenceEquals(pTortoise, pHareNext) -> false
-                | SPair pTortoise, _ -> pHareNext.cdr |> loopProperList pTortoise.cdr
-                | _ -> false
-            | _ -> false
-        | _ -> false
+                | SPair pTortoise, _ when obj.ReferenceEquals(pTortoise, pHareNext) -> Error "circular list."
+                | SPair pTortoise, _ ->
+                    let nextList = accList |> Option.map (fun l -> pHareNext.car :: pHare.car :: l)
+                    loopListInfo pTortoise.cdr pHareNext.cdr (accLength + 2I) nextList
+                | _ -> Error "invalid list structure."
+            | _ -> Error "not a proper list."
+        | _ -> Error "not a proper list."
 
     let isProperList =
         function
         | SEmpty, _ -> true
-        | SPair p, _ as expr -> p.cdr |> loopProperList expr
+        | SPair _, _ as expr ->
+            match loopListInfo expr expr 0I None with
+            | Ok _ -> true
+            | Error _ -> false
         | _ -> false
 
-    [<TailCall>]
-    let rec loopToList acc =
-        function
-        | SEmpty, _ -> Ok(acc |> List.rev)
-        | SPair p, _ -> p.cdr |> loopToList (p.car :: acc)
+    let toList expr =
+        match expr with
+        | SEmpty, _ -> Ok []
+        | SPair _, _ ->
+            match loopListInfo expr expr 0I (Some []) with
+            | Ok(Some l, _) -> Ok l
+            | Ok(None, _) -> failwith "unreachable"
+            | Error msg -> Error(EvalError(msg, snd expr))
         | _, p -> Error(EvalError("not a proper list.", p))
-
-    let toList = loopToList []
 
     let SZero = SRational(0I, 1I)
 

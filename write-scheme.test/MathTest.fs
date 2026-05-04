@@ -52,6 +52,7 @@ let ``exact?`` () =
     "(exact? 1.0)" |> rep |> should equal "#f"
     "(exact? 1/2)" |> rep |> should equal "#t"
     "(exact? 1+2i)" |> rep |> should equal "#f"
+    "(exact? 0.5+0.75i)" |> rep |> should equal "#f"
 
 [<Fact>]
 let ``inexact?`` () =

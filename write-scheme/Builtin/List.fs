@@ -88,16 +88,21 @@ module List =
 
     let sList envs pos cont = toSPair >> Ok >> cont
 
-    [<TailCall>]
-    let rec loopLength acc =
-        function
-        | SEmpty, _ -> Ok acc
-        | SPair pair, _ -> pair.cdr |> loopLength (acc + 1I)
-        | x -> x |> invalid (snd x) "'%s' is not a proper list in length."
-
     let sLength envs pos cont =
+        let length expr =
+            match expr with
+            | SEmpty, _ -> Ok 0I
+            | SPair _, _ ->
+                match loopListInfo expr expr 0I None with
+                | Ok(_, len) -> Ok len
+                | Error msg -> Error(EvalError(msg, snd expr))
+            | _, p -> Error(EvalError("not a proper list.", p))
+
         function
-        | [ x ] -> x |> loopLength 0I |> Result.map (fun len -> newInteger len, pos) |> cont
+        | [ x ] ->
+            match length x with
+            | Ok len -> Ok(newInteger len, pos) |> cont
+            | Error e -> Error e |> cont
         | x -> x |> invalidParameter pos "'%s' invalid length parameter." |> cont
 
     let appendTwo a b =
@@ -158,6 +163,19 @@ module List =
         | [ x; SRational(k, d), _ ] when d = 1I && k >= 0I -> x |> loopListRef k |> cont
         | x -> x |> invalidParameter pos "'%s' invalid list-ref parameter." |> cont
 
+    let sListSet envs pos cont =
+        function
+        | [ lst; SRational(k, d), _; obj ] when d = 1I && k >= 0I ->
+            lst
+            |> loopListTail k
+            |> Result.bind (function
+                | SPair p, _ ->
+                    p.car <- obj
+                    Ok(SUnspecified, pos)
+                | x -> Error(EvalError("Out of range or not a pair in list-set!.", snd x)))
+            |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid list-set! parameter." |> cont
+
     [<TailCall>]
     let rec findMember pos comparer obj =
         function
@@ -179,9 +197,25 @@ module List =
         | [ obj; lst ] -> lst |> findMember pos (fun a b -> eqv (a, b)) obj |> cont
         | x -> x |> invalidParameter pos "'%s' invalid memv parameter." |> cont
 
+    [<TailCall>]
+    let rec loopMember envs pos cont obj proc =
+        function
+        | SEmpty, _ -> Ok(SFalse, pos) |> cont
+        | SPair p, _ as x ->
+            proc
+            |> Eval.apply
+                envs
+                (function
+                | Ok(SBool false, _) -> p.cdr |> loopMember envs pos cont obj proc
+                | Ok _ -> Ok x |> cont
+                | Error e -> Error e |> cont)
+                [ obj; p.car ]
+        | x -> Ok(SFalse, pos) |> cont
+
     let sMember envs pos cont =
         function
         | [ obj; lst ] -> lst |> findMember pos (fun a b -> loopEqual [ a, b ]) obj |> cont
+        | [ obj; lst; proc ] -> lst |> loopMember envs pos cont obj proc
         | x -> x |> invalidParameter pos "'%s' invalid member parameter." |> cont
 
     [<TailCall>]
@@ -208,9 +242,28 @@ module List =
         | [ obj; lst ] -> lst |> findAssoc pos (fun a b -> eqv (a, b)) obj |> cont
         | x -> x |> invalidParameter pos "'%s' invalid assv parameter." |> cont
 
+    [<TailCall>]
+    let rec loopAssoc envs pos cont obj proc =
+        function
+        | SEmpty, _ -> Ok(SFalse, pos) |> cont
+        | SPair p, _ ->
+            match p.car |> getCar with
+            | Ok car ->
+                proc
+                |> Eval.apply
+                    envs
+                    (function
+                    | Ok(SBool false, _) -> p.cdr |> loopAssoc envs pos cont obj proc
+                    | Ok _ -> Ok p.car |> cont
+                    | Error e -> Error e |> cont)
+                    [ obj; car ]
+            | Error e -> Error e |> cont
+        | _ -> Ok(SFalse, pos) |> cont
+
     let sAssoc envs pos cont =
         function
         | [ obj; lst ] -> lst |> findAssoc pos (fun a b -> loopEqual [ a, b ]) obj |> cont
+        | [ obj; lst; proc ] -> lst |> loopAssoc envs pos cont obj proc
         | x -> x |> invalidParameter pos "'%s' invalid assoc parameter." |> cont
 
     [<TailCall>]
