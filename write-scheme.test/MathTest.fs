@@ -496,7 +496,7 @@ let inexact () =
 let exact () =
     "(exact 1.0)" |> rep |> should equal "1"
     "(exact 1)" |> rep |> should equal "1"
-    "(exact 0.5)" |> rep |> should equal "0"
+    "(exact 0.5)" |> rep |> should equal "1/2"
 
 [<Fact>]
 let ``number->string`` () =

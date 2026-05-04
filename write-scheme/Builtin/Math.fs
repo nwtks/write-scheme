@@ -495,23 +495,7 @@ module Math =
         let toExactValue =
             function
             | SRational _, _ as x -> Ok x
-            | SReal r, _ when finiteFloat r ->
-                let s = (r |> sprintf "%.15f").TrimEnd('0').TrimEnd('.')
-
-                if s.Contains(".") then
-                    let parts = s.Split('.')
-                    let nStr = (if parts.[0] = "0" then "" else parts.[0]) + parts.[1]
-                    let n = if nStr = "" || nStr = "-" then 0I else bigint.Parse nStr
-                    let d = bigint.Pow(10I, parts.[1].Length)
-
-                    newSRational n d
-                    |> Result.map (fun n -> n, pos)
-                    |> Result.mapError (fun msg -> EvalError(msg, pos))
-                else
-                    try
-                        Ok(newInteger (bigint.Parse s), pos)
-                    with _ ->
-                        Ok(newInteger (bigint r), pos)
+            | SReal r, _ when finiteFloat r -> Ok(realToRational r, pos)
             | x -> Ok x
 
         function
@@ -716,13 +700,7 @@ module Math =
     let sExact envs pos cont =
         function
         | [ SRational _, _ ] as x -> Ok x.Head |> cont
-        | [ SReal r, _ ] when finiteFloat r ->
-            r
-            |> sprintf "%.17g"
-            |> Read.read
-            |> function
-                | Ok(SRational _, _) as res -> res |> cont
-                | _ -> Ok(newInteger (bigint r), pos) |> cont
+        | [ SReal r, _ ] when finiteFloat r -> Ok(realToRational r, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid exact parameter." |> cont
 
     let sNumberToString envs pos cont =

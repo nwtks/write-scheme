@@ -129,6 +129,34 @@ module Type =
             else
                 Ok(SRational(n', d'))
 
+    let realToRational x =
+        if System.Double.IsInfinity x || System.Double.IsNaN x then
+            SReal x
+        else
+            let s = sprintf "%.17g" x
+
+            let res =
+                if s.Contains '.' || s.Contains 'e' || s.Contains 'E' then
+                    let parts = s.Split [| 'e'; 'E' |]
+                    let baseNum = parts.[0]
+                    let exp = if parts.Length > 1 then int parts.[1] else 0
+                    let dotIdx = baseNum.IndexOf '.'
+                    let digits = baseNum.Replace(".", "")
+                    let scale = if dotIdx < 0 then 0 else baseNum.Length - dotIdx - 1
+                    let numerator = bigint.Parse digits
+
+                    if scale - exp < 0 then
+                        numerator * bigint.Pow(10I, exp - scale) |> newInteger |> Ok
+                    else
+                        let denominator = bigint.Pow(10I, scale - exp)
+                        newSRational numerator denominator
+                else
+                    bigint x |> newInteger |> Ok
+
+            match res with
+            | Ok r -> r
+            | Error _ -> SReal x
+
     let runesToString runes =
         let sb = System.Text.StringBuilder()
 

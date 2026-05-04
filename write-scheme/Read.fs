@@ -9,20 +9,15 @@ module Read =
 
     let pIntralineWhitespace = anyOf " \t"
     let pLineEnding = newline
-    let pWhitespace = choice [ pIntralineWhitespace; pLineEnding ]
-    let pLineComment = pchar ';' >>. restOfLine true
-    let pBlockComment = pstring "#|" >>. charsTillString "|#" true System.Int32.MaxValue
-    let pAtmosphere = choice [ pWhitespace |>> string; pLineComment; pBlockComment ]
-    let pIntertokenSpace = many pAtmosphere
-    let pIntertokenSpace1 = many1 pAtmosphere
+    let pAtmosphere, pAtmosphereRef = createParserForwardedToRef<unit, SState> ()
+    let pIntertokenSpace = skipMany pAtmosphere
+    let pIntertokenSpace1 = skipMany1 pAtmosphere
     let pLetter = asciiLetter
     let pSpecialInitial = anyOf "!$%&*/:<=>?^_~"
-    let pInitial = choice [ pLetter; pSpecialInitial ]
     let pDigit = digit
     let pHexDigit = hex
     let pExplicitSign = anyOf "+-"
     let pSpecialSubsequent = choice [ pExplicitSign; anyOf ".@" ]
-    let pSubsequent = choice [ pInitial; pDigit; pSpecialSubsequent ]
     let hex2int x = (int x &&& 15) + (int x >>> 6) * 9
 
     let parseWithPos p =
@@ -38,6 +33,12 @@ module Read =
 
     let pInlineHexEscape = between (pstringCI "\\x") (pchar ';') pHexScalarValue
 
+    let pInitial =
+        choice [ pLetter |>> string; pSpecialInitial |>> string; pInlineHexEscape ]
+
+    let pSubsequent =
+        choice [ pInitial; pDigit |>> string; pSpecialSubsequent |>> string ]
+
     let pMnemonicEscape =
         choice
             [ stringReturn "\\a" "\u0007"
@@ -48,21 +49,21 @@ module Read =
               stringReturn "\\f" "\u000c"
               stringReturn "\\r" "\u000d" ]
 
-    let pSignSubsequent = choice [ pInitial; pExplicitSign; pchar '@' ]
-    let pDotSubsequent = choice [ pSignSubsequent; pchar '.' ]
+    let pSignSubsequent = choice [ pInitial; pExplicitSign |>> string; pstring "@" ]
+    let pDotSubsequent = choice [ pSignSubsequent; pstring "." ]
 
     let pPeculiarIdentifier =
         choice
             [ attempt (
-                  pipe3 pExplicitSign pSignSubsequent (pSubsequent |> manyChars) (fun c1 c2 s3 ->
-                      sprintf "%c%c%s" c1 c2 s3)
+                  pipe3 pExplicitSign pSignSubsequent (pSubsequent |> manyStrings) (fun c1 s2 s3 ->
+                      sprintf "%c%s%s" c1 s2 s3)
               )
               attempt (
-                  pipe4 pExplicitSign (pchar '.') pDotSubsequent (pSubsequent |> manyChars) (fun c1 _ c3 s4 ->
-                      sprintf "%c.%c%s" c1 c3 s4)
+                  pipe4 pExplicitSign (pchar '.') pDotSubsequent (pSubsequent |> manyStrings) (fun c1 _ s3 s4 ->
+                      sprintf "%c.%s%s" c1 s3 s4)
               )
               pExplicitSign |>> string
-              pipe3 (pchar '.') pDotSubsequent (pSubsequent |> manyChars) (fun _ c2 s3 -> sprintf ".%c%s" c2 s3) ]
+              pipe3 (pchar '.') pDotSubsequent (pSubsequent |> manyStrings) (fun _ s2 s3 -> sprintf ".%s%s" s2 s3) ]
 
     let pSymbolElement =
         choice
@@ -74,7 +75,7 @@ module Read =
 
     let pIdentifier =
         choice
-            [ pipe2 pInitial (pSubsequent |> manyChars) (fun c1 s2 -> sprintf "%c%s" c1 s2)
+            [ pipe2 pInitial (pSubsequent |> manyStrings) (fun s1 s2 -> s1 + s2)
               pPeculiarIdentifier
               between (pchar '|') (pchar '|') (pSymbolElement |> manyStrings) ]
 
@@ -263,8 +264,8 @@ module Read =
             match exactness with
             | Some true ->
                 match num with
-                | SReal x -> SRational(bigint x, 1I)
-                | SComplex c -> SRational(bigint c.Real, 1I)
+                | SReal x -> realToRational x
+                | SComplex c -> if c.Imaginary = 0.0 then realToRational c.Real else num
                 | _ -> num
             | Some false ->
                 match num with
@@ -305,6 +306,29 @@ module Read =
         |> parseWithPos
 
     let parseDatum, parseDatumRef = createParserForwardedToRef ()
+
+    let pWhitespace = choice [ pIntralineWhitespace; pLineEnding ]
+    let pLineComment = pchar ';' >>. restOfLine true
+    let pBlockComment, pBlockCommentRef = createParserForwardedToRef<unit, SState> ()
+
+    pBlockCommentRef.Value <-
+        between
+            (pstring "#|")
+            (pstring "|#")
+            (skipMany (
+                choice
+                    [ attempt pBlockComment
+                      skipMany1 (noneOf "#|")
+                      attempt (pchar '#' .>> notFollowedBy (pchar '|')) >>% ()
+                      attempt (pchar '|' .>> notFollowedBy (pchar '#')) >>% () ]
+            ))
+
+    pAtmosphereRef.Value <-
+        choice
+            [ pWhitespace >>% ()
+              pLineComment >>% ()
+              pBlockComment
+              pstring "#;" >>. pIntertokenSpace >>. parseDatum >>% () ]
 
     let parseList =
         between (pchar '(') (pchar ')') (pIntertokenSpace >>. many (parseDatum .>> pIntertokenSpace) |>> toSPair)

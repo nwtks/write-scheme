@@ -83,13 +83,17 @@ let number () =
     "#e#x10@0" |> rep |> should equal "16"
     "#e1" |> rep |> should equal "1"
     "#e1.0" |> rep |> should equal "1"
-    "#e1+2i" |> rep |> should equal "1"
+    "#e1+2i" |> rep |> should equal "1+2i"
     "#i1" |> rep |> should equal "1"
     "#x#i10" |> rep |> should equal "16"
     "#i#x10" |> rep |> should equal "16"
     "#i1" |> rep |> should equal "1"
     "#i1.0" |> rep |> should equal "1"
     "#i1+2i" |> rep |> should equal "1+2i"
+    "#e1.5" |> rep |> should equal "3/2"
+    "#e1.0" |> rep |> should equal "1"
+    "#e0.5" |> rep |> should equal "1/2"
+    "#e-0.25" |> rep |> should equal "-1/4"
 
 [<Fact>]
 let bool () =
@@ -132,6 +136,9 @@ let symbol () =
     "'V17a" |> rep |> should equal "V17a"
     "'|two words|" |> rep |> should equal "two words"
     "'|two\\x20;words|" |> rep |> should equal "two words"
+    "(quote |a\\x20;b|)" |> rep |> should equal "a b"
+    "(quote \\x3bb;)" |> rep |> should equal "λ"
+    "(quote foo\\x3bb;bar)" |> rep |> should equal "fooλbar"
     "'|a\\\\b|" |> rep |> should equal "a\\b"
     "'|a\\nb|" |> rep |> should equal "a\nb"
     "'|a\\vb|" |> rep |> should equal "a\u000bb"
@@ -227,6 +234,13 @@ let bytevector () =
 let ``comments`` () =
     "; comment\n1" |> rep |> should equal "1"
     "#| block comment |# 42" |> rep |> should equal "42"
+    "#| nested #| block |# comment |# 42" |> rep |> should equal "42"
+    "#| nested #| #| deeply |# |# comment |# 42" |> rep |> should equal "42"
+    "#; 1 42" |> rep |> should equal "42"
+    "#; (1 2 3) 42" |> rep |> should equal "42"
+    "#; #; 1 2 42" |> rep |> should equal "42"
+    "#; #| comment |# 1 42" |> rep |> should equal "42"
+    "'(1 #; 2 3)" |> rep |> should equal "(1 3)"
 
 [<Fact>]
 let ``datum labels`` () =
