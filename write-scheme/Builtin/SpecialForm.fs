@@ -176,7 +176,7 @@ module SpecialForm =
         | key :: clauses ->
             key
             |> Eval.eval envs (function
-                | Ok k -> testCase envs pos cont k clauses
+                | Ok k -> clauses |> testCase envs pos cont k
                 | x -> x |> cont)
         | x -> x |> invalidParameter pos "'%s' invalid case parameter." |> cont
 
@@ -479,7 +479,7 @@ module SpecialForm =
                 |> Eval.eachEval
                     loopEnvs
                     (function
-                    | Ok _ -> evalDoStep envs pos cont test exprs commands bindings loopEnvs [] bindings
+                    | Ok _ -> bindings |> evalDoStep envs pos cont test exprs commands bindings loopEnvs []
                     | x -> x |> cont)
                     (Ok(SEmpty, pos))
             | Ok testResult ->
@@ -608,20 +608,29 @@ module SpecialForm =
                     vExpr
                     |> Eval.eval envs (function
                         | Ok newVal ->
-                            let continueWith v =
-                                let oldVal = r.Value
-                                rest |> loopParameterize envs pos cont body ((r, ref v, ref oldVal) :: triples)
-
                             match convOpt with
                             | Some conv ->
                                 conv
                                 |> Eval.apply
                                     envs
                                     (function
-                                    | Ok converted -> continueWith converted
+                                    | Ok converted ->
+                                        let oldVal = r.Value
+
+                                        rest
+                                        |> loopParameterize
+                                            envs
+                                            pos
+                                            cont
+                                            body
+                                            ((r, ref converted, ref oldVal) :: triples)
                                     | x -> x |> cont)
                                     [ newVal ]
-                            | None -> continueWith newVal
+                            | None ->
+                                let oldVal = r.Value
+
+                                rest
+                                |> loopParameterize envs pos cont body ((r, ref newVal, ref oldVal) :: triples)
                         | x -> x |> cont)
                 | Ok x ->
                     Error(EvalError(sprintf "'%s' is not a parameter." (x |> Print.print), snd pExpr))

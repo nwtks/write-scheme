@@ -137,7 +137,7 @@ module Procedure =
             |> Eval.apply
                 envs
                 (function
-                | Ok _ -> loopForEach envs pos cont proc xs
+                | Ok _ -> xs |> loopForEach envs pos cont proc
                 | x -> x |> cont)
                 x
 

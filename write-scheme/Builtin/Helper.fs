@@ -14,16 +14,15 @@ module Helper =
     let invalidParameter pos fmt = toSPair >> invalid pos fmt
 
     [<TailCall>]
-    let rec mapResult f =
+    let rec loopMapResult f acc =
         function
-        | [] -> Ok []
+        | [] -> Ok(List.rev acc)
         | x :: xs ->
             match f x with
-            | Ok r ->
-                match mapResult f xs with
-                | Ok rs -> Ok(r :: rs)
-                | Error e -> Error e
+            | Ok r -> xs |> loopMapResult f (r :: acc)
             | Error e -> Error e
+
+    let mapResult f = loopMapResult f []
 
     let eachBinding =
         function
