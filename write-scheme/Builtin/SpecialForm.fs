@@ -484,7 +484,7 @@ module SpecialForm =
                     (Ok(SEmpty, pos))
             | Ok testResult ->
                 match exprs with
-                | [] -> Ok(SUnspecified, pos) |> cont
+                | [] -> Ok(SEmpty, pos) |> cont
                 | _ -> exprs |> Eval.eachEval loopEnvs cont (Ok testResult)
             | x -> x |> cont)
 

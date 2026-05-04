@@ -32,7 +32,8 @@ module Helper =
           _ -> Ok(var, expr)
         | _, pos as x -> x |> invalid pos "'%s' invalid binding."
 
-    let eqv (a, b) =
+    [<TailCall>]
+    let rec eqv (a, b) =
         match a, b with
         | (SBool x, _), (SBool y, _) -> x = y
         | (SSymbol x, _), (SSymbol y, _) -> x = y
@@ -41,12 +42,16 @@ module Helper =
         | (SComplex x, _), (SComplex y, _) -> x = y
         | (SChar x, _), (SChar y, _) -> x = y
         | (SEmpty, _), (SEmpty, _) -> true
-        | (SPair x, _), (SPair y, _) -> x = y
-        | (SVector x, _), (SVector y, _) -> x = y
-        | (SByteVector x, _), (SByteVector y, _) -> x = y
+        | (SPair x, _), (SPair y, _) -> LanguagePrimitives.PhysicalEquality x y
+        | (SVector x, _), (SVector y, _) -> LanguagePrimitives.PhysicalEquality x y
+        | (SByteVector x, _), (SByteVector y, _) -> LanguagePrimitives.PhysicalEquality x y
         | (SContinuation x, _), (SContinuation y, _) -> LanguagePrimitives.PhysicalEquality x y
         | (SProcedure x, _), (SProcedure y, _) -> LanguagePrimitives.PhysicalEquality x y
-        | _ -> false
+        | (SQuote x, _), (SQuote y, _) -> eqv (x, y)
+        | (SQuasiquote x, _), (SQuasiquote y, _) -> eqv (x, y)
+        | (SUnquote x, _), (SUnquote y, _) -> eqv (x, y)
+        | (SUnquoteSplicing x, _), (SUnquoteSplicing y, _) -> eqv (x, y)
+        | (x, _), (y, _) -> LanguagePrimitives.PhysicalEquality x y
 
     [<TailCall>]
     let rec loopDiffWinders sList tList lenS lenT accS accT =

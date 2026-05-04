@@ -62,11 +62,14 @@ module Eval =
         | SPair p, _ ->
             p.car
             |> eval envs (function
-                | Ok(SSyntax fn, pos') -> p.cdr |> toList |> Result.bind (fn envs pos' cont)
+                | Ok(SSyntax fn, pos') ->
+                    match p.cdr |> toList with
+                    | Ok args -> args |> fn envs pos' cont
+                    | Error e -> Error e |> cont
                 | Ok op ->
-                    p.cdr
-                    |> toList
-                    |> Result.bind (evalArgs envs cont (fun e c a -> op |> apply e c a) [])
+                    match p.cdr |> toList with
+                    | Ok args -> args |> evalArgs envs cont (fun e c a -> op |> apply e c a) []
+                    | Error e -> Error e |> cont
                 | x -> x |> cont)
         | SQuote x, pos -> [ SSymbol "quote", pos; x ] |> toSPair |> eval envs cont
         | SQuasiquote x, pos -> [ SSymbol "quasiquote", pos; x ] |> toSPair |> eval envs cont
@@ -74,13 +77,21 @@ module Eval =
     and [<TailCall>] evalArgs envs cont fn acc =
         function
         | [] -> List.rev acc |> fn envs cont
-        | x :: xs -> x |> eval envs (Result.bind (fun a -> xs |> evalArgs envs cont fn (a :: acc)))
+        | x :: xs ->
+            x
+            |> eval envs (function
+                | Ok a -> xs |> evalArgs envs cont fn (a :: acc)
+                | Error e -> Error e |> cont)
 
     [<TailCall>]
     let rec eachEval envs cont acc =
         function
         | [] -> acc |> cont
-        | x :: xs -> x |> eval envs (Result.bind (fun a -> xs |> eachEval envs cont (Ok a)))
+        | x :: xs ->
+            x
+            |> eval envs (function
+                | Ok a -> xs |> eachEval envs cont (Ok a)
+                | Error e -> Error e |> cont)
 
     [<TailCall>]
     let rec unwrapDatumLabel =
