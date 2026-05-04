@@ -90,8 +90,9 @@ let ``syntax-rules literal keywords`` () =
 let ``syntax-error`` () =
     let rep = repEnvs ()
 
-    (fun () -> "(syntax-error \"test error\" 1 2)" |> rep |> ignore)
-    |> should throw typeof<WriteScheme.Type.SchemeRaise>
+    "(syntax-error \"test error\" 1 2)"
+    |> rep
+    |> should equal "#<error \"test error\" 1 2>"
 
     "(define-syntax check-positive
        (syntax-rules ()
@@ -101,9 +102,7 @@ let ``syntax-error`` () =
     |> ignore
 
     "(check-positive 1)" |> rep |> should equal "1"
-
-    (fun () -> "(check-positive -1)" |> rep |> ignore)
-    |> should throw typeof<WriteScheme.Type.SchemeRaise>
+    "(check-positive -1)" |> rep |> should equal "#<error \"not positive\" -1>"
 
 [<Fact>]
 let ``syntax-rules hygiene shadowing`` () =
@@ -185,8 +184,6 @@ let ``literal matching with shadowing`` () =
     |> ignore
 
     "(check-lit lit)" |> rep |> should equal "#t"
-
-    // Shadowing 'lit' should make it NOT match the literal in the macro
     "(let ((lit 1)) (check-lit lit))" |> rep |> should equal "#f"
 
 [<Fact>]
@@ -251,8 +248,9 @@ let ``custom ellipsis with literals`` () =
 
     "(check-lit lit 1 2 3)" |> rep |> should equal "(1 2 3)"
 
-    (fun () -> "(let ((lit 0)) (check-lit lit 1 2 3))" |> rep |> ignore)
-    |> should throw typeof<System.Exception>
+    "(let ((lit 0)) (check-lit lit 1 2 3))"
+    |> rep
+    |> should equal "no matching syntax-rules pattern."
 
 [<Fact>]
 let ``ellipsis escape in template`` () =

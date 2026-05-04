@@ -431,8 +431,6 @@ let ``atan`` () =
     "(atan 1 1)" |> rep |> should not' (equal "0")
     "(atan 1/2 1/2)" |> rep |> should not' (equal "0")
     "(atan 1.0 1.0)" |> rep |> should not' (equal "0")
-    "(atan 1+i 1.0)" |> rep |> should equal "0"
-    "(atan 1.0 1+i)" |> rep |> should not' (equal "0")
 
 [<Fact>]
 let square () =

@@ -7,30 +7,46 @@ open Type
 module Helper =
     let invalid pos fmt =
         Print.print
-        >> sprintf fmt
-        >> fun msg -> failwithf "%s%s" msg (pos |> formatPosition)
+        >> fun s ->
+            let msg = sprintf (Printf.StringFormat<string -> string> fmt) s
+            Error(EvalError(msg, pos))
 
     let invalidParameter pos fmt = toSPair >> invalid pos fmt
+
+    [<TailCall>]
+    let rec mapResult f =
+        function
+        | [] -> Ok []
+        | x :: xs ->
+            match f x with
+            | Ok r ->
+                match mapResult f xs with
+                | Ok rs -> Ok(r :: rs)
+                | Error e -> Error e
+            | Error e -> Error e
 
     let eachBinding =
         function
         | SPair { car = SSymbol var, _
                   cdr = SPair { car = expr; cdr = SEmpty, _ }, _ },
-          _ -> var, expr
+          _ -> Ok(var, expr)
         | _, pos as x -> x |> invalid pos "'%s' invalid binding."
 
-    [<TailCall>]
-    let rec eqv =
-        function
-        | (SBool a, _), (SBool b, _) -> a = b
-        | (SRational(a1, a2), _), (SRational(b1, b2), _) -> a1 = b1 && a2 = b2
-        | (SReal a', _), (SReal b', _) -> a' = b'
-        | (SComplex a', _), (SComplex b', _) -> a' = b'
-        | (SChar a', _), (SChar b', _) -> a' = b'
-        | (SSymbol a', _), (SSymbol b', _) -> a' = b'
-        | (SQuote a, _), (SQuote b, _) -> (a, b) |> eqv
-        | (SUnquote a, _), (SUnquote b, _) -> (a, b) |> eqv
-        | (a, _), (b, _) -> a = b
+    let eqv (a, b) =
+        match a, b with
+        | (SBool x, _), (SBool y, _) -> x = y
+        | (SSymbol x, _), (SSymbol y, _) -> x = y
+        | (SRational(n1, d1), _), (SRational(n2, d2), _) -> n1 = n2 && d1 = d2
+        | (SReal x, _), (SReal y, _) -> x = y
+        | (SComplex x, _), (SComplex y, _) -> x = y
+        | (SChar x, _), (SChar y, _) -> x = y
+        | (SEmpty, _), (SEmpty, _) -> true
+        | (SPair x, _), (SPair y, _) -> x = y
+        | (SVector x, _), (SVector y, _) -> x = y
+        | (SByteVector x, _), (SByteVector y, _) -> x = y
+        | (SContinuation x, _), (SContinuation y, _) -> LanguagePrimitives.PhysicalEquality x y
+        | (SProcedure x, _), (SProcedure y, _) -> LanguagePrimitives.PhysicalEquality x y
+        | _ -> false
 
     [<TailCall>]
     let rec loopDiffWinders sList tList lenS lenT accS accT =
@@ -49,29 +65,36 @@ module Helper =
             | _ -> List.rev accS, List.rev accT
 
     [<TailCall>]
-    let rec runWindLeaves envs cont cur =
+    let rec runWindLeaves envs next cur =
         function
-        | [] -> cont cur
+        | [] -> Ok cur |> next
         | head :: rest ->
             let nextCur = Context.leaveWinder envs cur head.id
 
             head.after
-            |> Eval.apply envs (fun _ -> rest |> runWindLeaves envs cont nextCur) []
+            |> Eval.apply
+                envs
+                (function
+                | Ok _ -> rest |> runWindLeaves envs next nextCur
+                | Error e -> Error e |> next)
+                []
 
     [<TailCall>]
-    let rec runWindEnters envs cont cur =
+    let rec runWindEnters envs next cur =
         function
-        | [] -> cont cur
+        | [] -> Ok cur |> next
         | head :: rest ->
             head.before
             |> Eval.apply
                 envs
-                (fun _ ->
+                (function
+                | Ok _ ->
                     let nextCur = Context.enterWinder envs cur head
-                    rest |> runWindEnters envs cont nextCur)
+                    rest |> runWindEnters envs next nextCur
+                | Error e -> Error e |> next)
                 []
 
-    let doWind envs cont tgt =
+    let doWind envs cont tgt arg =
         let src = envs.currentWinders.Value
 
         let leaves, enters =
@@ -80,4 +103,9 @@ module Helper =
         let entersRev = List.rev enters
 
         leaves
-        |> runWindLeaves envs (fun cur -> entersRev |> runWindEnters envs cont cur) src
+        |> runWindLeaves
+            envs
+            (function
+            | Ok cur -> entersRev |> runWindEnters envs (fun _ -> cont arg) cur
+            | Error e -> Error e |> cont)
+            src

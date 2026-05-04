@@ -7,8 +7,8 @@ open Type
 module Core =
     let isEqv envs pos cont =
         function
-        | [ a; b ] -> ((a, b) |> eqv |> toSBool, pos) |> cont
-        | _ -> (SFalse, pos) |> cont
+        | [ a; b ] -> Ok((a, b) |> eqv |> toSBool, pos) |> cont
+        | _ -> Ok(SFalse, pos) |> cont
 
     [<TailCall>]
     let rec zipVectorEqual (a: SExpression array) (b: SExpression array) i acc =
@@ -61,21 +61,21 @@ module Core =
 
     let isEqual envs pos cont =
         function
-        | [ a; b ] -> ([ a, b ] |> loopEqual |> toSBool, pos) |> cont
-        | _ -> (SFalse, pos) |> cont
+        | [ a; b ] -> Ok([ a, b ] |> loopEqual |> toSBool, pos) |> cont
+        | _ -> Ok(SFalse, pos) |> cont
 
     let sDisplay envs pos cont =
         function
         | [ SString x, _ ] ->
             x.runes |> runesToString |> printf "%s"
-            (SUnspecified, pos) |> cont
+            Ok(SUnspecified, pos) |> cont
         | [ SChar x, _ ] ->
             x |> string |> printf "%s"
-            (SUnspecified, pos) |> cont
+            Ok(SUnspecified, pos) |> cont
         | [ x ] ->
             x |> Print.print |> printf "%s"
-            (SUnspecified, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid display parameter."
+            Ok(SUnspecified, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid display parameter." |> cont
 
     let sLoad envs pos cont =
         function
@@ -86,11 +86,7 @@ module Core =
             |> System.IO.File.ReadAllText
             |> Read.read
             |> Result.bind Eval.resolveLabels
-            |> Result.map (Eval.eval envs id)
+            |> Result.bind (Eval.eval envs id)
             |> Result.map (fun _ -> path |> sprintf "Loaded '%s'." |> SSymbol, pos)
-            |> Result.defaultWith (fun e ->
-                match e with
-                | ParseError(msg, pos) -> newSString true msg, pos
-                | EvalError(msg, pos) -> newSString true msg, pos)
             |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid load parameter."
+        | x -> x |> invalidParameter pos "'%s' invalid load parameter." |> cont

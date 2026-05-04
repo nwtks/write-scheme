@@ -8,41 +8,35 @@ module Eval =
         function
         | SParameter(r, converterOpt), pos ->
             match args with
-            | [] -> r.Value |> cont
+            | [] -> r.Value |> Ok |> cont
             | [ v ] ->
                 match converterOpt with
                 | Some converter ->
                     converter
                     |> apply
                         envs
-                        (fun converted ->
+                        (Result.map (fun converted ->
                             r.Value <- converted
-                            converted |> cont)
+                            converted)
+                         >> cont)
                         [ v ]
                 | None ->
                     r.Value <- v
-                    v |> cont
-            | _ ->
-                failwithf
-                    "'%s' invalid parameter object call.%s"
-                    (args |> toSPair |> Print.print)
-                    (pos |> formatPosition)
+                    v |> Ok |> cont
+            | _ -> Error(EvalError(sprintf "'%s' invalid parameter object call." (args |> toSPair |> Print.print), pos))
         | SSyntax fn, pos
         | SProcedure fn, pos -> args |> fn envs pos cont
         | SContinuation fn, pos ->
             match args with
-            | [ arg ] -> fn arg
+            | [ arg ] -> fn (Ok arg)
             | _ ->
-                failwithf
-                    "'%s' invalid continuation parameter.%s"
-                    (args |> toSPair |> Print.print)
-                    (pos |> formatPosition)
-        | x -> failwithf "'%s' not operator.%s" (x |> Print.print) (x |> snd |> formatPosition)
+                Error(EvalError(sprintf "'%s' invalid continuation parameter." (args |> toSPair |> Print.print), pos))
+        | x -> Error(EvalError(sprintf "'%s' not operator." (x |> Print.print), snd x))
 
     [<TailCall>]
     let rec eval envs cont =
         function
-        | SEmpty, pos -> failwithf "() is not a valid expression. %s" (pos |> formatPosition)
+        | SEmpty, pos -> Error(EvalError("() is not a valid expression.", pos))
         | SUnspecified, _
         | SBool _, _
         | SRational _, _
@@ -63,26 +57,30 @@ module Eval =
         | SProcedure _, _
         | SContinuation _, _
         | SDatumLabel _, _
-        | SDatumRef _, _ as expr -> expr |> cont
-        | SSymbol x, pos -> (Context.lookupEnvs envs pos x).Value |> cont
+        | SDatumRef _, _ as expr -> expr |> Ok |> cont
+        | SSymbol x, pos -> Context.lookupEnvs envs pos x |> Result.map (fun v -> v.Value) |> cont
         | SPair p, _ ->
             p.car
             |> eval envs (function
-                | SSyntax fn, pos' -> p.cdr |> toList |> fn envs pos' cont
-                | op -> p.cdr |> toList |> evalArgs envs cont (fun e c a -> op |> apply e c a) [])
+                | Ok(SSyntax fn, pos') -> p.cdr |> toList |> Result.bind (fn envs pos' cont)
+                | Ok op ->
+                    p.cdr
+                    |> toList
+                    |> Result.bind (evalArgs envs cont (fun e c a -> op |> apply e c a) [])
+                | x -> x |> cont)
         | SQuote x, pos -> [ SSymbol "quote", pos; x ] |> toSPair |> eval envs cont
         | SQuasiquote x, pos -> [ SSymbol "quasiquote", pos; x ] |> toSPair |> eval envs cont
 
     and [<TailCall>] evalArgs envs cont fn acc =
         function
         | [] -> List.rev acc |> fn envs cont
-        | x :: xs -> x |> eval envs (fun a -> xs |> evalArgs envs cont fn (a :: acc))
+        | x :: xs -> x |> eval envs (Result.bind (fun a -> xs |> evalArgs envs cont fn (a :: acc)))
 
     [<TailCall>]
     let rec eachEval envs cont acc =
         function
         | [] -> acc |> cont
-        | x :: xs -> x |> eval envs (fun a -> xs |> eachEval envs cont a)
+        | x :: xs -> x |> eval envs (Result.bind (fun a -> xs |> eachEval envs cont (Ok a)))
 
     [<TailCall>]
     let rec unwrapDatumLabel =

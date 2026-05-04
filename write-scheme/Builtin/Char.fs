@@ -7,17 +7,19 @@ open Type
 module Char =
     let isChar envs pos cont =
         function
-        | [ SChar _, _ ] -> (STrue, pos) |> cont
-        | _ -> (SFalse, pos) |> cont
+        | [ SChar _, _ ] -> Ok(STrue, pos) |> cont
+        | _ -> Ok(SFalse, pos) |> cont
 
     let compareCharsBase transformer pred name pos cont =
-        List.map (function
-            | SChar c, _ -> transformer c
-            | x -> failwithf "'%s' is not a char in %s.%s" (x |> Print.print) name (x |> snd |> formatPosition))
-        >> List.pairwise
-        >> List.forall (fun (a, b) -> pred a b)
-        >> toSBool
-        >> fun x -> x, pos
+        mapResult (function
+            | SChar c, _ -> Ok(transformer c)
+            | x -> x |> invalid (snd x) (sprintf "'%%s' is not a char in %s." name))
+        >> Result.map (
+            List.pairwise
+            >> List.forall (fun (a, b) -> pred a b)
+            >> toSBool
+            >> fun x -> x, pos
+        )
         >> cont
 
     let compareChars pred = compareCharsBase id pred
@@ -38,8 +40,8 @@ module Char =
 
     let checkCharProp pred name pos cont =
         function
-        | [ SChar c, _ ] -> (c |> pred |> toSBool, pos) |> cont
-        | x -> failwithf "'%s' invalid %s parameter.%s" (x |> toSPair |> Print.print) name (pos |> formatPosition)
+        | [ SChar c, _ ] -> Ok(c |> pred |> toSBool, pos) |> cont
+        | x -> x |> invalidParameter pos (sprintf "'%%s' invalid %s parameter." name) |> cont
 
     let sCharAlphabetic envs =
         checkCharProp System.Text.Rune.IsLetter "char-alphabetic?"
@@ -62,33 +64,33 @@ module Char =
             let num = System.Text.Rune.GetNumericValue c
 
             if System.Text.Rune.IsDigit c && num >= 0.0 then
-                (newSRational (bigint num) 1I, pos) |> cont
+                Ok(newInteger (bigint num), pos) |> cont
             else
-                (SFalse, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid digit-value parameter."
+                Ok(SFalse, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid digit-value parameter." |> cont
 
     let sCharToInteger envs pos cont =
         function
-        | [ SChar c, _ ] -> (newSRational (bigint c.Value) 1I, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid char->integer parameter."
+        | [ SChar c, _ ] -> Ok(newInteger (bigint c.Value), pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid char->integer parameter." |> cont
 
     let sIntegerToChar envs pos cont =
         function
         | [ SRational(k, d), _ ] when d = 1I && System.Text.Rune.IsValid(int k) ->
-            (int k |> System.Text.Rune |> SChar, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid integer->char parameter."
+            Ok(int k |> System.Text.Rune |> SChar, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid integer->char parameter." |> cont
 
     let sCharUpcase envs pos cont =
         function
-        | [ SChar c, _ ] -> (System.Text.Rune.ToUpperInvariant c |> SChar, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid char-upcase parameter."
+        | [ SChar c, _ ] -> Ok(System.Text.Rune.ToUpperInvariant c |> SChar, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid char-upcase parameter." |> cont
 
     let sCharDowncase envs pos cont =
         function
-        | [ SChar c, _ ] -> (System.Text.Rune.ToLowerInvariant c |> SChar, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid char-downcase parameter."
+        | [ SChar c, _ ] -> Ok(System.Text.Rune.ToLowerInvariant c |> SChar, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid char-downcase parameter." |> cont
 
     let sCharFoldcase envs pos cont =
         function
-        | [ SChar c, _ ] -> (System.Text.Rune.ToLowerInvariant c |> SChar, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid char-foldcase parameter."
+        | [ SChar c, _ ] -> Ok(System.Text.Rune.ToLowerInvariant c |> SChar, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid char-foldcase parameter." |> cont

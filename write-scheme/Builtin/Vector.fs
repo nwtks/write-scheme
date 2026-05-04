@@ -7,36 +7,36 @@ open Type
 module Vector =
     let isVector envs pos cont =
         function
-        | [ SVector _, _ ] -> (STrue, pos) |> cont
-        | [ _ ] -> (SFalse, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid vector? parameter."
+        | [ SVector _, _ ] -> Ok(STrue, pos) |> cont
+        | [ _ ] -> Ok(SFalse, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid vector? parameter." |> cont
 
     let sMakeVector envs pos cont =
         function
         | [ SRational(k, d), _ ] when d = 1I && k >= 0I ->
-            (Array.create (int k) (SUnspecified, pos) |> SVector, pos) |> cont
-        | [ SRational(k, d), _; fill ] when d = 1I && k >= 0I -> (Array.create (int k) fill |> SVector, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid make-vector parameter."
+            Ok(Array.create (int k) (SUnspecified, pos) |> SVector, pos) |> cont
+        | [ SRational(k, d), _; fill ] when d = 1I && k >= 0I -> Ok(Array.create (int k) fill |> SVector, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid make-vector parameter." |> cont
 
-    let sVector envs pos cont =
-        List.toArray >> SVector >> (fun x -> x, pos) >> cont
+    let sVector envs pos cont xs =
+        Ok(xs |> List.toArray |> SVector, pos) |> cont
 
     let sVectorLength envs pos cont =
         function
-        | [ SVector xs, _ ] -> (newSRational (bigint xs.Length) 1I, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid vector-length parameter."
+        | [ SVector xs, _ ] -> Ok(newInteger (bigint xs.Length), pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid vector-length parameter." |> cont
 
     let sVectorRef envs pos cont =
         function
-        | [ SVector xs, _; SRational(k, d), _ ] when d = 1I && k >= 0I && k < bigint xs.Length -> xs.[int k] |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid vector-ref parameter."
+        | [ SVector xs, _; SRational(k, d), _ ] when d = 1I && k >= 0I && k < bigint xs.Length -> Ok xs.[int k] |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid vector-ref parameter." |> cont
 
     let sVectorSet envs pos cont =
         function
         | [ SVector xs, _; SRational(k, d), _; obj ] when d = 1I && k >= 0I && k < bigint xs.Length ->
             xs.[int k] <- obj
-            (SUnspecified, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid vector-set! parameter."
+            Ok(SUnspecified, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid vector-set! parameter." |> cont
 
     let getVectorRange (length: int) =
         function
@@ -52,48 +52,52 @@ module Vector =
         function
         | (SVector xs, _) :: _ as args ->
             match getVectorRange xs.Length args with
-            | Some(start, stop) -> xs.[start .. stop - 1] |> Array.toList |> toSPair |> cont
-            | None -> args |> invalidParameter pos "'%s' invalid vector->list parameter."
-        | x -> x |> invalidParameter pos "'%s' invalid vector->list parameter."
+            | Some(start, stop) -> Ok(xs.[start .. stop - 1] |> Array.toList |> toSPair) |> cont
+            | None -> args |> invalidParameter pos "'%s' invalid vector->list parameter." |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid vector->list parameter." |> cont
 
     let sListToVector envs pos cont =
         function
-        | [ SEmpty, _ ] -> (SVector [||], pos) |> cont
-        | [ x ] when isProperList x -> (x |> toList |> List.toArray |> SVector, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid list->vector parameter."
+        | [ SEmpty, _ ] -> Ok(SVector [||], pos) |> cont
+        | [ x ] when isProperList x -> x |> toList |> Result.map (fun l -> l |> List.toArray |> SVector, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid list->vector parameter." |> cont
 
     let sVectorToString envs pos cont =
         function
         | (SVector xs, _) :: _ as args ->
             match getVectorRange xs.Length args with
             | Some(start, stop) ->
-                let runes =
-                    xs.[start .. stop - 1]
-                    |> Array.map (function
-                        | SChar c, _ -> c
-                        | x -> x |> invalid (snd x) "'%s' is not a char in vector->string.")
-
-                ({ runes = runes; isImmutable = false } |> SString, pos) |> cont
-            | None -> args |> invalidParameter pos "'%s' invalid vector->string parameter."
-        | x -> x |> invalidParameter pos "'%s' invalid vector->string parameter."
+                xs.[start .. stop - 1]
+                |> Array.toList
+                |> mapResult (function
+                    | SChar c, _ -> Ok c
+                    | x -> x |> invalid (snd x) "'%s' is not a char in vector->string.")
+                |> Result.map (fun runes ->
+                    { runes = runes |> List.toArray
+                      isImmutable = false }
+                    |> SString,
+                    pos)
+                |> cont
+            | None -> args |> invalidParameter pos "'%s' invalid vector->string parameter." |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid vector->string parameter." |> cont
 
     let sStringToVector envs pos cont =
         function
         | (SString s, _) :: _ as args ->
             match getVectorRange s.runes.Length args with
             | Some(start, stop) ->
-                (s.runes.[start .. stop - 1] |> Array.map (fun c -> SChar c, pos) |> SVector, pos)
+                Ok(s.runes.[start .. stop - 1] |> Array.map (fun c -> SChar c, pos) |> SVector, pos)
                 |> cont
-            | None -> args |> invalidParameter pos "'%s' invalid string->vector parameter."
-        | x -> x |> invalidParameter pos "'%s' invalid string->vector parameter."
+            | None -> args |> invalidParameter pos "'%s' invalid string->vector parameter." |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid string->vector parameter." |> cont
 
     let sVectorCopy envs pos cont =
         function
         | (SVector xs, _) :: _ as args ->
             match getVectorRange xs.Length args with
-            | Some(start, stop) -> (xs.[start .. stop - 1] |> Array.copy |> SVector, pos) |> cont
-            | None -> args |> invalidParameter pos "'%s' invalid vector-copy parameter."
-        | x -> x |> invalidParameter pos "'%s' invalid vector-copy parameter."
+            | Some(start, stop) -> Ok(xs.[start .. stop - 1] |> Array.copy |> SVector, pos) |> cont
+            | None -> args |> invalidParameter pos "'%s' invalid vector-copy parameter." |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid vector-copy parameter." |> cont
 
     let sVectorCopyBang envs pos cont =
         function
@@ -101,17 +105,15 @@ module Vector =
             match getVectorRange source.Length ((SVector source, pos) :: rest) with
             | Some(start, stop) when dAt = 1I && at >= 0I && at + bigint (stop - start) <= bigint target.Length ->
                 Array.blit source start target (int at) (stop - start)
-                (SUnspecified, pos) |> cont
-            | _ -> args |> invalidParameter pos "'%s' invalid vector-copy! parameter."
-        | x -> x |> invalidParameter pos "'%s' invalid vector-copy! parameter."
+                Ok(SUnspecified, pos) |> cont
+            | _ -> args |> invalidParameter pos "'%s' invalid vector-copy! parameter." |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid vector-copy! parameter." |> cont
 
     let sVectorAppend envs pos cont =
-        List.map (function
-            | SVector v, _ -> v
+        mapResult (function
+            | SVector v, _ -> Ok v
             | x -> x |> invalid (snd x) "'%s' is not a vector in vector-append.")
-        >> Array.concat
-        >> SVector
-        >> fun x -> x, pos
+        >> Result.map (fun vecs -> vecs |> Array.concat |> SVector, pos)
         >> cont
 
     let sVectorFill envs pos cont =
@@ -122,6 +124,6 @@ module Vector =
                 for i in start .. stop - 1 do
                     xs.[i] <- fill
 
-                (SUnspecified, pos) |> cont
-            | None -> args |> invalidParameter pos "'%s' invalid vector-fill! parameter."
-        | x -> x |> invalidParameter pos "'%s' invalid vector-fill! parameter."
+                Ok(SUnspecified, pos) |> cont
+            | None -> args |> invalidParameter pos "'%s' invalid vector-fill! parameter." |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid vector-fill! parameter." |> cont

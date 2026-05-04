@@ -96,7 +96,9 @@ module Macro =
 
             match inp with
             | SPair _, _ as i when isProper && isProperList i ->
-                matchPatternList defEnvs useEnvs literals ellipsis (i |> toList) next elems
+                match i |> toList with
+                | Ok ilist -> matchPatternList defEnvs useEnvs literals ellipsis ilist next elems
+                | Error _ -> None |> next
             | SPair _, _ as i when not isProper -> (pair, i) |> loopMatchOnePair defEnvs useEnvs literals ellipsis next
             | _ -> None |> next
         | SVector patArray, _ ->
@@ -356,7 +358,7 @@ module Macro =
     [<TailCall>]
     let rec trySyntaxRules defEnvs useEnvs pos cont ellipsis literalSet args =
         function
-        | [] -> failwithf "no matching syntax-rules pattern.%s" (pos |> formatPosition)
+        | [] -> Error(EvalError("no matching syntax-rules pattern.", pos)) |> cont
         | (patBody, template) :: rest ->
             patBody
             |> matchPatternList defEnvs useEnvs literalSet ellipsis args (function
@@ -390,94 +392,117 @@ module Macro =
 
     let parseSyntaxLiterals =
         function
-        | SEmpty, _ -> Set.empty
+        | SEmpty, _ -> Ok Set.empty
         | x when isProperList x ->
-            x
-            |> toList
-            |> List.choose (function
-                | SSymbol s, _ -> Some s
-                | _ -> None)
-            |> Set.ofList
+            match x |> toList with
+            | Ok l ->
+                l
+                |> List.choose (function
+                    | SSymbol s, _ -> Some s
+                    | _ -> None)
+                |> Set.ofList
+                |> Ok
+            | Error e -> Error e
         | x -> x |> invalid (snd x) "'%s' invalid syntax-rules literals."
 
     let parseSyntaxRule =
         function
         | SPair { car = SPair { car = _; cdr = patBody }, _
                   cdr = SPair { car = template; cdr = SEmpty, _ }, _ },
-          _ -> patBody |> toList, template
+          _ -> patBody |> toList |> Result.map (fun blist -> blist, template)
         | x -> x |> invalid (snd x) "'%s' invalid syntax-rules clause."
 
     let sSyntaxRules envs pos cont =
         function
         | (SSymbol ell, _) :: literals :: rules ->
-            let literalSet = parseSyntaxLiterals literals
-            let parsedRules = rules |> List.map parseSyntaxRule
+            match parseSyntaxLiterals literals with
+            | Ok literalSet ->
+                match rules |> mapResult parseSyntaxRule with
+                | Ok parsedRules ->
+                    let transformer envs' pos' cont' args =
+                        parsedRules |> trySyntaxRules envs envs' pos' cont' ell literalSet args
 
-            let transformer envs' pos' cont' args =
-                parsedRules |> trySyntaxRules envs envs' pos' cont' ell literalSet args
-
-            (SSyntax transformer, pos) |> cont
+                    Ok(SSyntax transformer, pos) |> cont
+                | Error e -> Error e |> cont
+            | Error e -> Error e |> cont
         | literals :: rules ->
-            let literalSet = parseSyntaxLiterals literals
-            let parsedRules = rules |> List.map parseSyntaxRule
+            match parseSyntaxLiterals literals with
+            | Ok literalSet ->
+                match rules |> mapResult parseSyntaxRule with
+                | Ok parsedRules ->
+                    let transformer envs' pos' cont' args =
+                        parsedRules |> trySyntaxRules envs envs' pos' cont' "..." literalSet args
 
-            let transformer envs' pos' cont' args =
-                parsedRules |> trySyntaxRules envs envs' pos' cont' "..." literalSet args
-
-            (SSyntax transformer, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid syntax-rules parameter."
+                    Ok(SSyntax transformer, pos) |> cont
+                | Error e -> Error e |> cont
+            | Error e -> Error e |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid syntax-rules parameter." |> cont
 
     [<TailCall>]
     let rec evalLetSyntaxTransformers envs pos cont body acc =
         function
-        | [] -> body |> Eval.eachEval envs cont (SEmpty, pos)
+        | [] -> body |> Eval.eachEval envs cont (Ok(SEmpty, pos))
         | (var, expr) :: rest ->
             expr
-            |> Eval.eval envs (fun transformer ->
-                rest
-                |> evalLetSyntaxTransformers envs pos cont body ((var, ref transformer) :: acc))
+            |> Eval.eval envs (function
+                | Ok transformer ->
+                    rest
+                    |> evalLetSyntaxTransformers envs pos cont body ((var, ref transformer) :: acc)
+                | x -> x |> cont)
 
     let sLetSyntax envs pos cont =
         function
         | bindings :: body ->
-            bindings
-            |> toList
-            |> List.map eachBinding
-            |> evalLetSyntaxTransformers envs pos cont body []
-        | x -> x |> invalidParameter pos "'%s' invalid let-syntax parameter."
+            match bindings |> toList with
+            | Ok blist ->
+                match blist |> mapResult eachBinding with
+                | Ok bindings' -> bindings' |> evalLetSyntaxTransformers envs pos cont body []
+                | Error e -> Error e |> cont
+            | Error e -> Error e |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid let-syntax parameter." |> cont
 
     [<TailCall>]
     let rec evalLetRecSyntaxTransformers envs pos cont body =
         function
         | [], _
-        | _, [] -> body |> Eval.eachEval envs cont (SEmpty, pos)
+        | _, [] -> body |> Eval.eachEval envs cont (Ok(SEmpty, pos))
         | (_, expr) :: rest, r: SExpression ref :: restRefs ->
             expr
-            |> Eval.eval envs (fun transformer ->
-                r.Value <- transformer
-                (rest, restRefs) |> evalLetRecSyntaxTransformers envs pos cont body)
+            |> Eval.eval envs (function
+                | Ok transformer ->
+                    r.Value <- transformer
+                    (rest, restRefs) |> evalLetRecSyntaxTransformers envs pos cont body
+                | x -> x |> cont)
 
     let sLetRecSyntax envs pos cont =
         function
         | bindings :: body ->
-            let bindings' = bindings |> toList |> List.map eachBinding
-            let vars = bindings' |> List.map (fun (v, _) -> v, ref (SEmpty, pos))
-            let envs' = vars |> Context.extendEnvs envs
+            match bindings |> toList with
+            | Ok blist ->
+                match blist |> mapResult eachBinding with
+                | Ok bindings' ->
+                    let vars = bindings' |> List.map (fun (v, _) -> v, ref (SEmpty, pos))
+                    let envs' = vars |> Context.extendEnvs envs
 
-            (bindings', vars |> List.map snd)
-            |> evalLetRecSyntaxTransformers envs' pos cont body
-        | x -> x |> invalidParameter pos "'%s' invalid letrec-syntax parameter."
+                    (bindings', vars |> List.map snd)
+                    |> evalLetRecSyntaxTransformers envs' pos cont body
+                | Error e -> Error e |> cont
+            | Error e -> Error e |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid letrec-syntax parameter." |> cont
 
     let sDefineSyntax envs pos cont =
         function
         | [ SSymbol var, _ as sym; expr ] ->
             expr
-            |> Eval.eval envs (fun x ->
-                Context.defineEnvVar envs var x
-                sym |> cont)
-        | x -> x |> invalidParameter pos "'%s' invalid define-syntax parameter."
+            |> Eval.eval
+                envs
+                (Result.map (fun x ->
+                    Context.defineEnvVar envs var x
+                    sym)
+                 >> cont)
+        | x -> x |> invalidParameter pos "'%s' invalid define-syntax parameter." |> cont
 
     let sSyntaxError envs pos cont =
         function
-        | (SString msg, _) :: irritants -> SchemeRaise(SError(msg, irritants), pos) |> raise
-        | x -> x |> invalidParameter pos "'%s' invalid syntax-error parameter."
+        | (SString msg, _) :: irritants -> Error(SchemeRaise((SError(msg, irritants), pos), pos)) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid syntax-error parameter." |> cont

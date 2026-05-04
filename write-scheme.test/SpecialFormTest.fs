@@ -340,13 +340,11 @@ let ``guard`` () =
     |> rep
     |> should equal "matched-bar"
 
-    (fun () ->
-        "(guard (condition
-                 ((eq? condition 'foo) 'matched))
-           (raise 'bar))"
-        |> rep
-        |> ignore)
-    |> should throw typeof<System.Exception>
+    "(guard (condition
+             ((eq? condition 'foo) 'matched))
+       (raise 'bar))"
+    |> rep
+    |> should equal "bar"
 
 [<Fact>]
 let ``let-syntax`` () =

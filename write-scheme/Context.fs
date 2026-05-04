@@ -8,7 +8,10 @@ module Context =
           nextExpansionId = 0
           nextRecordTypeId = 0
           currentWinders = ref []
-          nextWinderId = ref 0 }
+          nextWinderId = ref 0
+          currentHandler =
+            (SProcedure(fun _ pos cont _ -> Error(EvalError("no handler", pos)) |> cont), None)
+            |> ref }
 
     let extendEnvs envs bindings =
         { envs with
@@ -32,8 +35,8 @@ module Context =
 
     let lookupEnvs envs pos symbol =
         match tryLookupEnvs envs symbol with
-        | Some x -> x
-        | None -> failwithf "No binding for '%s'.%s" symbol (pos |> formatPosition)
+        | Some x -> Ok x
+        | None -> Error(EvalError(sprintf "No binding for '%s'." symbol, pos))
 
     let getNextRecordTypeId envs =
         envs.nextRecordTypeId <- envs.nextRecordTypeId + 1

@@ -7,36 +7,34 @@ open Type
 module ByteVector =
     let isByteVector envs pos cont =
         function
-        | [ SByteVector _, _ ] -> (STrue, pos) |> cont
-        | [ _ ] -> (SFalse, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid bytevector? parameter."
+        | [ SByteVector _, _ ] -> Ok(STrue, pos) |> cont
+        | [ _ ] -> Ok(SFalse, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid bytevector? parameter." |> cont
 
     let sMakeByteVector envs pos cont =
         function
-        | [ SRational(k, d), _ ] when d = 1I && k >= 0I -> (Array.create (int k) 0uy |> SByteVector, pos) |> cont
+        | [ SRational(k, d), _ ] when d = 1I && k >= 0I -> Ok(Array.create (int k) 0uy |> SByteVector, pos) |> cont
         | [ SRational(k, d), _; SRational(b, d'), _ ] when d = 1I && k >= 0I && d' = 1I && b >= 0I && b <= 255I ->
-            (Array.create (int k) (byte b) |> SByteVector, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid make-bytevector parameter."
+            Ok(Array.create (int k) (byte b) |> SByteVector, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid make-bytevector parameter." |> cont
 
     let sByteVector envs pos cont =
-        List.map (function
-            | SRational(num, den), _ when den = 1I && num >= 0I && num <= 255I -> byte num
+        mapResult (function
+            | SRational(num, den), _ when den = 1I && num >= 0I && num <= 255I -> Ok(byte num)
             | x -> x |> invalid (snd x) "'%s' invalid bytevector element.")
-        >> List.toArray
-        >> SByteVector
-        >> fun x -> x, pos
+        >> Result.map (fun bs -> bs |> List.toArray |> SByteVector, pos)
         >> cont
 
     let sByteVectorLength envs pos cont =
         function
-        | [ SByteVector xs, _ ] -> (newSRational (bigint xs.Length) 1I, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid bytevector-length parameter."
+        | [ SByteVector xs, _ ] -> Ok(newInteger (bigint xs.Length), pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid bytevector-length parameter." |> cont
 
     let sByteVectorU8Ref envs pos cont =
         function
         | [ SByteVector xs, _; SRational(k, d), _ ] when d = 1I && k >= 0I && k < bigint xs.Length ->
-            (newSRational (bigint xs.[int k]) 1I, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid bytevector-u8-ref parameter."
+            Ok(newInteger (bigint xs.[int k]), pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid bytevector-u8-ref parameter." |> cont
 
     let sByteVectorU8Set envs pos cont =
         function
@@ -44,8 +42,8 @@ module ByteVector =
             d = 1I && k >= 0I && k < bigint xs.Length && d' = 1I && b >= 0I && b <= 255I
             ->
             xs.[int k] <- byte b
-            (SUnspecified, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid bytevector-u8-set! parameter."
+            Ok(SUnspecified, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid bytevector-u8-set! parameter." |> cont
 
     let getByteVectorRange (length: int) =
         function
@@ -61,9 +59,9 @@ module ByteVector =
         function
         | (SByteVector xs, _) :: _ as args ->
             match getByteVectorRange xs.Length args with
-            | Some(start, stop) -> (xs.[start .. stop - 1] |> Array.copy |> SByteVector, pos) |> cont
-            | None -> args |> invalidParameter pos "'%s' invalid bytevector-copy parameter."
-        | x -> x |> invalidParameter pos "'%s' invalid bytevector-copy parameter."
+            | Some(start, stop) -> Ok(xs.[start .. stop - 1] |> Array.copy |> SByteVector, pos) |> cont
+            | None -> args |> invalidParameter pos "'%s' invalid bytevector-copy parameter." |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid bytevector-copy parameter." |> cont
 
     let sByteVectorCopyBang envs pos cont =
         function
@@ -71,17 +69,15 @@ module ByteVector =
             match getByteVectorRange source.Length (src :: rest) with
             | Some(start, stop) when dAt = 1I && at >= 0I && at + bigint (stop - start) <= bigint target.Length ->
                 Array.blit source start target (int at) (stop - start)
-                (SUnspecified, pos) |> cont
-            | _ -> args |> invalidParameter pos "'%s' invalid bytevector-copy! parameter."
-        | x -> x |> invalidParameter pos "'%s' invalid bytevector-copy! parameter."
+                Ok(SUnspecified, pos) |> cont
+            | _ -> args |> invalidParameter pos "'%s' invalid bytevector-copy! parameter." |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid bytevector-copy! parameter." |> cont
 
     let sByteVectorAppend envs pos cont =
-        List.map (function
-            | SByteVector v, _ -> v
+        mapResult (function
+            | SByteVector v, _ -> Ok v
             | x -> x |> invalid (snd x) "'%s' is not a bytevector in bytevector-append.")
-        >> Array.concat
-        >> SByteVector
-        >> fun x -> x, pos
+        >> Result.map (fun vlist -> vlist |> Array.concat |> SByteVector, pos)
         >> cont
 
     let sUtf8ToString envs pos cont =
@@ -92,10 +88,10 @@ module ByteVector =
                 bs.[start .. stop - 1]
                 |> System.Text.Encoding.UTF8.GetString
                 |> newSString false
-                |> fun x -> x, pos
+                |> fun x -> Ok(x, pos)
                 |> cont
-            | None -> args |> invalidParameter pos "'%s' invalid utf8->string parameter."
-        | x -> x |> invalidParameter pos "'%s' invalid utf8->string parameter."
+            | None -> args |> invalidParameter pos "'%s' invalid utf8->string parameter." |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid utf8->string parameter." |> cont
 
     let sStringToUtf8 envs pos cont =
         function
@@ -107,7 +103,7 @@ module ByteVector =
                 for i in start .. stop - 1 do
                     s.runes.[i] |> string |> subStr.Append |> ignore
 
-                (subStr |> string |> System.Text.Encoding.UTF8.GetBytes |> SByteVector, pos)
+                Ok(subStr |> string |> System.Text.Encoding.UTF8.GetBytes |> SByteVector, pos)
                 |> cont
-            | None -> args |> invalidParameter pos "'%s' invalid string->utf8 parameter."
-        | x -> x |> invalidParameter pos "'%s' invalid string->utf8 parameter."
+            | None -> args |> invalidParameter pos "'%s' invalid string->utf8 parameter." |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid string->utf8 parameter." |> cont

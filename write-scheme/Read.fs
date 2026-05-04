@@ -139,7 +139,7 @@ module Read =
             | 8 -> anyOf "01234567" |> many1Chars
             | 10 -> digit |> many1Chars
             | 16 -> hex |> many1Chars
-            | x -> x |> failwithf "'%d' unsupported radix."
+            | _ -> failwith "unreachable."
 
         pDigits |>> toBigInteger (bigint radix)
 
@@ -151,7 +151,11 @@ module Read =
               pipe2 pSign pU (fun c1 n2 -> (if c1 = '-' then -n2 else n2), 1I) ]
 
     let pRational radix =
-        pRationalN radix |>> fun (n, d) -> newSRational n d
+        pRationalN radix
+        >>= fun (n, d) ->
+            match newSRational n d with
+            | Result.Ok n -> n |> preturn
+            | Result.Error msg -> fail msg
 
     let pDecimalSuffix =
         anyOf "Ee"

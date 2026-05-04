@@ -1,53 +1,16 @@
 namespace WriteScheme
 
 module Type =
-    [<CustomEquality; CustomComparison>]
-    type SStringData =
-        { runes: System.Text.Rune array
-          mutable isImmutable: bool }
-
-        override this.Equals other =
-            match other with
-            | :? SStringData as o -> this.runes.Length = o.runes.Length && Array.forall2 (=) this.runes o.runes
-            | _ -> false
-
-        override this.GetHashCode() =
-            let mutable h = 17
-
-            for r in this.runes do
-                h <- h * 31 + r.Value
-
-            h
-
-        interface System.IComparable with
-            member this.CompareTo other =
-                match other with
-                | :? SStringData as o ->
-                    let len = min this.runes.Length o.runes.Length
-
-                    let rec loop i =
-                        if i = len then
-                            this.runes.Length.CompareTo o.runes.Length
-                        else
-                            let cmp = this.runes.[i].Value.CompareTo(o.runes.[i].Value)
-                            if cmp <> 0 then cmp else loop (i + 1)
-
-                    loop 0
-                | _ -> invalidArg "other" "not a SStringData"
-
-    let runesToString (runes: System.Text.Rune array) =
-        let sb = System.Text.StringBuilder runes.Length
-
-        for r in runes do
-            r |> string |> sb.Append |> ignore
-
-        sb |> string
-
     type Position = { Line: int64; Column: int64 }
 
-    type SkipResult =
-        | ParseError of string * Position option
-        | EvalError of string * Position option
+    let formatPosition =
+        function
+        | Some pos -> sprintf " (at line %d, column %d)" pos.Line pos.Column
+        | None -> ""
+
+    type SStringData =
+        { runes: System.Text.Rune array
+          isImmutable: bool }
 
     [<ReferenceEquality>]
     type SExpressionKind =
@@ -74,8 +37,8 @@ module Type =
         | SDatumRef of int
         | SPromise of (bool * SExpression) ref
         | SParameter of SExpression ref * SExpression option
-        | SSyntax of (Context -> Position option -> SContinuation -> SExpression list -> SExpression)
-        | SProcedure of (Context -> Position option -> SContinuation -> SExpression list -> SExpression)
+        | SSyntax of SProcedureKind
+        | SProcedure of SProcedureKind
         | SContinuation of SContinuation
 
     and SExpression = SExpressionKind * Position option
@@ -84,14 +47,18 @@ module Type =
         { mutable car: SExpression
           mutable cdr: SExpression }
 
-    and SContinuation = SExpression -> SExpression
+    and SProcedureKind =
+        Context -> Position option -> SContinuation -> SExpression list -> Result<SExpression, SkipResult>
+
+    and SContinuation = Result<SExpression, SkipResult> -> Result<SExpression, SkipResult>
 
     and Context =
         { environments: Environment list
           mutable nextExpansionId: int
           mutable nextRecordTypeId: int
           currentWinders: Winder list ref
-          nextWinderId: int ref }
+          nextWinderId: int ref
+          currentHandler: SExpression ref }
 
     and Environment = Map<string, SExpression ref> ref
 
@@ -99,6 +66,11 @@ module Type =
         { id: int
           before: SExpression
           after: SExpression }
+
+    and SkipResult =
+        | EvalError of string * Position option
+        | ParseError of string * Position option
+        | SchemeRaise of SExpression * Position option
 
     let STrue = SBool true
     let SFalse = SBool false
@@ -129,41 +101,43 @@ module Type =
         | SPair p, _ as expr -> p.cdr |> loopProperList expr
         | _ -> false
 
-    let formatPosition pos =
-        match pos with
-        | Some p -> sprintf " (at line %d, column %d)" p.Line p.Column
-        | None -> ""
-
     [<TailCall>]
     let rec loopToList acc =
         function
-        | SEmpty, _ -> List.rev acc
-        | SPair p, _ -> loopToList (p.car :: acc) p.cdr
-        | x -> failwithf "not a proper list.%s" (x |> snd |> formatPosition)
+        | SEmpty, _ -> Ok(acc |> List.rev)
+        | SPair p, _ -> p.cdr |> loopToList (p.car :: acc)
+        | _, p -> Error(EvalError("not a proper list.", p))
 
-    let toList expr = loopToList [] expr
+    let toList = loopToList []
 
     let SZero = SRational(0I, 1I)
 
-    let newSRational (numerator: bigint) (denominator: bigint) =
-        if denominator.IsZero then
-            failwith "denominator zero."
-        elif numerator.IsZero then
-            SZero
+    let newInteger n =
+        if n = 0I then SZero else SRational(n, 1I)
+
+    let newSRational n d =
+        if d = 0I then
+            Error "division by zero"
+        elif n = 0I then
+            Ok SZero
         else
-            let gcd = bigint.GreatestCommonDivisor(abs numerator, abs denominator)
+            let g = bigint.GreatestCommonDivisor(abs n, abs d)
+            let n', d' = n / g, d / g
 
-            let numerator', denominator' =
-                if denominator.Sign < 0 then
-                    -numerator, -denominator
-                else
-                    numerator, denominator
+            if d' < 0I then
+                Ok(SRational(-n', -d'))
+            else
+                Ok(SRational(n', d'))
 
-            SRational(numerator' / gcd, denominator' / gcd)
+    let runesToString runes =
+        let sb = System.Text.StringBuilder()
+
+        for r in runes do
+            r |> string |> sb.Append |> ignore
+
+        sb |> string
 
     let newSString isImmutable (str: string) =
         { runes = str.EnumerateRunes() |> Seq.toArray
           isImmutable = isImmutable }
         |> SString
-
-    exception SchemeRaise of SExpression
