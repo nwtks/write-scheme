@@ -58,7 +58,7 @@ module Type =
           mutable nextRecordTypeId: int
           currentWinders: Winder list ref
           nextWinderId: int ref
-          currentHandler: SExpression ref }
+          currentHandler: SExpression list ref }
 
     and Environment = Map<string, SExpression ref> ref
 

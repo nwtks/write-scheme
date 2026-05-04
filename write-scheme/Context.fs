@@ -10,11 +10,11 @@ module Context =
           currentWinders = ref []
           nextWinderId = ref 0
           currentHandler =
-            (SProcedure(fun _ pos cont ->
-                function
-                | [ obj ] -> Error(SchemeRaise(obj, pos)) |> cont
-                | _ -> failwith "unreachable"),
-             None)
+            [ SProcedure(fun _ pos cont ->
+                  function
+                  | [ obj ] -> Error(SchemeRaise(obj, pos)) |> cont
+                  | _ -> failwith "unreachable"),
+              None ]
             |> ref }
 
     let extendEnvs envs bindings =

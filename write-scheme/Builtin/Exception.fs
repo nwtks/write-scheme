@@ -8,20 +8,17 @@ module Exception =
     let sWithExceptionHandler envs pos cont =
         function
         | [ handler; thunk ] ->
-            let oldHandler = envs.currentHandler.Value
-
             let before =
                 fun envs pos cont _ ->
-                    envs.currentHandler.Value <- handler
+                    envs.currentHandler.Value <- handler :: envs.currentHandler.Value
                     Ok(SUnspecified, pos) |> cont
 
             let after =
                 fun envs pos cont _ ->
-                    envs.currentHandler.Value <- oldHandler
+                    envs.currentHandler.Value <- envs.currentHandler.Value.Tail
                     Ok(SUnspecified, pos) |> cont
 
             let thunkProc = fun envs _ cont _ -> thunk |> Eval.apply envs cont []
-
             sDynamicWind envs pos cont [ SProcedure before, pos; SProcedure thunkProc, pos; SProcedure after, pos ]
         | x ->
             x
@@ -31,14 +28,22 @@ module Exception =
     let sRaise envs pos cont =
         function
         | [ obj ] ->
-            Eval.apply
-                envs
-                (function
-                | Ok _ -> Error(EvalError("handler returned", pos)) |> cont
-                | Error(SchemeRaise(obj', _)) -> Error(SchemeRaise(obj', pos)) |> cont
-                | Error e -> Error e |> cont)
-                [ obj ]
-                envs.currentHandler.Value
+            match envs.currentHandler.Value with
+            | handler :: parents ->
+                envs.currentHandler.Value <- parents
+
+                Eval.apply
+                    envs
+                    (fun res ->
+                        envs.currentHandler.Value <- handler :: parents
+
+                        match res with
+                        | Ok res' -> res' |> Ok |> cont
+                        | Error(SchemeRaise(obj', _)) -> SchemeRaise(obj', pos) |> Error |> cont
+                        | Error e -> Error e |> cont)
+                    [ obj ]
+                    handler
+            | [] -> failwith "unreachable"
         | x -> x |> invalidParameter pos "'%s' invalid raise parameter." |> cont
 
     let sError envs pos cont =
