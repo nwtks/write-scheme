@@ -3,19 +3,24 @@ namespace WriteScheme
 open Type
 
 module Context =
+    let initialHandlers =
+        [ SProcedure(fun _ pos cont ->
+              function
+              | [ obj ] -> Error(SchemeRaise(obj, pos)) |> cont
+              | _ -> failwith "unreachable"),
+          None ]
+
     let empty =
         { environments = []
           nextExpansionId = 0
           nextRecordTypeId = 0
           winders = ref []
           nextWinderId = ref 0
-          handlers =
-            [ SProcedure(fun _ pos cont ->
-                  function
-                  | [ obj ] -> Error(SchemeRaise(obj, pos)) |> cont
-                  | _ -> failwith "unreachable"),
-              None ]
-            |> ref }
+          handlers = ref initialHandlers }
+
+    let reset envs =
+        envs.winders.Value <- []
+        envs.handlers.Value <- initialHandlers
 
     let extendEnvs envs bindings =
         { envs with
@@ -50,11 +55,9 @@ module Context =
         envs.nextExpansionId <- envs.nextExpansionId + 1
         envs.nextExpansionId
 
-    let setWinders envs winders = envs.winders.Value <- winders
-
     let enterWinder envs cur winder =
         let next = winder :: cur
-        setWinders envs next
+        envs.winders.Value <- next
         next
 
     let leaveWinder envs cur id =
@@ -63,7 +66,7 @@ module Context =
             | h :: t when h.id = id -> t
             | xs -> xs
 
-        setWinders envs next
+        envs.winders.Value <- next
         next
 
     let pushWinder envs winder =

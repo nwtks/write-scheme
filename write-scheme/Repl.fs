@@ -14,7 +14,7 @@ module Repl =
         >> Result.bind (Eval.eval envs id)
         >> Result.map Print.print
         >> Result.defaultWith (fun e ->
-            Context.setWinders envs []
+            Context.reset envs
 
             match e with
             | ParseError(msg, pos) -> sprintf "%s%s" msg (pos |> formatPosition)
