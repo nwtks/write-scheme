@@ -241,14 +241,14 @@ module Math =
 
     [<TailCall>]
     let rec loopCalc op1 op2 op3 pos cont acc =
-        let wrap res =
-            res
-            |> Result.map (fun n -> n, pos)
-            |> Result.mapError (fun msg -> EvalError(msg, pos))
-
         function
         | [] -> acc |> cont
         | (y, pos') :: xs ->
+            let wrap res =
+                res
+                |> Result.map (fun n -> n, pos)
+                |> Result.mapError (fun msg -> EvalError(msg, pos))
+
             match acc, y with
             | Ok(SRational(a1, a2), _), SRational(b1, b2) ->
                 xs |> loopCalc op1 op2 op3 pos cont (op1 a1 a2 b1 b2 |> wrap)

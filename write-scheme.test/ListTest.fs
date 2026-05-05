@@ -101,10 +101,10 @@ let ``length`` () =
 
     "(let ((x (list 'a))) (set-cdr! x x) (length x))"
     |> rep
-    |> should startWith "circular list"
+    |> should startWith "'(a ...)' circular list."
 
-    "(length 'a)" |> rep |> should startWith "not a proper list"
-    "(length '(a . b))" |> rep |> should startWith "not a proper list"
+    "(length 'a)" |> rep |> should startWith "'a' not a proper list."
+    "(length '(a . b))" |> rep |> should startWith "'(a . b)' not a proper list."
 
 [<Fact>]
 let append () =

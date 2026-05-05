@@ -95,8 +95,8 @@ module List =
             | SPair _, _ ->
                 match loopListInfo expr expr 0I None with
                 | Ok(_, len) -> Ok len
-                | Error msg -> Error(EvalError(msg, snd expr))
-            | _, p -> Error(EvalError("not a proper list.", p))
+                | Error msg -> Error(EvalError(sprintf "'%s' %s" (expr |> Print.print) msg, snd expr))
+            | _, p -> Error(EvalError(sprintf "'%s' not a proper list." (expr |> Print.print), p))
 
         function
         | [ x ] ->
