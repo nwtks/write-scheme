@@ -10,7 +10,7 @@ module Repl =
 
     let rep envs =
         Read.read
-        >> Result.bind Eval.resolveLabels
+        >> Result.bind DatumLabel.resolveLabels
         >> Result.bind (Eval.eval envs id)
         >> Result.map Print.print
         >> Result.defaultWith (fun e ->
@@ -28,7 +28,3 @@ module Repl =
         printf "%s\n> " output
         let line = System.Console.ReadLine()
         if isNull line then () else line |> rep envs |> repl envs
-
-    let runRepl () =
-        let envs = newEnvs ()
-        "Welcome" |> repl envs

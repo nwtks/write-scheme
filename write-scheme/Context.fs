@@ -7,7 +7,7 @@ module Context =
         [ SProcedure(fun _ pos cont ->
               function
               | [ obj ] -> Error(SchemeRaise(obj, pos)) |> cont
-              | _ -> failwith "unreachable"),
+              | _ -> failwith "unreachable."),
           None ]
 
     let empty =

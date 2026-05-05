@@ -9,7 +9,7 @@ module SavedParameter =
         { Ref: SExpression ref
           SavedValue: SExpression ref }
 
-    let eachSavedParamBinding =
+    let eachParamBinding =
         function
         | SPair { car = param
                   cdr = SPair { car = expr; cdr = SEmpty, _ }, _ },
@@ -17,66 +17,63 @@ module SavedParameter =
         | x -> x |> invalid (snd x) "'%s' invalid parameterize binding."
 
     [<TailCall>]
-    let rec bindParameterizeSaved envs pos cont body saved =
+    let rec loopParameterize envs pos cont body triples =
         function
         | [] ->
-            let id = Context.getNextWinderId envs
-            let savedRev = List.rev saved
+            let triples = List.rev triples
 
-            let swapThunk =
-                SProcedure(fun _ pos' cont' _ ->
-                    savedRev
-                    |> List.iter (fun s ->
-                        let tmp = s.Ref.Value
-                        s.Ref.Value <- s.SavedValue.Value
-                        s.SavedValue.Value <- tmp)
+            let before _ pos cont _ =
+                triples
+                |> List.iter (fun (r: SExpression ref, nv: SExpression ref, ov: SExpression ref) ->
+                    ov.Value <- r.Value
+                    r.Value <- nv.Value)
 
-                    Ok(SUnspecified, pos') |> cont'),
-                pos
+                Ok(SUnspecified, pos) |> cont
 
-            let winder =
-                { id = id
-                  before = swapThunk
-                  after = swapThunk }
+            let after _ pos cont _ =
+                triples
+                |> List.iter (fun (r: SExpression ref, nv: SExpression ref, ov: SExpression ref) ->
+                    nv.Value <- r.Value
+                    r.Value <- ov.Value)
 
-            Context.pushWinder envs winder
+                Ok(SUnspecified, pos) |> cont
 
-            body
-            |> Eval.eachEval
-                envs
-                (fun res ->
-                    Context.popWinder envs id
-                    swapThunk |> Eval.apply envs (fun _ -> cont res) [])
-                (Ok(SEmpty, pos))
-        | (param, expr) :: xs ->
-            param
+            let thunk envs pos cont _ =
+                body |> Eval.eachEval envs cont (Ok(SEmpty, pos))
+
+            sDynamicWind envs pos cont [ SProcedure before, pos; SProcedure thunk, pos; SProcedure after, pos ]
+        | (pExpr, vExpr) :: rest ->
+            pExpr
             |> Eval.eval envs (function
-                | Ok(SParameter(r, converterOpt), _) ->
-                    expr
+                | Ok(SParameter(r, convOpt), _) ->
+                    vExpr
                     |> Eval.eval envs (function
-                        | Ok v ->
-                            match converterOpt with
-                            | Some converter ->
-                                converter
+                        | Ok newVal ->
+                            match convOpt with
+                            | Some conv ->
+                                conv
                                 |> Eval.apply
                                     envs
                                     (function
                                     | Ok converted ->
-                                        let old = r.Value
-                                        r.Value <- converted
-                                        let s = { Ref = r; SavedValue = ref old }
-                                        bindParameterizeSaved envs (snd converter) cont body (s :: saved) xs
+                                        let oldVal = r.Value
+
+                                        rest
+                                        |> loopParameterize
+                                            envs
+                                            pos
+                                            cont
+                                            body
+                                            ((r, ref converted, ref oldVal) :: triples)
                                     | x -> x |> cont)
-                                    [ v ]
+                                    [ newVal ]
                             | None ->
-                                let old = r.Value
-                                r.Value <- v
-                                let s = { Ref = r; SavedValue = ref old }
-                                bindParameterizeSaved envs pos cont body (s :: saved) xs
+                                let oldVal = r.Value
+
+                                rest
+                                |> loopParameterize envs pos cont body ((r, ref newVal, ref oldVal) :: triples)
                         | x -> x |> cont)
-                | Ok _ ->
-                    Error(EvalError(sprintf "'%s' is not a parameter in parameterize." (Print.print param), snd param))
-                    |> cont
+                | Ok x -> x |> invalid (snd x) "'%s' is not a parameter."
                 | x -> x |> cont)
 
     let sMakeParameter envs pos cont =

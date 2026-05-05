@@ -107,7 +107,7 @@ module Type =
         | SPair _, _ ->
             match loopListInfo expr expr 0I (Some []) with
             | Ok(Some l, _) -> Ok l
-            | Ok(None, _) -> failwith "unreachable"
+            | Ok(None, _) -> failwith "unreachable."
             | Error msg -> Error(EvalError(msg, snd expr))
         | _, p -> Error(EvalError("not a proper list.", p))
 

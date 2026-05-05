@@ -259,7 +259,7 @@ module Math =
             | Ok _, SComplex _ ->
                 match acc |> Result.bind toComplex, toComplex (y, pos') with
                 | Ok ca, Ok cb -> xs |> loopCalc op1 op2 op3 pos cont (wrap (op3 ca cb))
-                | Error e as x, _ -> Error e |> cont
+                | Error e, _ -> Error e |> cont
                 | _, Error e -> Error e |> cont
             | Ok a, b ->
                 Error(EvalError(sprintf "'%s', '%s' not number." (a |> Print.print) ((b, pos') |> Print.print), pos))
@@ -514,8 +514,8 @@ module Math =
                         match l, r with
                         | (SRational _, _), (SRational _, _) -> simplestRational (Ok l) (Ok r) pos cont
                         | _ -> Ok x |> cont
-                    | Error e' -> Error e' |> cont
-                | Error e' -> Error e' |> cont
+                    | x -> x |> cont
+                | x -> x |> cont
             | _ -> Ok x |> cont
         | x -> x |> invalidParameter pos "'%s' invalid rationalize parameter." |> cont
 

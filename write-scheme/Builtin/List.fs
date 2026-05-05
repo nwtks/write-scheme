@@ -96,7 +96,7 @@ module List =
                 match loopListInfo expr expr 0I None with
                 | Ok(_, len) -> Ok len
                 | Error msg -> Error(EvalError(sprintf "'%s' %s" (expr |> Print.print) msg, snd expr))
-            | _, p -> Error(EvalError(sprintf "'%s' not a proper list." (expr |> Print.print), p))
+            | _ -> Error(EvalError(sprintf "'%s' not a proper list." (expr |> Print.print), snd expr))
 
         function
         | [ x ] ->
@@ -118,7 +118,7 @@ module List =
         | h :: t ->
             match appendTwo acc h with
             | Ok res -> t |> loopAppend res
-            | Error e -> Error e
+            | x -> x
 
     let sAppend envs pos cont =
         function
@@ -208,7 +208,7 @@ module List =
                 (function
                 | Ok(SBool false, _) -> p.cdr |> loopMember envs pos cont obj proc
                 | Ok _ -> Ok x |> cont
-                | Error e -> Error e |> cont)
+                | x -> x |> cont)
                 [ obj; p.car ]
         | x -> Ok(SFalse, pos) |> cont
 
@@ -229,7 +229,7 @@ module List =
                     Ok p.car
                 else
                     p.cdr |> findAssoc pos comparer obj
-            | Error e -> Error e
+            | x -> x
         | _ -> Ok(SFalse, pos)
 
     let sAssq envs pos cont =
@@ -255,9 +255,9 @@ module List =
                     (function
                     | Ok(SBool false, _) -> p.cdr |> loopAssoc envs pos cont obj proc
                     | Ok _ -> Ok p.car |> cont
-                    | Error e -> Error e |> cont)
+                    | x -> x |> cont)
                     [ obj; car ]
-            | Error e -> Error e |> cont
+            | x -> x |> cont
         | _ -> Ok(SFalse, pos) |> cont
 
     let sAssoc envs pos cont =

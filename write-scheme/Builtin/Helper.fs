@@ -29,7 +29,7 @@ module Helper =
         | SPair { car = SSymbol var, _
                   cdr = SPair { car = expr; cdr = SEmpty, _ }, _ },
           _ -> Ok(var, expr)
-        | _, pos as x -> x |> invalid pos "'%s' invalid binding."
+        | x -> x |> invalid (snd x) "'%s' invalid binding."
 
     [<TailCall>]
     let rec eqv (a, b) =

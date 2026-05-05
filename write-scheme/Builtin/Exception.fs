@@ -38,7 +38,7 @@ module Exception =
                     match res with
                     | Ok res' -> res' |> Ok |> cont
                     | Error(SchemeRaise(obj', _)) -> SchemeRaise(obj', pos) |> Error |> cont
-                    | Error e -> Error e |> cont)
+                    | x -> x |> cont)
                 [ obj ]
                 handler
         | x -> x |> invalidParameter pos "'%s' invalid raise parameter." |> cont

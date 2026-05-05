@@ -85,7 +85,7 @@ module Core =
             path
             |> System.IO.File.ReadAllText
             |> Read.read
-            |> Result.bind Eval.resolveLabels
+            |> Result.bind DatumLabel.resolveLabels
             |> Result.bind (Eval.eval envs id)
             |> Result.map (fun _ -> path |> sprintf "Loaded '%s'." |> SSymbol, pos)
             |> cont

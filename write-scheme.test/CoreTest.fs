@@ -9,6 +9,7 @@ let rep = WriteScheme.Repl.rep WriteScheme.Builtin.builtin
 let ``eqv?`` () =
     "(eqv? 'a 'a)" |> rep |> should equal "#t"
     "(eqv? 'a 'b)" |> rep |> should equal "#f"
+    "(eqv? 'a)" |> rep |> should equal "#f"
     "(eqv? ''a ''a)" |> rep |> should equal "#t"
     "(eqv? ''a ''b)" |> rep |> should equal "#f"
     "(eqv? ',1 ',1)" |> rep |> should equal "#t"
@@ -51,6 +52,7 @@ let ``eqv?`` () =
 let ``equal?`` () =
     "(equal? 'a 'a)" |> rep |> should equal "#t"
     "(equal? 'a 'b)" |> rep |> should equal "#f"
+    "(equal? 'a)" |> rep |> should equal "#f"
     "(equal? ''a ''a)" |> rep |> should equal "#t"
     "(equal? ''a ''b)" |> rep |> should equal "#f"
     "(equal? ',1 ',2)" |> rep |> should equal "#f"

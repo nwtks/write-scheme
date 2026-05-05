@@ -5,5 +5,5 @@ open Repl
 module Program =
     [<EntryPoint>]
     let main argv =
-        runRepl ()
+        "Welcome" |> repl (newEnvs ())
         0 // return an integer exit code

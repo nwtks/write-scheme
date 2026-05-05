@@ -130,7 +130,7 @@ module SpecialForm =
                         | Ok elist -> elist |> Eval.eachEval envs cont (Ok a)
                         | Error e -> Error e |> cont
                     | x -> x |> cont)
-            | x -> x |> invalid pos "'%s' invalid cond clause." |> cont
+            | x -> x |> invalid (snd x) "'%s' invalid cond clause." |> cont
 
     [<TailCall>]
     let rec testCase envs pos cont key =
@@ -169,7 +169,7 @@ module SpecialForm =
                     else
                         clauses |> testCase envs pos cont key
                 | Error e -> Error e |> cont
-            | _, p as x -> x |> invalid p "'%s' invalid case clause." |> cont
+            | x -> x |> invalid (snd x) "'%s' invalid case clause." |> cont
 
     let sCase envs pos cont =
         function
@@ -536,7 +536,7 @@ module SpecialForm =
             | SPair { car = SSymbol var, varPos
                       cdr = SPair { car = init; cdr = SEmpty, _ }, _ },
               _ -> Ok(var, varPos, init, None)
-            | x -> x |> invalid pos "'%s' invalid do binding parameter."
+            | x -> x |> invalid (snd x) "'%s' invalid do binding parameter."
 
         function
         | bindings :: testClause :: commands ->
@@ -567,75 +567,6 @@ module SpecialForm =
             let thunk = closure envs (SEmpty, pos) [ expr ]
             Ok(SPromise(ref (false, (SProcedure thunk, pos))), pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid delay-force parameter." |> cont
-
-    let eachParamBinding =
-        function
-        | SPair { car = param
-                  cdr = SPair { car = expr; cdr = SEmpty, _ }, _ },
-          _ -> Ok(param, expr)
-        | x -> x |> invalid (snd x) "'%s' invalid parameterize binding."
-
-    [<TailCall>]
-    let rec loopParameterize envs pos cont body triples =
-        function
-        | [] ->
-            let triples = List.rev triples
-
-            let before _ pos cont _ =
-                triples
-                |> List.iter (fun (r: SExpression ref, nv: SExpression ref, ov: SExpression ref) ->
-                    ov.Value <- r.Value
-                    r.Value <- nv.Value)
-
-                Ok(SUnspecified, pos) |> cont
-
-            let after _ pos cont _ =
-                triples
-                |> List.iter (fun (r: SExpression ref, nv: SExpression ref, ov: SExpression ref) ->
-                    nv.Value <- r.Value
-                    r.Value <- ov.Value)
-
-                Ok(SUnspecified, pos) |> cont
-
-            let thunk envs pos cont _ =
-                body |> Eval.eachEval envs cont (Ok(SEmpty, pos))
-
-            sDynamicWind envs pos cont [ SProcedure before, pos; SProcedure thunk, pos; SProcedure after, pos ]
-        | (pExpr, vExpr) :: rest ->
-            pExpr
-            |> Eval.eval envs (function
-                | Ok(SParameter(r, convOpt), _) ->
-                    vExpr
-                    |> Eval.eval envs (function
-                        | Ok newVal ->
-                            match convOpt with
-                            | Some conv ->
-                                conv
-                                |> Eval.apply
-                                    envs
-                                    (function
-                                    | Ok converted ->
-                                        let oldVal = r.Value
-
-                                        rest
-                                        |> loopParameterize
-                                            envs
-                                            pos
-                                            cont
-                                            body
-                                            ((r, ref converted, ref oldVal) :: triples)
-                                    | x -> x |> cont)
-                                    [ newVal ]
-                            | None ->
-                                let oldVal = r.Value
-
-                                rest
-                                |> loopParameterize envs pos cont body ((r, ref newVal, ref oldVal) :: triples)
-                        | x -> x |> cont)
-                | Ok x ->
-                    Error(EvalError(sprintf "'%s' is not a parameter." (x |> Print.print), snd pExpr))
-                    |> cont
-                | x -> x |> cont)
 
     let sParameterize envs pos cont =
         function
@@ -903,124 +834,101 @@ module SpecialForm =
                 | x -> x |> cont)
         | x -> x |> invalidParameter pos "'%s' invalid define-values parameter." |> cont
 
+    let parseRecordFields specs =
+        specs
+        |> mapResult (function
+            | SPair { car = SSymbol fName, _
+                      cdr = SPair { car = SSymbol aName, _; cdr = rest }, _ },
+              _ ->
+                let mName =
+                    match rest with
+                    | SPair { car = SSymbol m, _; cdr = SEmpty, _ }, _ -> Some m
+                    | _ -> None
+
+                Ok(fName, aName, mName)
+            | x -> x |> invalid (snd x) "'%s' invalid record field spec.")
+
+    let recordConstructorProc
+        typeId
+        name
+        ctorName
+        (ctorFields: SExpression list)
+        (fieldNames: string list)
+        envs
+        pos
+        cont
+        (args: SExpression list)
+        =
+        if args.Length <> ctorFields.Length then
+            Error(
+                EvalError(sprintf "%s requires %d arguments, but got %d." ctorName ctorFields.Length args.Length, pos)
+            )
+            |> cont
+        else
+            let recordFields = Array.init fieldNames.Length (fun _ -> ref (SUnspecified, pos))
+            let mutable error = None
+
+            args
+            |> List.zip ctorFields
+            |> List.iter (fun (fExpr, v) ->
+                if error.IsNone then
+                    match fExpr with
+                    | SSymbol s, _ ->
+                        let idx = fieldNames |> List.findIndex ((=) s)
+                        recordFields.[idx].Value <- v
+                    | _ -> error <- Some(Error(EvalError("Constructor field mapping failed: not a symbol", pos))))
+
+            error
+            |> Option.defaultWith (fun () -> Ok(SRecord(typeId, name, recordFields), pos))
+            |> cont
+
+    let recordPredProc typeId envs pos cont =
+        function
+        | [ SRecord(tid, _, _), _ ] -> Ok(tid = typeId |> toSBool, pos) |> cont
+        | _ -> Ok(SFalse, pos) |> cont
+
+    let recordFieldAccessorProc typeId name idx aName envs pos cont =
+        function
+        | [ SRecord(tid, _, fs), _ ] when tid = typeId -> Ok fs.[idx].Value |> cont
+        | [ x ] ->
+            Error(EvalError(sprintf "Accessor %s expected %s, but got %s." aName name (x |> Print.print), x |> snd))
+            |> cont
+        | _ -> Error(EvalError(sprintf "Accessor %s requires 1 argument." aName, pos)) |> cont
+
+    let recordFieldModifierProc typeId name idx mName envs pos cont =
+        function
+        | [ SRecord(tid, _, fs), _; v ] when tid = typeId ->
+            fs.[idx].Value <- v
+            Ok(SUnspecified, pos) |> cont
+        | [ x; _ ] ->
+            Error(EvalError(sprintf "Modifier %s expected %s, but got %s." mName name (x |> Print.print), x |> snd))
+            |> cont
+        | _ -> Error(EvalError(sprintf "Modifier %s requires 2 arguments." mName, pos)) |> cont
+
     let sDefineRecordType envs pos cont =
         function
         | (SSymbol name, _) :: (SPair { car = SSymbol ctorName, _
                                         cdr = ctorFieldsExpr },
                                 _) :: (SSymbol predName, _) :: restSpecs ->
-            let defineVal var valExpr = Context.defineEnvVar envs var valExpr
+            let defineProc name proc =
+                Context.defineEnvVar envs name (proc |> SProcedure, pos)
+
             let typeId = Context.getNextRecordTypeId envs
 
             match ctorFieldsExpr |> toList with
             | Ok ctorFields ->
-                match
-                    restSpecs
-                    |> mapResult (function
-                        | SPair { car = SSymbol fName, _
-                                  cdr = SPair { car = SSymbol aName, _; cdr = rest }, _ },
-                          _ ->
-                            let mName =
-                                match rest with
-                                | SPair { car = SSymbol m, _; cdr = SEmpty, _ }, _ -> Some m
-                                | _ -> None
-
-                            Ok(fName, aName, mName)
-                        | x -> x |> invalid (snd x) "'%s' invalid record field spec.")
-                with
+                match parseRecordFields restSpecs with
                 | Ok fieldSpecs ->
                     let fieldNames = fieldSpecs |> List.map (fun (n, _, _) -> n)
-                    let fieldCount = fieldNames.Length
-
-                    let predProc _ pos' cont' =
-                        function
-                        | [ SRecord(tid, _, _), _ ] -> Ok(tid = typeId |> toSBool, pos') |> cont'
-                        | _ -> Ok(SFalse, pos') |> cont'
-
-                    defineVal predName (SProcedure predProc, pos)
-
-                    let ctorProc _ pos' cont' (args: SExpression list) =
-                        if args.Length <> ctorFields.Length then
-                            Error(
-                                EvalError(
-                                    sprintf
-                                        "%s requires %d arguments, but got %d."
-                                        ctorName
-                                        ctorFields.Length
-                                        args.Length,
-                                    pos'
-                                )
-                            )
-                            |> cont'
-                        else
-                            let recordFields = Array.init fieldCount (fun _ -> ref (SUnspecified, pos'))
-
-                            let mutable error = None
-
-                            args
-                            |> List.zip ctorFields
-                            |> List.iter (fun (fExpr, v) ->
-                                if error.IsNone then
-                                    match fExpr with
-                                    | SSymbol s, _ ->
-                                        let idx = fieldNames |> List.findIndex ((=) s)
-                                        recordFields.[idx].Value <- v
-                                    | _ ->
-                                        error <-
-                                            Some(
-                                                Error(
-                                                    EvalError("Constructor field mapping failed: not a symbol", pos')
-                                                )
-                                            ))
-
-                            error
-                            |> Option.defaultWith (fun () -> Ok(SRecord(typeId, name, recordFields), pos'))
-                            |> cont'
-
-                    defineVal ctorName (SProcedure ctorProc, pos)
+                    defineProc predName (recordPredProc typeId)
+                    defineProc ctorName (recordConstructorProc typeId name ctorName ctorFields fieldNames)
 
                     fieldSpecs
                     |> List.iteri (fun idx (_, aName, mNameOpt) ->
-                        let accessorProc _ pos' cont' =
-                            function
-                            | [ SRecord(tid, _, fs), _ ] when tid = typeId -> Ok fs.[idx].Value |> cont'
-                            | [ x ] ->
-                                Error(
-                                    EvalError(
-                                        sprintf "Accessor %s expected %s, but got %s." aName name (x |> Print.print),
-                                        x |> snd
-                                    )
-                                )
-                                |> cont'
-                            | _ ->
-                                Error(EvalError(sprintf "Accessor %s requires 1 argument." aName, pos'))
-                                |> cont'
-
-                        defineVal aName (SProcedure accessorProc, pos)
+                        defineProc aName (recordFieldAccessorProc typeId name idx aName)
 
                         mNameOpt
-                        |> Option.iter (fun mName ->
-                            let modifierProc _ pos' cont' =
-                                function
-                                | [ SRecord(tid, _, fs), _; v ] when tid = typeId ->
-                                    fs.[idx].Value <- v
-                                    Ok(SUnspecified, pos') |> cont'
-                                | [ x; _ ] ->
-                                    Error(
-                                        EvalError(
-                                            sprintf
-                                                "Modifier %s expected %s, but got %s."
-                                                mName
-                                                name
-                                                (x |> Print.print),
-                                            x |> snd
-                                        )
-                                    )
-                                    |> cont'
-                                | _ ->
-                                    Error(EvalError(sprintf "Modifier %s requires 2 arguments." mName, pos'))
-                                    |> cont'
-
-                            defineVal mName (SProcedure modifierProc, pos)))
+                        |> Option.iter (fun mName -> defineProc mName (recordFieldModifierProc typeId name idx mName)))
 
                     Ok(SSymbol name, pos) |> cont
                 | Error e -> Error e |> cont
