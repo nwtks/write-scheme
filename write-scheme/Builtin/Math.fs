@@ -241,28 +241,24 @@ module Math =
 
     [<TailCall>]
     let rec loopCalc op1 op2 op3 pos cont acc =
+        let wrap res =
+            res
+            |> Result.map (fun n -> n, pos)
+            |> Result.mapError (fun msg -> EvalError(msg, pos))
+
         function
         | [] -> acc |> cont
         | (y, pos') :: xs ->
             match acc, y with
             | Ok(SRational(a1, a2), _), SRational(b1, b2) ->
-                xs
-                |> loopCalc
-                    op1
-                    op2
-                    op3
-                    pos
-                    cont
-                    (op1 a1 a2 b1 b2
-                     |> Result.map (fun n -> n, pos)
-                     |> Result.mapError (fun msg -> EvalError(msg, pos)))
-            | Ok(SRational(a1, a2), _), SReal b -> xs |> loopCalc op1 op2 op3 pos cont (Ok(op2 (toFloat a1 a2) b, pos))
-            | Ok(SReal a, _), SRational(b1, b2) -> xs |> loopCalc op1 op2 op3 pos cont (Ok(op2 a (toFloat b1 b2), pos))
-            | Ok(SReal a, _), SReal b -> xs |> loopCalc op1 op2 op3 pos cont (Ok(op2 a b, pos))
+                xs |> loopCalc op1 op2 op3 pos cont (op1 a1 a2 b1 b2 |> wrap)
+            | Ok(SRational(a1, a2), _), SReal b -> xs |> loopCalc op1 op2 op3 pos cont (op2 (toFloat a1 a2) b |> wrap)
+            | Ok(SReal a, _), SRational(b1, b2) -> xs |> loopCalc op1 op2 op3 pos cont (op2 a (toFloat b1 b2) |> wrap)
+            | Ok(SReal a, _), SReal b -> xs |> loopCalc op1 op2 op3 pos cont (op2 a b |> wrap)
             | Ok(SComplex _, _), _
             | Ok _, SComplex _ ->
                 match acc |> Result.bind toComplex, toComplex (y, pos') with
-                | Ok ca, Ok cb -> xs |> loopCalc op1 op2 op3 pos cont (Ok(op3 ca cb, pos))
+                | Ok ca, Ok cb -> xs |> loopCalc op1 op2 op3 pos cont (wrap (op3 ca cb))
                 | Error e as x, _ -> Error e |> cont
                 | _, Error e -> Error e |> cont
             | Ok a, b ->
@@ -271,22 +267,23 @@ module Math =
             | x, _ -> x |> cont
 
     let calc op1 op2 op3 ident1 ident2 ident3 pos cont =
-        function
-        | [] -> Ok(newInteger ident1, pos) |> cont
-        | [ SRational(x1, x2), _ ] ->
-            op1 ident1 1I x1 x2
+        let wrap res =
+            res
             |> Result.map (fun n -> n, pos)
             |> Result.mapError (fun msg -> EvalError(msg, pos))
-            |> cont
-        | [ SReal x, _ ] -> Ok(op2 ident2 x, pos) |> cont
-        | [ SComplex c, _ ] -> Ok(op3 ident3 c, pos) |> cont
+
+        function
+        | [] -> Ok(newInteger ident1, pos) |> cont
+        | [ SRational(x1, x2), _ ] -> op1 ident1 1I x1 x2 |> wrap |> cont
+        | [ SReal x, _ ] -> op2 ident2 x |> wrap |> cont
+        | [ SComplex c, _ ] -> op3 ident3 c |> wrap |> cont
         | x :: xs -> xs |> loopCalc op1 op2 op3 pos cont (Ok x)
 
     let addNumber envs =
         calc
             (fun a1 a2 b1 b2 -> newSRational (a1 * b2 + b1 * a2) (a2 * b2))
-            (fun n1 n2 -> n1 + n2 |> SReal)
-            (fun c1 c2 -> c1 + c2 |> SComplex)
+            (fun n1 n2 -> n1 + n2 |> SReal |> Ok)
+            (fun c1 c2 -> c1 + c2 |> SComplex |> Ok)
             0I
             0.0
             System.Numerics.Complex.Zero
@@ -294,8 +291,8 @@ module Math =
     let multiplyNumber envs =
         calc
             (fun a1 a2 b1 b2 -> newSRational (a1 * b1) (a2 * b2))
-            (fun n1 n2 -> n1 * n2 |> SReal)
-            (fun c1 c2 -> c1 * c2 |> SComplex)
+            (fun n1 n2 -> n1 * n2 |> SReal |> Ok)
+            (fun c1 c2 -> c1 * c2 |> SComplex |> Ok)
             1I
             1.0
             System.Numerics.Complex.One
@@ -303,8 +300,8 @@ module Math =
     let subtractNumber envs =
         calc
             (fun a1 a2 b1 b2 -> newSRational (a1 * b2 - b1 * a2) (a2 * b2))
-            (fun n1 n2 -> n1 - n2 |> SReal)
-            (fun c1 c2 -> c1 - c2 |> SComplex)
+            (fun n1 n2 -> n1 - n2 |> SReal |> Ok)
+            (fun c1 c2 -> c1 - c2 |> SComplex |> Ok)
             0I
             0.0
             System.Numerics.Complex.Zero
@@ -312,8 +309,16 @@ module Math =
     let divideNumber envs =
         calc
             (fun a1 a2 b1 b2 -> newSRational (a1 * b2) (a2 * b1))
-            (fun n1 n2 -> n1 / n2 |> SReal)
-            (fun c1 c2 -> c1 / c2 |> SComplex)
+            (fun n1 n2 ->
+                if n2 = 0.0 then
+                    Error "Division by zero."
+                else
+                    n1 / n2 |> SReal |> Ok)
+            (fun c1 c2 ->
+                if c2.Magnitude = 0.0 then
+                    Error "Division by zero."
+                else
+                    c1 / c2 |> SComplex |> Ok)
             1I
             1.0
             System.Numerics.Complex.One

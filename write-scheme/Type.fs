@@ -118,7 +118,7 @@ module Type =
 
     let newSRational n d =
         if d = 0I then
-            Error "division by zero"
+            Error "Division by zero."
         elif n = 0I then
             Ok SZero
         else
