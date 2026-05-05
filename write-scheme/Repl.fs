@@ -3,6 +3,11 @@ namespace WriteScheme
 open Type
 
 module Repl =
+    let formatPosition =
+        function
+        | Some pos -> sprintf " (at line %d, column %d)" pos.Line pos.Column
+        | None -> ""
+
     let rep envs =
         Read.read
         >> Result.bind Eval.resolveLabels

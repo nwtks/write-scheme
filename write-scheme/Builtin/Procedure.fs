@@ -184,10 +184,10 @@ module Procedure =
     let sCallCC envs pos cont =
         function
         | [ proc ] ->
-            let capturedWinders = envs.currentWinders.Value
+            let capturedWinders = envs.winders.Value
 
             let wrappedCont arg =
-                if envs.currentWinders.Value = capturedWinders then
+                if envs.winders.Value = capturedWinders then
                     cont arg
                 else
                     doWind envs cont capturedWinders arg

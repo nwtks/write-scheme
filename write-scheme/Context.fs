@@ -7,9 +7,9 @@ module Context =
         { environments = []
           nextExpansionId = 0
           nextRecordTypeId = 0
-          currentWinders = ref []
+          winders = ref []
           nextWinderId = ref 0
-          currentHandler =
+          handlers =
             [ SProcedure(fun _ pos cont ->
                   function
                   | [ obj ] -> Error(SchemeRaise(obj, pos)) |> cont
@@ -50,7 +50,7 @@ module Context =
         envs.nextExpansionId <- envs.nextExpansionId + 1
         envs.nextExpansionId
 
-    let setWinders envs winders = envs.currentWinders.Value <- winders
+    let setWinders envs winders = envs.winders.Value <- winders
 
     let enterWinder envs cur winder =
         let next = winder :: cur
@@ -67,11 +67,19 @@ module Context =
         next
 
     let pushWinder envs winder =
-        enterWinder envs envs.currentWinders.Value winder |> ignore
+        enterWinder envs envs.winders.Value winder |> ignore
 
     let popWinder envs id =
-        leaveWinder envs envs.currentWinders.Value id |> ignore
+        leaveWinder envs envs.winders.Value id |> ignore
 
     let getNextWinderId envs =
         envs.nextWinderId.Value <- envs.nextWinderId.Value + 1
         envs.nextWinderId.Value
+
+    let pushHandler envs handler =
+        envs.handlers.Value <- handler :: envs.handlers.Value
+
+    let popHandler envs =
+        let handler = envs.handlers.Value.Head
+        envs.handlers.Value <- envs.handlers.Value.Tail
+        handler

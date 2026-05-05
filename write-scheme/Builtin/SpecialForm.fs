@@ -651,7 +651,7 @@ module SpecialForm =
     let sGuard envs pos cont =
         function
         | (SPair { car = SSymbol var, _; cdr = clauses }, _) :: body ->
-            let savedWinders = envs.currentWinders.Value
+            let savedWinders = envs.winders.Value
 
             body
             |> Eval.eachEval

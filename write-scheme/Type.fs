@@ -3,11 +3,6 @@ namespace WriteScheme
 module Type =
     type Position = { Line: int64; Column: int64 }
 
-    let formatPosition =
-        function
-        | Some pos -> sprintf " (at line %d, column %d)" pos.Line pos.Column
-        | None -> ""
-
     type SStringData =
         { runes: System.Text.Rune array
           isImmutable: bool }
@@ -56,9 +51,9 @@ module Type =
         { environments: Environment list
           mutable nextExpansionId: int
           mutable nextRecordTypeId: int
-          currentWinders: Winder list ref
+          winders: Winder list ref
           nextWinderId: int ref
-          currentHandler: SExpression list ref }
+          handlers: SExpression list ref }
 
     and Environment = Map<string, SExpression ref> ref
 

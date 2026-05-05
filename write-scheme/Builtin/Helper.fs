@@ -99,7 +99,7 @@ module Helper =
                 []
 
     let doWind envs cont tgt arg =
-        let src = envs.currentWinders.Value
+        let src = envs.winders.Value
 
         let leaves, enters =
             loopDiffWinders src tgt (List.length src) (List.length tgt) [] []

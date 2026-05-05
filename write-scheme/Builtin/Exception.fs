@@ -10,12 +10,12 @@ module Exception =
         | [ handler; thunk ] ->
             let before =
                 fun envs pos cont _ ->
-                    envs.currentHandler.Value <- handler :: envs.currentHandler.Value
+                    Context.pushHandler envs handler
                     Ok(SUnspecified, pos) |> cont
 
             let after =
                 fun envs pos cont _ ->
-                    envs.currentHandler.Value <- envs.currentHandler.Value.Tail
+                    Context.popHandler envs |> ignore
                     Ok(SUnspecified, pos) |> cont
 
             let thunkProc = fun envs _ cont _ -> thunk |> Eval.apply envs cont []
@@ -28,22 +28,19 @@ module Exception =
     let sRaise envs pos cont =
         function
         | [ obj ] ->
-            match envs.currentHandler.Value with
-            | handler :: parents ->
-                envs.currentHandler.Value <- parents
+            let handler = Context.popHandler envs
 
-                Eval.apply
-                    envs
-                    (fun res ->
-                        envs.currentHandler.Value <- handler :: parents
+            Eval.apply
+                envs
+                (fun res ->
+                    Context.pushHandler envs handler
 
-                        match res with
-                        | Ok res' -> res' |> Ok |> cont
-                        | Error(SchemeRaise(obj', _)) -> SchemeRaise(obj', pos) |> Error |> cont
-                        | Error e -> Error e |> cont)
-                    [ obj ]
-                    handler
-            | [] -> failwith "unreachable"
+                    match res with
+                    | Ok res' -> res' |> Ok |> cont
+                    | Error(SchemeRaise(obj', _)) -> SchemeRaise(obj', pos) |> Error |> cont
+                    | Error e -> Error e |> cont)
+                [ obj ]
+                handler
         | x -> x |> invalidParameter pos "'%s' invalid raise parameter." |> cont
 
     let sError envs pos cont =
