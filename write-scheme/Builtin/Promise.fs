@@ -13,19 +13,19 @@ module Promise =
     [<TailCall>]
     let rec sForce envs pos cont =
         function
-        | [ SPromise r, _ ] ->
-            match r.Value with
+        | [ SPromise promise, _ ] ->
+            match promise.Value with
             | true, value -> Ok value |> cont
             | false, thunk ->
                 thunk
                 |> Eval.apply
                     envs
                     (function
-                    | Ok(SPromise r2, p2) ->
-                        r.Value <- r2.Value
-                        sForce envs p2 cont [ (SPromise r, p2) ]
+                    | Ok(SPromise r, p) ->
+                        promise.Value <- r.Value
+                        sForce envs p cont [ (SPromise promise, p) ]
                     | Ok value ->
-                        r.Value <- true, value
+                        promise.Value <- true, value
                         Ok value |> cont
                     | x -> x |> cont)
                     []
@@ -34,6 +34,6 @@ module Promise =
 
     let sMakePromise envs pos cont =
         function
-        | [ SPromise _, _ as p ] -> Ok p |> cont
-        | [ x ] -> Ok(SPromise(ref (true, x)), pos) |> cont
+        | [ SPromise _, _ as x ] -> Ok x |> cont
+        | [ obj ] -> Ok(ref (true, obj) |> SPromise, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid make-promise parameter." |> cont

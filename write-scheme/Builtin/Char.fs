@@ -76,8 +76,8 @@ module Char =
 
     let sIntegerToChar envs pos cont =
         function
-        | [ SRational(k, d), _ ] when d = 1I && System.Text.Rune.IsValid(int k) ->
-            Ok(int k |> System.Text.Rune |> SChar, pos) |> cont
+        | [ SRational(n, d), _ ] when d = 1I && System.Text.Rune.IsValid(int n) ->
+            Ok(int n |> System.Text.Rune |> SChar, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid integer->char parameter." |> cont
 
     let sCharUpcase envs pos cont =

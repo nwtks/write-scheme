@@ -18,8 +18,8 @@ module Exception =
                     Context.popHandler envs |> ignore
                     Ok(SUnspecified, pos) |> cont
 
-            let thunkProc = fun envs _ cont _ -> thunk |> Eval.apply envs cont []
-            sDynamicWind envs pos cont [ SProcedure before, pos; SProcedure thunkProc, pos; SProcedure after, pos ]
+            let thunk' = fun envs _ cont _ -> thunk |> Eval.apply envs cont []
+            doAroundProc envs cont (SProcedure before, pos) (SProcedure thunk', pos) (SProcedure after, pos)
         | x ->
             x
             |> invalidParameter pos "'%s' invalid with-exception-handler parameter."
@@ -45,7 +45,7 @@ module Exception =
 
     let sError envs pos cont =
         function
-        | (SString msg, _) :: irritants -> [ SError(msg, irritants), pos ] |> sRaise envs pos cont
+        | (SString message, _) :: irritants -> [ SError(message, irritants), pos ] |> sRaise envs pos cont
         | x -> x |> invalidParameter pos "'%s' invalid error parameter." |> cont
 
     let isErrorObject envs pos cont =
@@ -55,7 +55,7 @@ module Exception =
 
     let sErrorObjectMessage envs pos cont =
         function
-        | [ SError(msg, _), _ ] -> Ok(SString msg, pos) |> cont
+        | [ SError(message, _), _ ] -> Ok(SString message, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid error-object-message parameter." |> cont
 
     let sErrorObjectIrritants envs pos cont =

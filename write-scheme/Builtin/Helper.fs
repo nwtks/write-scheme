@@ -113,3 +113,28 @@ module Helper =
             | Ok cur -> entersRev |> runWindEnters envs (fun _ -> cont arg) cur
             | Error e -> Error e |> cont)
             src
+
+    let doAroundProc envs cont before thunk after =
+        let id = Context.getNextWinderId envs
+
+        before
+        |> Eval.apply
+            envs
+            (function
+            | Ok _ ->
+                let winder =
+                    { id = id
+                      before = before
+                      after = after }
+
+                Context.pushWinder envs winder
+
+                thunk
+                |> Eval.apply
+                    envs
+                    (fun res ->
+                        Context.popWinder envs id
+                        after |> Eval.apply envs (fun _ -> cont res) [])
+                    []
+            | x -> x |> cont)
+            []

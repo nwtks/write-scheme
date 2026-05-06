@@ -17,61 +17,61 @@ module SavedParameter =
         | x -> x |> invalid (snd x) "'%s' invalid parameterize binding."
 
     [<TailCall>]
-    let rec loopParameterize envs pos cont body triples =
+    let rec loopParameterize envs pos cont body acc =
         function
         | [] ->
-            let triples = List.rev triples
+            let triples = List.rev acc
 
             let before _ pos cont _ =
                 triples
-                |> List.iter (fun (r: SExpression ref, nv: SExpression ref, ov: SExpression ref) ->
-                    ov.Value <- r.Value
-                    r.Value <- nv.Value)
+                |> List.iter (fun (pv: SExpression ref, nv: SExpression ref, ov: SExpression ref) ->
+                    ov.Value <- pv.Value
+                    pv.Value <- nv.Value)
 
                 Ok(SUnspecified, pos) |> cont
 
             let after _ pos cont _ =
                 triples
-                |> List.iter (fun (r: SExpression ref, nv: SExpression ref, ov: SExpression ref) ->
-                    nv.Value <- r.Value
-                    r.Value <- ov.Value)
+                |> List.iter (fun (pv: SExpression ref, nv: SExpression ref, ov: SExpression ref) ->
+                    nv.Value <- pv.Value
+                    pv.Value <- ov.Value)
 
                 Ok(SUnspecified, pos) |> cont
 
             let thunk envs pos cont _ =
                 body |> Eval.eachEval envs cont (Ok(SEmpty, pos))
 
-            sDynamicWind envs pos cont [ SProcedure before, pos; SProcedure thunk, pos; SProcedure after, pos ]
-        | (pExpr, vExpr) :: rest ->
-            pExpr
+            doAroundProc envs cont (SProcedure before, pos) (SProcedure thunk, pos) (SProcedure after, pos)
+        | (param, value) :: parameters ->
+            param
             |> Eval.eval envs (function
-                | Ok(SParameter(r, convOpt), _) ->
-                    vExpr
+                | Ok(SParameter(paramVal, convOpt), _) ->
+                    value
                     |> Eval.eval envs (function
                         | Ok newVal ->
                             match convOpt with
-                            | Some conv ->
-                                conv
+                            | Some converter ->
+                                converter
                                 |> Eval.apply
                                     envs
                                     (function
                                     | Ok converted ->
-                                        let oldVal = r.Value
+                                        let oldVal = paramVal.Value
 
-                                        rest
+                                        parameters
                                         |> loopParameterize
                                             envs
                                             pos
                                             cont
                                             body
-                                            ((r, ref converted, ref oldVal) :: triples)
+                                            ((paramVal, ref converted, ref oldVal) :: acc)
                                     | x -> x |> cont)
                                     [ newVal ]
                             | None ->
-                                let oldVal = r.Value
+                                let oldVal = paramVal.Value
 
-                                rest
-                                |> loopParameterize envs pos cont body ((r, ref newVal, ref oldVal) :: triples)
+                                parameters
+                                |> loopParameterize envs pos cont body ((paramVal, ref newVal, ref oldVal) :: acc)
                         | x -> x |> cont)
                 | Ok x -> x |> invalid (snd x) "'%s' is not a parameter."
                 | x -> x |> cont)

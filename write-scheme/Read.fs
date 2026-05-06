@@ -68,8 +68,8 @@ module Read =
     let pSymbolElement =
         choice
             [ noneOf "|\\" |>> string
-              stringReturn "\\|" "|"
               stringReturn "\\\\" "\\"
+              stringReturn "\\|" "|"
               pMnemonicEscape
               pInlineHexEscape ]
 
@@ -117,6 +117,7 @@ module Read =
             [ noneOf "\"\\" |>> string
               stringReturn "\\\"" "\""
               stringReturn "\\\\" "\\"
+              stringReturn "\\|" "|"
               pMnemonicEscape
               pInlineHexEscape
               pchar '\\'

@@ -29,9 +29,9 @@ module Builtin =
               "delay-force", (SSyntax sDelayForce, None) |> ref
               "parameterize", (SSyntax sParameterize, None) |> ref
               "guard", (SSyntax sGuard, None) |> ref
+              "quasiquote", (SSyntax sQuasiquote, None) |> ref
               "let-syntax", (SSyntax sLetSyntax, None) |> ref
               "letrec-syntax", (SSyntax sLetRecSyntax, None) |> ref
-              "quasiquote", (SSyntax sQuasiquote, None) |> ref
               "syntax-rules", (SSyntax sSyntaxRules, None) |> ref
               "syntax-error", (SSyntax sSyntaxError, None) |> ref
               "define", (SSyntax sDefine, None) |> ref

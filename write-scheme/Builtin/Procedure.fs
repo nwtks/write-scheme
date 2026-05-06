@@ -13,13 +13,13 @@ module Procedure =
         | _ -> Ok(SFalse, pos) |> cont
 
     [<TailCall>]
-    let rec foldApply pos xs =
+    let rec foldApply pos args =
         function
         | acc, [ SEmpty, _ ] -> acc |> List.rev |> Ok
-        | acc, [ x ] when isProperList x -> x |> toList |> Result.map (fun l -> (acc |> List.rev) @ l)
+        | acc, [ list ] when isProperList list -> list |> toList |> Result.map (fun l -> (acc |> List.rev) @ l)
         | _, [ _ ]
-        | _, [] -> xs |> invalidParameter pos "'%s' invalid apply parameter."
-        | acc, x1 :: x2 -> (x1 :: acc, x2) |> foldApply pos xs
+        | _, [] -> args |> invalidParameter pos "'%s' invalid apply parameter."
+        | acc, h :: t -> (h :: acc, t) |> foldApply pos args
 
     let sApply envs pos cont =
         function
@@ -34,23 +34,23 @@ module Procedure =
         function
         | 0, _
         | _, [] -> List.rev acc
-        | n, xs -> foldTranspose ((xs |> List.map List.head) :: acc) (n - 1, xs |> List.map List.tail)
+        | n, lists -> foldTranspose ((lists |> List.map List.head) :: acc) (n - 1, lists |> List.map List.tail)
 
     let transposeList lists =
-        foldTranspose [] (lists |> List.map List.length |> Seq.min, lists)
+        (lists |> List.map List.length |> Seq.min, lists) |> foldTranspose []
 
     [<TailCall>]
     let rec mapMap envs cont proc acc =
         function
         | [] -> List.rev acc |> toSPair |> Ok |> cont
-        | x :: xs ->
+        | list :: lists ->
             proc
             |> Eval.apply
                 envs
                 (function
-                | Ok a -> xs |> mapMap envs cont proc (a :: acc)
+                | Ok a -> lists |> mapMap envs cont proc (a :: acc)
                 | x -> x |> cont)
-                x
+                list
 
     let sMap envs pos cont =
         function
@@ -59,7 +59,7 @@ module Procedure =
             lists
             |> mapResult (function
                 | SEmpty, _ -> Ok []
-                | x when isProperList x -> x |> toList
+                | list when isProperList list -> list |> toList
                 | x -> x |> invalid (snd x) "'%s' invalid map parameter.")
             |> function
                 | Ok lists' -> lists' |> transposeList |> mapMap envs cont proc []
@@ -80,14 +80,14 @@ module Procedure =
                 |> SString,
                 pos)
             |> cont
-        | x :: xs ->
+        | str :: strings ->
             proc
             |> Eval.apply
                 envs
                 (function
-                | Ok a -> xs |> mapStringMap envs pos cont proc (a :: acc)
+                | Ok a -> strings |> mapStringMap envs pos cont proc (a :: acc)
                 | x -> x |> cont)
-                x
+                str
 
     let sStringMap envs pos cont =
         function
@@ -98,7 +98,7 @@ module Procedure =
                 | SString s, _ -> s.runes |> Array.map (fun c -> SChar c, pos) |> Array.toList |> Ok
                 | x -> x |> invalid (snd x) "'%s' invalid string-map parameter.")
             |> function
-                | Ok lists' -> lists' |> transposeList |> mapStringMap envs (snd proc) cont proc []
+                | Ok strings' -> strings' |> transposeList |> mapStringMap envs (snd proc) cont proc []
                 | Error e -> Error e |> cont
         | x -> x |> invalidParameter pos "'%s' invalid string-map parameter." |> cont
 
@@ -106,14 +106,14 @@ module Procedure =
     let rec mapVectorMap envs pos cont proc acc =
         function
         | [] -> (List.rev acc |> List.toArray |> SVector, pos) |> Ok |> cont
-        | x :: xs ->
+        | vector :: vectors ->
             proc
             |> Eval.apply
                 envs
                 (function
-                | Ok a -> xs |> mapVectorMap envs pos cont proc (a :: acc)
+                | Ok a -> vectors |> mapVectorMap envs pos cont proc (a :: acc)
                 | x -> x |> cont)
-                x
+                vector
 
     let sVectorMap envs pos cont =
         function
@@ -121,10 +121,10 @@ module Procedure =
         | proc :: vectors ->
             vectors
             |> mapResult (function
-                | SVector xs, _ -> Array.toList xs |> Ok
+                | SVector vector, _ -> Array.toList vector |> Ok
                 | x -> x |> invalid (snd x) "'%s' invalid vector-map parameter.")
             |> function
-                | Ok lists' -> lists' |> transposeList |> mapVectorMap envs (snd proc) cont proc []
+                | Ok vectors' -> vectors' |> transposeList |> mapVectorMap envs (snd proc) cont proc []
                 | Error e -> Error e |> cont
         | x -> x |> invalidParameter pos "'%s' invalid vector-map parameter." |> cont
 
@@ -132,14 +132,14 @@ module Procedure =
     let rec loopForEach envs pos cont proc =
         function
         | [] -> Ok(SEmpty, pos) |> cont
-        | x :: xs ->
+        | list :: lists ->
             proc
             |> Eval.apply
                 envs
                 (function
-                | Ok _ -> xs |> loopForEach envs pos cont proc
+                | Ok _ -> lists |> loopForEach envs pos cont proc
                 | x -> x |> cont)
-                x
+                list
 
     let sForEach envs pos cont =
         function
@@ -148,7 +148,7 @@ module Procedure =
             lists
             |> mapResult (function
                 | SEmpty, _ -> Ok []
-                | x when isProperList x -> x |> toList
+                | list when isProperList list -> list |> toList
                 | x -> x |> invalid (snd x) "'%s' invalid for-each parameter.")
             |> function
                 | Ok lists' -> lists' |> transposeList |> loopForEach envs (snd proc) cont proc
@@ -164,7 +164,7 @@ module Procedure =
                 | SString s, _ -> s.runes |> Array.map (fun c -> SChar c, pos) |> Array.toList |> Ok
                 | x -> x |> invalid (snd x) "'%s' invalid string-for-each parameter.")
             |> function
-                | Ok lists' -> lists' |> transposeList |> loopForEach envs (snd proc) cont proc
+                | Ok strings' -> strings' |> transposeList |> loopForEach envs (snd proc) cont proc
                 | Error e -> Error e |> cont
         | x -> x |> invalidParameter pos "'%s' invalid string-for-each parameter." |> cont
 
@@ -174,10 +174,10 @@ module Procedure =
         | proc :: vectors ->
             vectors
             |> mapResult (function
-                | SVector xs, _ -> Array.toList xs |> Ok
+                | SVector vector, _ -> Array.toList vector |> Ok
                 | x -> x |> invalid (snd x) "'%s' invalid vector-for-each parameter.")
             |> function
-                | Ok lists' -> lists' |> transposeList |> loopForEach envs (snd proc) cont proc
+                | Ok vectors' -> vectors' |> transposeList |> loopForEach envs (snd proc) cont proc
                 | Error e -> Error e |> cont
         | x -> x |> invalidParameter pos "'%s' invalid vector-for-each parameter." |> cont
 
@@ -197,8 +197,8 @@ module Procedure =
 
     let sValues envs pos cont =
         function
-        | [ x ] -> x |> Ok |> cont
-        | xs -> (SValues xs, pos) |> Ok |> cont
+        | [ obj ] -> obj |> Ok |> cont
+        | values -> (SValues values, pos) |> Ok |> cont
 
     let sCallWithValues envs pos cont =
         function
@@ -207,36 +207,13 @@ module Procedure =
             |> Eval.apply
                 envs
                 (function
-                | Ok(SValues xs, _) -> consumer |> Eval.apply envs cont xs
-                | Ok x -> consumer |> Eval.apply envs cont [ x ]
+                | Ok(SValues values, _) -> consumer |> Eval.apply envs cont values
+                | Ok obj -> consumer |> Eval.apply envs cont [ obj ]
                 | x -> x |> cont)
                 []
         | x -> x |> invalidParameter pos "'%s' invalid call-with-values parameter." |> cont
 
-    let sDynamicWind envs pos cont =
+    let rec sDynamicWind envs pos cont =
         function
-        | [ inProc; bodyProc; outProc ] ->
-            let id = Context.getNextWinderId envs
-
-            inProc
-            |> Eval.apply
-                envs
-                (function
-                | Ok _ ->
-                    let winder =
-                        { id = id
-                          before = inProc
-                          after = outProc }
-
-                    Context.pushWinder envs winder
-
-                    bodyProc
-                    |> Eval.apply
-                        envs
-                        (fun res ->
-                            Context.popWinder envs id
-                            outProc |> Eval.apply envs (fun _ -> cont res) [])
-                        []
-                | x -> x |> cont)
-                []
+        | [ before; thunk; after ] -> doAroundProc envs cont before thunk after
         | x -> x |> invalidParameter pos "'%s' invalid dynamic-wind parameter." |> cont
