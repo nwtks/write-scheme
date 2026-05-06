@@ -10,14 +10,16 @@ module Math =
         | [ SRational _, _ ]
         | [ SReal _, _ ]
         | [ SComplex _, _ ] -> Ok(STrue, pos) |> cont
-        | _ -> Ok(SFalse, pos) |> cont
+        | [ _ ] -> Ok(SFalse, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid number? parameter." |> cont
 
     let isComplex envs pos cont =
         function
         | [ SComplex _, _ ]
         | [ SReal _, _ ]
         | [ SRational _, _ ] -> Ok(STrue, pos) |> cont
-        | _ -> Ok(SFalse, pos) |> cont
+        | [ _ ] -> Ok(SFalse, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid complex? parameter." |> cont
 
     let isReal envs pos cont =
         function
@@ -25,7 +27,8 @@ module Math =
         | [ SReal _, _ ] -> Ok(STrue, pos) |> cont
         | [ SComplex c, _ ] when c.Imaginary = 0.0 -> Ok(STrue, pos) |> cont
         | [ SComplex _, _ ] -> Ok(SFalse, pos) |> cont
-        | _ -> Ok(SFalse, pos) |> cont
+        | [ _ ] -> Ok(SFalse, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid real? parameter." |> cont
 
     let finiteFloat d =
         not (System.Double.IsInfinity d || System.Double.IsNaN d)
@@ -37,7 +40,8 @@ module Math =
         | [ SRational _, _ ] -> Ok(STrue, pos) |> cont
         | [ SReal r, _ ] when finiteFloat r -> Ok(STrue, pos) |> cont
         | [ SComplex c, _ ] when c.Imaginary = 0.0 && finiteFloat c.Real -> Ok(STrue, pos) |> cont
-        | _ -> Ok(SFalse, pos) |> cont
+        | [ _ ] -> Ok(SFalse, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid rational? parameter." |> cont
 
     let isInteger envs pos cont =
         function
@@ -45,30 +49,35 @@ module Math =
         | [ SReal r, _ ] when finiteFloat r && noFractionFloat r -> Ok(STrue, pos) |> cont
         | [ SComplex c, _ ] when c.Imaginary = 0.0 && finiteFloat c.Real && noFractionFloat c.Real ->
             Ok(STrue, pos) |> cont
-        | _ -> Ok(SFalse, pos) |> cont
+        | [ _ ] -> Ok(SFalse, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid integer? parameter." |> cont
 
     let isExact envs pos cont =
         function
         | [ SRational _, _ ] -> Ok(STrue, pos) |> cont
-        | _ -> Ok(SFalse, pos) |> cont
+        | [ _ ] -> Ok(SFalse, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid exact? parameter." |> cont
 
     let isInexact envs pos cont =
         function
         | [ SReal _, _ ]
         | [ SComplex _, _ ] -> Ok(STrue, pos) |> cont
-        | _ -> Ok(SFalse, pos) |> cont
+        | [ _ ] -> Ok(SFalse, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid inexact? parameter." |> cont
 
     let isExactInteger envs pos cont =
         function
         | [ SRational(_, d), _ ] when d = 1I -> Ok(STrue, pos) |> cont
-        | _ -> Ok(SFalse, pos) |> cont
+        | [ _ ] -> Ok(SFalse, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid exact-integer? parameter." |> cont
 
     let isFinite envs pos cont =
         function
         | [ SRational _, _ ] -> Ok(STrue, pos) |> cont
         | [ SReal r, _ ] -> Ok(finiteFloat r |> toSBool, pos) |> cont
         | [ SComplex c, _ ] -> Ok((finiteFloat c.Real && finiteFloat c.Imaginary) |> toSBool, pos) |> cont
-        | _ -> Ok(SFalse, pos) |> cont
+        | [ _ ] -> Ok(SFalse, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid finite? parameter." |> cont
 
     let isInfinite envs pos cont =
         function
@@ -80,7 +89,8 @@ module Math =
                  pos)
             )
             |> cont
-        | _ -> Ok(SFalse, pos) |> cont
+        | [ _ ] -> Ok(SFalse, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid infinite? parameter." |> cont
 
     let isNaN envs pos cont =
         function
@@ -88,7 +98,8 @@ module Math =
         | [ SComplex c, _ ] ->
             Ok(((System.Double.IsNaN c.Real || System.Double.IsNaN c.Imaginary) |> toSBool, pos))
             |> cont
-        | _ -> Ok(SFalse, pos) |> cont
+        | [ _ ] -> Ok(SFalse, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid nan? parameter." |> cont
 
     let toFloat x y = float x / float y
 
@@ -150,17 +161,17 @@ module Math =
     let isZero envs pos cont =
         function
         | [ x ] -> equalNumber envs pos cont [ x; SZero, pos ]
-        | _ -> Ok(SFalse, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid zero? parameter." |> cont
 
     let isPositive envs pos cont =
         function
         | [ x ] -> greaterNumber envs pos cont [ x; SZero, pos ]
-        | _ -> Ok(SFalse, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid positive? parameter." |> cont
 
     let isNegative envs pos cont =
         function
         | [ x ] -> lessNumber envs pos cont [ x; SZero, pos ]
-        | _ -> Ok(SFalse, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid negative? parameter." |> cont
 
     let isOdd envs pos cont =
         function

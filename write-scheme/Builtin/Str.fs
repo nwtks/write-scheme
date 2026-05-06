@@ -8,7 +8,8 @@ module Str =
     let isString envs pos cont =
         function
         | [ SString _, _ ] -> Ok(STrue, pos) |> cont
-        | _ -> Ok(SFalse, pos) |> cont
+        | [ _ ] -> Ok(SFalse, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid string? parameter." |> cont
 
     let sMakeString envs pos cont =
         function

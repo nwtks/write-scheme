@@ -51,7 +51,8 @@ module Exception =
     let isErrorObject envs pos cont =
         function
         | [ SError _, _ ] -> Ok(STrue, pos) |> cont
-        | _ -> Ok(SFalse, pos) |> cont
+        | [ _ ] -> Ok(SFalse, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid error-object? parameter." |> cont
 
     let sErrorObjectMessage envs pos cont =
         function

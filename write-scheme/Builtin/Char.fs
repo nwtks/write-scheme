@@ -8,7 +8,8 @@ module Char =
     let isChar envs pos cont =
         function
         | [ SChar _, _ ] -> Ok(STrue, pos) |> cont
-        | _ -> Ok(SFalse, pos) |> cont
+        | [ _ ] -> Ok(SFalse, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid char? parameter." |> cont
 
     let compareCharsBase transformer pred name pos cont =
         mapResult (function

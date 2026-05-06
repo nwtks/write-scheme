@@ -8,7 +8,8 @@ module List =
     let isPair envs pos cont =
         function
         | [ SPair _, _ ] -> Ok(STrue, pos) |> cont
-        | _ -> Ok(SFalse, pos) |> cont
+        | [ _ ] -> Ok(SFalse, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid pair? parameter." |> cont
 
     let sCons envs pos cont =
         function
@@ -72,12 +73,13 @@ module List =
     let isNull envs pos cont =
         function
         | [ SEmpty, _ ] -> Ok(STrue, pos) |> cont
-        | _ -> Ok(SFalse, pos) |> cont
+        | [ _ ] -> Ok(SFalse, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid null? parameter." |> cont
 
     let isList envs pos cont =
         function
         | [ obj ] -> Ok(obj |> isProperList |> toSBool, pos) |> cont
-        | _ -> Ok(SFalse, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid list? parameter." |> cont
 
     let sMakeList envs pos cont =
         function

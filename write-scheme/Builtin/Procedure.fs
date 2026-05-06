@@ -10,7 +10,8 @@ module Procedure =
         | [ SSyntax _, _ ]
         | [ SProcedure _, _ ]
         | [ SContinuation _, _ ] -> Ok(STrue, pos) |> cont
-        | _ -> Ok(SFalse, pos) |> cont
+        | [ _ ] -> Ok(SFalse, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid procedure? parameter." |> cont
 
     [<TailCall>]
     let rec foldApply pos args =
