@@ -220,36 +220,6 @@ module SpecialForm =
                 | Ok i -> bindings |> bindLet envs pos cont body ((variable, ref i) :: acc)
                 | x -> x |> cont)
 
-    [<TailCall>]
-    let rec bindNamedLet pos args acc =
-        function
-        | SEmpty, _ -> Ok acc
-        | SSymbol v, _ -> Ok((v, ref (args |> toSPair)) :: acc)
-        | SPair p, _ ->
-            match args with
-            | h :: t ->
-                match p.car with
-                | SSymbol v, _ -> p.cdr |> bindNamedLet pos t ((v, ref h) :: acc)
-                | x -> x |> invalid (snd x) "'%s' is not a symbol."
-            | [] -> Error(EvalError("Not enough arguments.", pos))
-        | x -> x |> invalid (snd x) "'%s' is not a symbol."
-
-    let namedLetProc captureEnvs bindings body envs pos cont args =
-        match
-            bindings
-            |> List.map (fun (v, _) -> SSymbol v, pos)
-            |> toSPair
-            |> bindNamedLet pos args []
-        with
-        | Ok boundVars ->
-            body
-            |> Eval.eachEval
-                (Context.mergeEnvs captureEnvs envs
-                 |> fun ctx -> Context.extendEnvs ctx (List.rev boundVars))
-                cont
-                (Ok(SEmpty, pos))
-        | Error e -> Error e |> cont
-
     let sLet envs pos cont =
         function
         | (SSymbol variable, _) :: bindings :: body ->
@@ -259,7 +229,8 @@ module SpecialForm =
                 | Ok bindings' ->
                     let r = ref (SUnspecified, pos)
                     let envs' = [ variable, r ] |> Context.extendEnvs envs
-                    let proc = SProcedure(namedLetProc envs' bindings' body), pos
+                    let formals = bindings' |> List.map (fun (v, _) -> SSymbol v, pos) |> toSPair
+                    let proc = SProcedure(closure envs' formals body), pos
                     r.Value <- proc
 
                     bindings'
