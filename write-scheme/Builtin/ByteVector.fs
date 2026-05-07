@@ -27,16 +27,16 @@ module ByteVector =
 
     let sByteVectorLength envs pos cont =
         function
-        | [ SByteVector bytevector, _ ] -> Ok(newInteger (bigint bytevector.Length), pos) |> cont
+        | [ SByteVector bytevector, _ ] -> Ok(bigint bytevector.Length |> newInteger, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid bytevector-length parameter." |> cont
 
     let sByteVectorU8Ref envs pos cont =
         function
         | [ SByteVector bytevector, _; SRational(n, d), _ ] when d = 1I && n >= 0I && n < bigint bytevector.Length ->
-            Ok(newInteger (bigint bytevector.[int n]), pos) |> cont
+            Ok(bigint bytevector.[int n] |> newInteger, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid bytevector-u8-ref parameter." |> cont
 
-    let sByteVectorU8Set envs pos cont =
+    let sByteVectorU8SetBang envs pos cont =
         function
         | [ SByteVector bytevector, _; SRational(n, d), _; SRational(b, d'), _ ] when
             d = 1I
@@ -52,9 +52,9 @@ module ByteVector =
 
     let getByteVectorRange (length: int) =
         function
-        | [ _ ] -> Some(0, length)
-        | [ _; SRational(start, d), _ ] when d = 1I && start >= 0I && start <= bigint length -> Some(int start, length)
-        | [ _; SRational(start, d1), _; SRational(stop, d2), _ ] when
+        | [] -> Some(0, length)
+        | [ SRational(start, d), _ ] when d = 1I && start >= 0I && start <= bigint length -> Some(int start, length)
+        | [ SRational(start, d1), _; SRational(stop, d2), _ ] when
             d1 = 1I && d2 = 1I && start >= 0I && stop >= start && stop <= bigint length
             ->
             Some(int start, int stop)
@@ -62,8 +62,8 @@ module ByteVector =
 
     let sByteVectorCopy envs pos cont =
         function
-        | (SByteVector bytevector, _) :: _ as args ->
-            match getByteVectorRange bytevector.Length args with
+        | (SByteVector bytevector, _) :: range as args ->
+            match getByteVectorRange bytevector.Length range with
             | Some(start, stop) -> Ok(bytevector.[start .. stop - 1] |> Array.copy |> SByteVector, pos) |> cont
             | None -> args |> invalidParameter pos "'%s' invalid bytevector-copy parameter." |> cont
         | x -> x |> invalidParameter pos "'%s' invalid bytevector-copy parameter." |> cont
@@ -71,7 +71,7 @@ module ByteVector =
     let sByteVectorCopyBang envs pos cont =
         function
         | (SByteVector dest, _) :: (SRational(at, dAt), _) :: (SByteVector src, _) :: range as args ->
-            match (SByteVector src, pos) :: range |> getByteVectorRange src.Length with
+            match getByteVectorRange src.Length range with
             | Some(start, stop) when dAt = 1I && at >= 0I && at + bigint (stop - start) <= bigint dest.Length ->
                 Array.blit src start dest (int at) (stop - start)
                 Ok(SUnspecified, pos) |> cont
@@ -82,13 +82,13 @@ module ByteVector =
         mapResult (function
             | SByteVector bytevector, _ -> Ok bytevector
             | x -> x |> invalid (snd x) "'%s' is not a bytevector in bytevector-append.")
-        >> Result.map (fun vlist -> vlist |> Array.concat |> SByteVector, pos)
+        >> Result.map (fun bytevectors -> bytevectors |> Array.concat |> SByteVector, pos)
         >> cont
 
     let sUtf8ToString envs pos cont =
         function
-        | (SByteVector bytevector, _) :: _ as args ->
-            match getByteVectorRange bytevector.Length args with
+        | (SByteVector bytevector, _) :: range as args ->
+            match getByteVectorRange bytevector.Length range with
             | Some(start, stop) ->
                 bytevector.[start .. stop - 1]
                 |> System.Text.Encoding.UTF8.GetString
@@ -100,15 +100,15 @@ module ByteVector =
 
     let sStringToUtf8 envs pos cont =
         function
-        | (SString s, _) :: _ as args ->
-            match getByteVectorRange s.runes.Length args with
+        | (SString s, _) :: range as args ->
+            match getByteVectorRange s.runes.Length range with
             | Some(start, stop) ->
-                let str = System.Text.StringBuilder stop
+                let sb = System.Text.StringBuilder stop
 
                 for i in start .. stop - 1 do
-                    s.runes.[i] |> string |> str.Append |> ignore
+                    s.runes.[i] |> string |> sb.Append |> ignore
 
-                Ok(str |> string |> System.Text.Encoding.UTF8.GetBytes |> SByteVector, pos)
+                Ok(sb |> string |> System.Text.Encoding.UTF8.GetBytes |> SByteVector, pos)
                 |> cont
             | None -> args |> invalidParameter pos "'%s' invalid string->utf8 parameter." |> cont
         | x -> x |> invalidParameter pos "'%s' invalid string->utf8 parameter." |> cont

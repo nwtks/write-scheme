@@ -54,10 +54,7 @@ module Read =
 
     let pPeculiarIdentifier =
         choice
-            [ attempt (
-                  pipe3 pExplicitSign pSignSubsequent (pSubsequent |> manyStrings) (fun c1 s2 s3 ->
-                      sprintf "%c%s%s" c1 s2 s3)
-              )
+            [ attempt (pipe3 pExplicitSign pSignSubsequent (pSubsequent |> manyStrings) (sprintf "%c%s%s"))
               attempt (
                   pipe4 pExplicitSign (pchar '.') pDotSubsequent (pSubsequent |> manyStrings) (fun c1 _ s3 s4 ->
                       sprintf "%c.%s%s" c1 s3 s4)
@@ -75,7 +72,7 @@ module Read =
 
     let pIdentifier =
         choice
-            [ pipe2 pInitial (pSubsequent |> manyStrings) (fun s1 s2 -> s1 + s2)
+            [ pipe2 pInitial (pSubsequent |> manyStrings) (+)
               pPeculiarIdentifier
               between (pchar '|') (pchar '|') (pSymbolElement |> manyStrings) ]
 
@@ -135,15 +132,14 @@ module Read =
         x |> Seq.map hex2int |> Seq.fold (fun acc a -> acc * radix + bigint a) 0I
 
     let pUinteger radix =
-        let pDigits =
-            match radix with
-            | 2 -> anyOf "01" |> many1Chars
-            | 8 -> anyOf "01234567" |> many1Chars
-            | 10 -> digit |> many1Chars
-            | 16 -> hex |> many1Chars
-            | _ -> failwith "unreachable."
-
-        pDigits |>> toBigInteger (bigint radix)
+        match radix with
+        | 2 -> anyOf "01"
+        | 8 -> anyOf "01234567"
+        | 10 -> digit
+        | 16 -> hex
+        | _ -> failwith "unreachable."
+        |> many1Chars
+        |>> toBigInteger (bigint radix)
 
     let pRationalN radix =
         let pU = pUinteger radix
@@ -160,8 +156,7 @@ module Read =
             | Result.Error msg -> fail msg
 
     let pDecimalSuffix =
-        anyOf "Ee"
-        >>. pipe2 pSign (pDigit |> many1Chars) (fun c1 s2 -> sprintf "E%c%s" c1 s2)
+        anyOf "Ee" >>. pipe2 pSign (pDigit |> many1Chars) (sprintf "E%c%s")
 
     let pDecimalSuffixOpt = pDecimalSuffix |> opt |>> Option.defaultValue ""
 
@@ -266,11 +261,11 @@ module Read =
             | Some true ->
                 match num with
                 | SReal x -> realToRational x
-                | SComplex c -> if c.Imaginary = 0.0 then realToRational c.Real else num
+                | SComplex c when c.Imaginary = 0.0 -> realToRational c.Real
                 | _ -> num
             | Some false ->
                 match num with
-                | SRational(n, d) -> SReal(float n / float d)
+                | SRational(n, d) -> float n / float d |> SReal
                 | _ -> num
             | None -> num
 
@@ -292,7 +287,7 @@ module Read =
         pCharacter |>> (fun s -> System.Text.Rune.GetRuneAt(s, 0) |> SChar)
         |> parseWithPos
 
-    let parseString = pString |>> (fun s -> newSString true s) |> parseWithPos
+    let parseString = pString |>> newSString true |> parseWithPos
 
     let parseByteVector =
         let parseByte =
@@ -340,9 +335,9 @@ module Read =
             (pchar ')')
             (pIntertokenSpace
              >>. pipe2
-                 (many1 (parseDatum .>> pIntertokenSpace1))
-                 (pchar '.' >>. pIntertokenSpace1 >>. parseDatum .>> pIntertokenSpace)
-                 (fun xs x -> List.foldBack (fun h acc -> SPair { car = h; cdr = acc }, snd h) xs x))
+                     (many1 (parseDatum .>> pIntertokenSpace1))
+                     (pchar '.' >>. pIntertokenSpace1 >>. parseDatum .>> pIntertokenSpace)
+                     (List.foldBack (fun h acc -> SPair { car = h; cdr = acc }, snd h)))
 
     let parseVector =
         pstring "#(" >>. pIntertokenSpace >>. many (parseDatum .>> pIntertokenSpace)
@@ -390,11 +385,10 @@ module Read =
         match input |> run (pIntertokenSpace >>. parseDatum .>> pIntertokenSpace .>> eof) with
         | Success(res, _, _) -> Result.Ok res
         | Failure(msg, error, _) ->
-            Result.Error(
-                ParseError(
-                    msg,
-                    Some
-                        { Line = int64 error.Position.Line
-                          Column = int64 error.Position.Column }
-                )
+            ParseError(
+                msg,
+                Some
+                    { Line = int64 error.Position.Line
+                      Column = int64 error.Position.Column }
             )
+            |> Result.Error

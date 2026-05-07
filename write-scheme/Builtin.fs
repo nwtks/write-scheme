@@ -10,7 +10,7 @@ module Builtin =
             [ "quote", (SSyntax sQuote, None) |> ref
               "lambda", (SSyntax sLambda, None) |> ref
               "if", (SSyntax sIf, None) |> ref
-              "set!", (SSyntax sSet, None) |> ref
+              "set!", (SSyntax sSetBang, None) |> ref
               "cond", (SSyntax sCond, None) |> ref
               "case", (SSyntax sCase, None) |> ref
               "and", (SSyntax sAnd, None) |> ref
@@ -56,11 +56,11 @@ module Builtin =
               "finite?", (SProcedure isFinite, None) |> ref
               "infinite?", (SProcedure isInfinite, None) |> ref
               "nan?", (SProcedure isNaN, None) |> ref
-              "=", (SProcedure equalNumber, None) |> ref
-              "<", (SProcedure lessNumber, None) |> ref
-              ">", (SProcedure greaterNumber, None) |> ref
-              "<=", (SProcedure lessEqualNumber, None) |> ref
-              ">=", (SProcedure greaterEqualNumber, None) |> ref
+              "=", (SProcedure sEqualNumber, None) |> ref
+              "<", (SProcedure sLessNumber, None) |> ref
+              ">", (SProcedure sGreaterNumber, None) |> ref
+              "<=", (SProcedure sLessEqualNumber, None) |> ref
+              ">=", (SProcedure sGreaterEqualNumber, None) |> ref
               "zero?", (SProcedure isZero, None) |> ref
               "positive?", (SProcedure isPositive, None) |> ref
               "negative?", (SProcedure isNegative, None) |> ref
@@ -68,10 +68,10 @@ module Builtin =
               "even?", (SProcedure isEven, None) |> ref
               "max", (SProcedure sMax, None) |> ref
               "min", (SProcedure sMin, None) |> ref
-              "+", (SProcedure addNumber, None) |> ref
-              "*", (SProcedure multiplyNumber, None) |> ref
-              "-", (SProcedure subtractNumber, None) |> ref
-              "/", (SProcedure divideNumber, None) |> ref
+              "+", (SProcedure sAddNumber, None) |> ref
+              "*", (SProcedure sMultiplyNumber, None) |> ref
+              "-", (SProcedure sSubtractNumber, None) |> ref
+              "/", (SProcedure sDivideNumber, None) |> ref
               "abs", (SProcedure sAbs, None) |> ref
               "floor/", (SProcedure sFloorDiv, None) |> ref
               "floor-quotient", (SProcedure sFloorQuotient, None) |> ref
@@ -115,13 +115,13 @@ module Builtin =
               "string->number", (SProcedure sStringToNumber, None) |> ref
               "not", (SProcedure sNot, None) |> ref
               "boolean?", (SProcedure isBoolean, None) |> ref
-              "boolean=?", (SProcedure isBooleanEq, None) |> ref
+              "boolean=?", (SProcedure sBooleanEq, None) |> ref
               "pair?", (SProcedure isPair, None) |> ref
               "cons", (SProcedure sCons, None) |> ref
               "car", (SProcedure sCar, None) |> ref
               "cdr", (SProcedure sCdr, None) |> ref
-              "set-car!", (SProcedure sSetCar, None) |> ref
-              "set-cdr!", (SProcedure sSetCdr, None) |> ref
+              "set-car!", (SProcedure sSetCarBang, None) |> ref
+              "set-cdr!", (SProcedure sSetCdrBang, None) |> ref
               "caar", (SProcedure sCaar, None) |> ref
               "cadr", (SProcedure sCadr, None) |> ref
               "cdar", (SProcedure sCdar, None) |> ref
@@ -135,7 +135,7 @@ module Builtin =
               "reverse", (SProcedure sReverse, None) |> ref
               "list-tail", (SProcedure sListTail, None) |> ref
               "list-ref", (SProcedure sListRef, None) |> ref
-              "list-set!", (SProcedure sListSet, None) |> ref
+              "list-set!", (SProcedure sListSetBang, None) |> ref
               "memq", (SProcedure sMemq, None) |> ref
               "memv", (SProcedure sMemv, None) |> ref
               "member", (SProcedure sMember, None) |> ref
@@ -144,7 +144,7 @@ module Builtin =
               "assoc", (SProcedure sAssoc, None) |> ref
               "list-copy", (SProcedure sListCopy, None) |> ref
               "symbol?", (SProcedure isSymbol, None) |> ref
-              "symbol=?", (SProcedure isSymbolEq, None) |> ref
+              "symbol=?", (SProcedure sSymbolEq, None) |> ref
               "symbol->string", (SProcedure sSymbolToString, None) |> ref
               "string->symbol", (SProcedure sStringToSymbol, None) |> ref
               "char?", (SProcedure isChar, None) |> ref
@@ -200,7 +200,7 @@ module Builtin =
               "vector", (SProcedure sVector, None) |> ref
               "vector-length", (SProcedure sVectorLength, None) |> ref
               "vector-ref", (SProcedure sVectorRef, None) |> ref
-              "vector-set!", (SProcedure sVectorSet, None) |> ref
+              "vector-set!", (SProcedure sVectorSetBang, None) |> ref
               "vector->list", (SProcedure sVectorToList, None) |> ref
               "list->vector", (SProcedure sListToVector, None) |> ref
               "vector->string", (SProcedure sVectorToString, None) |> ref
@@ -208,13 +208,13 @@ module Builtin =
               "vector-copy", (SProcedure sVectorCopy, None) |> ref
               "vector-copy!", (SProcedure sVectorCopyBang, None) |> ref
               "vector-append", (SProcedure sVectorAppend, None) |> ref
-              "vector-fill!", (SProcedure sVectorFill, None) |> ref
+              "vector-fill!", (SProcedure sVectorFillBang, None) |> ref
               "bytevector?", (SProcedure isByteVector, None) |> ref
               "make-bytevector", (SProcedure sMakeByteVector, None) |> ref
               "bytevector", (SProcedure sByteVector, None) |> ref
               "bytevector-length", (SProcedure sByteVectorLength, None) |> ref
               "bytevector-u8-ref", (SProcedure sByteVectorU8Ref, None) |> ref
-              "bytevector-u8-set!", (SProcedure sByteVectorU8Set, None) |> ref
+              "bytevector-u8-set!", (SProcedure sByteVectorU8SetBang, None) |> ref
               "bytevector-copy", (SProcedure sByteVectorCopy, None) |> ref
               "bytevector-copy!", (SProcedure sByteVectorCopyBang, None) |> ref
               "bytevector-append", (SProcedure sByteVectorAppend, None) |> ref

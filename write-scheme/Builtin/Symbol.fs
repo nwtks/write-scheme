@@ -11,7 +11,7 @@ module Symbol =
         | [ _ ] -> Ok(SFalse, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid symbol? parameter." |> cont
 
-    let isSymbolEq envs pos cont =
+    let sSymbolEq envs pos cont =
         mapResult (function
             | SSymbol _, _ as sym -> Ok sym
             | x -> x |> invalid (snd x) "'%s' is not a symbol in symbol=?.")

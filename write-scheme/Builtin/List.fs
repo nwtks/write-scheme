@@ -36,14 +36,14 @@ module List =
         | [ pair ] -> pair |> getCdr |> cont
         | x -> x |> invalidParameter pos "'%s' invalid cdr parameter." |> cont
 
-    let sSetCar envs pos cont =
+    let sSetCarBang envs pos cont =
         function
         | [ SPair pair, _; obj ] ->
             pair.car <- obj
             Ok(SUnspecified, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid set-car! parameter." |> cont
 
-    let sSetCdr envs pos cont =
+    let sSetCdrBang envs pos cont =
         function
         | [ SPair pair, _; obj ] ->
             pair.cdr <- obj
@@ -98,8 +98,10 @@ module List =
             | SPair _, _ ->
                 match loopListInfo list list 0I None with
                 | Ok(_, len) -> Ok len
-                | Error msg -> Error(EvalError(sprintf "'%s' %s" (list |> Print.print) msg, snd list))
-            | _ -> Error(EvalError(sprintf "'%s' not a proper list." (list |> Print.print), snd list))
+                | Error msg -> EvalError(sprintf "'%s' %s" (list |> Print.print) msg, snd list) |> Error
+            | _ ->
+                EvalError(sprintf "'%s' not a proper list." (list |> Print.print), snd list)
+                |> Error
 
         function
         | [ list ] ->
@@ -111,7 +113,7 @@ module List =
     let appendTwo a b =
         a
         |> toList
-        |> Result.map (fun alist -> List.foldBack (fun h acc -> SPair { car = h; cdr = acc }, snd h) alist b)
+        |> Result.map (fun alist -> b |> List.foldBack (fun h acc -> SPair { car = h; cdr = acc }, snd h) alist)
 
     [<TailCall>]
     let rec loopAppend acc =
@@ -170,7 +172,7 @@ module List =
         | [ list; SRational(n, d), _ ] when d = 1I && n >= 0I -> list |> loopListRef n |> cont
         | x -> x |> invalidParameter pos "'%s' invalid list-ref parameter." |> cont
 
-    let sListSet envs pos cont =
+    let sListSetBang envs pos cont =
         function
         | [ list; SRational(n, d), _; obj ] when d = 1I && n >= 0I ->
             list
@@ -179,7 +181,7 @@ module List =
                 | SPair pair, _ ->
                     pair.car <- obj
                     Ok(SUnspecified, pos)
-                | x -> Error(EvalError("Out of range or not a pair in list-set!.", snd x)))
+                | x -> EvalError("Out of range or not a pair in list-set!.", snd x) |> Error)
             |> cont
         | x -> x |> invalidParameter pos "'%s' invalid list-set! parameter." |> cont
 
@@ -277,7 +279,10 @@ module List =
     let rec loopListCopy acc =
         function
         | SPair pair, _ -> pair.cdr |> loopListCopy (pair.car :: acc)
-        | obj -> Ok(List.foldBack (fun h t -> SPair { car = h; cdr = t }, snd h) (acc |> List.rev) obj)
+        | obj ->
+            obj
+            |> List.foldBack (fun h t -> SPair { car = h; cdr = t }, snd h) (acc |> List.rev)
+            |> Ok
 
     let sListCopy envs pos cont =
         function

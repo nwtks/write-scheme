@@ -65,14 +65,14 @@ module Char =
             let num = System.Text.Rune.GetNumericValue c
 
             if System.Text.Rune.IsDigit c && num >= 0.0 then
-                Ok(newInteger (bigint num), pos) |> cont
+                Ok(bigint num |> newInteger, pos) |> cont
             else
                 Ok(SFalse, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid digit-value parameter." |> cont
 
     let sCharToInteger envs pos cont =
         function
-        | [ SChar c, _ ] -> Ok(newInteger (bigint c.Value), pos) |> cont
+        | [ SChar c, _ ] -> Ok(bigint c.Value |> newInteger, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid char->integer parameter." |> cont
 
     let sIntegerToChar envs pos cont =

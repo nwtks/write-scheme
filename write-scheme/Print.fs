@@ -29,11 +29,15 @@ module Print =
         let sb = System.Text.StringBuilder data.runes.Length
         sb.Append '"' |> ignore
 
-        for r in data.runes do
-            match r |> string with
-            | "\"" -> sb.Append "\\\"" |> ignore
-            | "\\" -> sb.Append "\\\\" |> ignore
-            | x -> sb.Append x |> ignore
+        data.runes
+        |> Seq.iter (
+            string
+            >> function
+                | "\"" -> sb.Append "\\\""
+                | "\\" -> sb.Append "\\\\"
+                | x -> sb.Append x
+            >> ignore
+        )
 
         sb.Append '"' |> ignore
         sb |> string
@@ -49,11 +53,8 @@ module Print =
         | 127 -> "#\\delete"
         | 27 -> "#\\escape"
         | 0 -> "#\\null"
-        | _ ->
-            if System.Text.Rune.IsControl c then
-                c.Value |> sprintf "#\\x%x"
-            else
-                c |> string |> sprintf "#\\%s"
+        | x when System.Text.Rune.IsControl c -> x |> sprintf "#\\x%x"
+        | _ -> c |> string |> sprintf "#\\%s"
 
     let isVisited visited x =
         visited |> List.exists (fun v -> obj.ReferenceEquals(v, x))
@@ -89,42 +90,37 @@ module Print =
         | SEmpty, _ -> "()" |> next
         | SBool true, _ -> "#t" |> next
         | SBool false, _ -> "#f" |> next
-        | SRational(k, d), _ -> (if d = 1I then string k else sprintf "%A/%A" k d) |> next
+        | SRational(n, d), _ when d = 1I -> string n |> next
+        | SRational(n, d), _ -> sprintf "%A/%A" n d |> next
         | SReal x, _ -> formatFloat x false |> next
         | SComplex x, _ -> formatComplex x |> next
         | SString data, _ -> formatString data |> next
         | SChar x, _ -> formatChar x |> next
         | SSymbol x, _ -> x |> next
         | SPair p, _ -> p |> formatPair visited next []
+        | SVector xs, _ when isVisited visited xs -> "..." |> next
         | SVector xs, _ ->
-            if isVisited visited xs then
-                "..." |> next
-            else
-                xs
-                |> Array.toList
-                |> List.map (fun e -> (xs :> obj) :: visited, e)
-                |> formatList (sprintf "#(%s)" >> next)
+            xs
+            |> Array.toList
+            |> List.map (fun e -> (xs :> obj) :: visited, e)
+            |> formatList (sprintf "#(%s)" >> next)
         | SByteVector xs, _ -> xs |> Array.map string |> String.concat " " |> sprintf "#u8(%s)" |> next
+        | SValues xs, _ when isVisited visited xs -> "..." |> next
         | SValues xs, _ ->
-            if isVisited visited xs then
-                "..." |> next
-            else
-                xs
-                |> List.map (fun e -> (xs :> obj) :: visited, e)
-                |> formatList (sprintf "(values %s)" >> next)
+            xs
+            |> List.map (fun e -> (xs :> obj) :: visited, e)
+            |> formatList (sprintf "(values %s)" >> next)
         | SRecord(_, typeName, _), _ -> typeName |> sprintf "#<%s>" |> next
         | SError(msg, irritants), _ ->
             let prefix = msg.runes |> runesToString |> sprintf "#<error \"%s\""
 
             match irritants with
             | [] -> prefix + ">" |> next
+            | _ when isVisited visited irritants -> "..." |> next
             | _ ->
-                if isVisited visited irritants then
-                    "..." |> next
-                else
-                    irritants
-                    |> List.map (fun e -> (irritants :> obj) :: visited, e)
-                    |> formatList (fun s -> prefix + " " + s + ">" |> next)
+                irritants
+                |> List.map (fun e -> (irritants :> obj) :: visited, e)
+                |> formatList (fun s -> prefix + " " + s + ">" |> next)
         | SQuote x, _ -> x |> printCPS visited (sprintf "'%s" >> next)
         | SQuasiquote x, _ -> x |> printCPS visited (sprintf "`%s" >> next)
         | SUnquote x, _ -> x |> printCPS visited (sprintf ",%s" >> next)

@@ -57,7 +57,7 @@ module Str =
         function
         | [ SString s, _; SRational(n, d), _; SChar c, _ ] when d = 1I && n >= 0I && n < bigint s.runes.Length ->
             if s.isImmutable then
-                Error(EvalError("Immutable string in string-set!.", pos)) |> cont
+                EvalError("Immutable string in string-set!.", pos) |> Error |> cont
             else
                 s.runes.[int n] <- c
                 Ok(SUnspecified, pos) |> cont
@@ -140,8 +140,8 @@ module Str =
         mapResult (function
             | SString s, _ -> Ok(s.runes |> Array.toList)
             | x -> x |> invalid (snd x) "'%s' is not a string in string-append.")
-        >> Result.map (fun runsLists ->
-            { runes = runsLists |> List.concat |> List.toArray
+        >> Result.map (fun runes ->
+            { runes = runes |> List.concat |> List.toArray
               isImmutable = false }
             |> SString,
             pos)
@@ -187,12 +187,12 @@ module Str =
         function
         | (SString dest, _) :: (SRational(at, dAt), _) :: src as args when dAt = 1I && at >= 0I ->
             if dest.isImmutable then
-                Error(EvalError("Immutable destination string in string-copy!.", pos)) |> cont
+                EvalError("Immutable destination string in string-copy!.", pos) |> Error |> cont
             else
                 match getRunesRange src with
                 | Some(runes, start, count) ->
                     if int at + count > dest.runes.Length then
-                        Error(EvalError("Destination out of range in string-copy!.", pos)) |> cont
+                        EvalError("Destination out of range in string-copy!.", pos) |> Error |> cont
                     else
                         Array.blit runes start dest.runes (int at) count
                         Ok(SUnspecified, pos) |> cont
@@ -203,7 +203,7 @@ module Str =
         function
         | SString s, _ as str :: (SChar fill, _) :: range as args ->
             if s.isImmutable then
-                Error(EvalError("Immutable string in string-fill!.", pos)) |> cont
+                EvalError("Immutable string in string-fill!.", pos) |> Error |> cont
             else
                 match str :: range |> getRunesRange with
                 | Some(runes, start, count) ->

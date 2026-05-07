@@ -71,7 +71,8 @@ module Procedure =
     let rec mapStringMap envs pos cont proc acc =
         function
         | [] ->
-            List.rev acc
+            acc
+            |> List.rev
             |> mapResult (function
                 | SChar c, _ -> Ok c
                 | x -> x |> invalid (snd x) "'%s' is not a char in string-map.")
@@ -106,7 +107,7 @@ module Procedure =
     [<TailCall>]
     let rec mapVectorMap envs pos cont proc acc =
         function
-        | [] -> (List.rev acc |> List.toArray |> SVector, pos) |> Ok |> cont
+        | [] -> acc |> List.rev |> List.toArray |> SVector |> (fun x -> x, pos) |> Ok |> cont
         | vector :: vectors ->
             proc
             |> Eval.apply

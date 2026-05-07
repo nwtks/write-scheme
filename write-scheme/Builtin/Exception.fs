@@ -10,7 +10,7 @@ module Exception =
         | [ handler; thunk ] ->
             let before =
                 fun envs pos cont _ ->
-                    Context.pushHandler envs handler
+                    handler |> Context.pushHandler envs
                     Ok(SUnspecified, pos) |> cont
 
             let after =
@@ -33,10 +33,10 @@ module Exception =
             Eval.apply
                 envs
                 (fun res ->
-                    Context.pushHandler envs handler
+                    handler |> Context.pushHandler envs
 
                     match res with
-                    | Ok res' -> res' |> Ok |> cont
+                    | Ok _ -> res |> cont
                     | Error(SchemeRaise(obj', _)) -> SchemeRaise(obj', pos) |> Error |> cont
                     | x -> x |> cont)
                 [ obj ]
@@ -61,7 +61,7 @@ module Exception =
 
     let sErrorObjectIrritants envs pos cont =
         function
-        | [ SError(_, irritants), _ ] -> Ok(irritants |> toSPair) |> cont
+        | [ SError(_, irritants), _ ] -> irritants |> toSPair |> Ok |> cont
         | x ->
             x
             |> invalidParameter pos "'%s' invalid error-object-irritants parameter."

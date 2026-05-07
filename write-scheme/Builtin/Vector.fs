@@ -23,7 +23,7 @@ module Vector =
 
     let sVectorLength envs pos cont =
         function
-        | [ SVector vector, _ ] -> Ok(newInteger (bigint vector.Length), pos) |> cont
+        | [ SVector vector, _ ] -> Ok(bigint vector.Length |> newInteger, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid vector-length parameter." |> cont
 
     let sVectorRef envs pos cont =
@@ -32,7 +32,7 @@ module Vector =
             Ok vector.[int n] |> cont
         | x -> x |> invalidParameter pos "'%s' invalid vector-ref parameter." |> cont
 
-    let sVectorSet envs pos cont =
+    let sVectorSetBang envs pos cont =
         function
         | [ SVector vector, _; SRational(n, d), _; obj ] when d = 1I && n >= 0I && n < bigint vector.Length ->
             vector.[int n] <- obj
@@ -41,9 +41,9 @@ module Vector =
 
     let getVectorRange (length: int) =
         function
-        | [ _ ] -> Some(0, length)
-        | [ _; SRational(start, d), _ ] when d = 1I && start >= 0I && start <= bigint length -> Some(int start, length)
-        | [ _; SRational(start, d1), _; SRational(stop, d2), _ ] when
+        | [] -> Some(0, length)
+        | [ SRational(start, d), _ ] when d = 1I && start >= 0I && start <= bigint length -> Some(int start, length)
+        | [ SRational(start, d1), _; SRational(stop, d2), _ ] when
             d1 = 1I && d2 = 1I && start >= 0I && stop >= start && stop <= bigint length
             ->
             Some(int start, int stop)
@@ -51,8 +51,8 @@ module Vector =
 
     let sVectorToList envs pos cont =
         function
-        | (SVector vector, _) :: _ as args ->
-            match getVectorRange vector.Length args with
+        | (SVector vector, _) :: range as args ->
+            match getVectorRange vector.Length range with
             | Some(start, stop) -> Ok(vector.[start .. stop - 1] |> Array.toList |> toSPair) |> cont
             | None -> args |> invalidParameter pos "'%s' invalid vector->list parameter." |> cont
         | x -> x |> invalidParameter pos "'%s' invalid vector->list parameter." |> cont
@@ -69,8 +69,8 @@ module Vector =
 
     let sVectorToString envs pos cont =
         function
-        | (SVector vector, _) :: _ as args ->
-            match getVectorRange vector.Length args with
+        | (SVector vector, _) :: range as args ->
+            match getVectorRange vector.Length range with
             | Some(start, stop) ->
                 vector.[start .. stop - 1]
                 |> Array.toList
@@ -88,8 +88,8 @@ module Vector =
 
     let sStringToVector envs pos cont =
         function
-        | (SString s, _) :: _ as args ->
-            match getVectorRange s.runes.Length args with
+        | (SString s, _) :: range as args ->
+            match getVectorRange s.runes.Length range with
             | Some(start, stop) ->
                 Ok(s.runes.[start .. stop - 1] |> Array.map (fun c -> SChar c, pos) |> SVector, pos)
                 |> cont
@@ -98,8 +98,8 @@ module Vector =
 
     let sVectorCopy envs pos cont =
         function
-        | (SVector vector, _) :: _ as args ->
-            match getVectorRange vector.Length args with
+        | (SVector vector, _) :: range as args ->
+            match getVectorRange vector.Length range with
             | Some(start, stop) -> Ok(vector.[start .. stop - 1] |> Array.copy |> SVector, pos) |> cont
             | None -> args |> invalidParameter pos "'%s' invalid vector-copy parameter." |> cont
         | x -> x |> invalidParameter pos "'%s' invalid vector-copy parameter." |> cont
@@ -107,7 +107,7 @@ module Vector =
     let sVectorCopyBang envs pos cont =
         function
         | (SVector dest, _) :: (SRational(at, dAt), _) :: (SVector src, _) :: range as args ->
-            match (SVector src, pos) :: range |> getVectorRange src.Length with
+            match getVectorRange src.Length range with
             | Some(start, stop) when dAt = 1I && at >= 0I && at + bigint (stop - start) <= bigint dest.Length ->
                 Array.blit src start dest (int at) (stop - start)
                 Ok(SUnspecified, pos) |> cont
@@ -118,13 +118,13 @@ module Vector =
         mapResult (function
             | SVector vector, _ -> Ok vector
             | x -> x |> invalid (snd x) "'%s' is not a vector in vector-append.")
-        >> Result.map (fun vecs -> vecs |> Array.concat |> SVector, pos)
+        >> Result.map (fun vectors -> vectors |> Array.concat |> SVector, pos)
         >> cont
 
-    let sVectorFill envs pos cont =
+    let sVectorFillBang envs pos cont =
         function
         | (SVector vector, _) :: fill :: range as args ->
-            match (SVector vector, pos) :: range |> getVectorRange vector.Length with
+            match getVectorRange vector.Length range with
             | Some(start, stop) ->
                 for i in start .. stop - 1 do
                     vector.[i] <- fill

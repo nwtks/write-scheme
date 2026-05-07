@@ -96,7 +96,7 @@ module Math =
         function
         | [ SReal r, _ ] -> Ok(System.Double.IsNaN r |> toSBool, pos) |> cont
         | [ SComplex c, _ ] ->
-            Ok(((System.Double.IsNaN c.Real || System.Double.IsNaN c.Imaginary) |> toSBool, pos))
+            Ok((System.Double.IsNaN c.Real || System.Double.IsNaN c.Imaginary) |> toSBool, pos)
             |> cont
         | [ _ ] -> Ok(SFalse, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid nan? parameter." |> cont
@@ -105,17 +105,17 @@ module Math =
 
     let toComplex =
         function
-        | SRational(n, d), _ -> Ok(System.Numerics.Complex(toFloat n d, 0.0))
-        | SReal r, _ -> Ok(System.Numerics.Complex(r, 0.0))
+        | SRational(n, d), _ -> System.Numerics.Complex(toFloat n d, 0.0) |> Ok
+        | SReal r, _ -> System.Numerics.Complex(r, 0.0) |> Ok
         | SComplex c, _ -> Ok c
         | x -> x |> invalid (snd x) "'%s' is not a number."
 
     let comparePred pred1 pred2 pred3 =
         function
-        | (SRational(n1, d1), _), (SRational(n2, d2), _) -> Ok(pred1 (n1 * d2) (n2 * d1))
-        | (SRational(n1, d1), _), (SReal r2, _) -> Ok(pred2 (toFloat n1 d1) r2)
-        | (SReal r1, _), (SRational(n2, d2), _) -> Ok(pred2 r1 (toFloat n2 d2))
-        | (SReal r1, _), (SReal r2, _) -> Ok(pred2 r1 r2)
+        | (SRational(n1, d1), _), (SRational(n2, d2), _) -> pred1 (n1 * d2) (n2 * d1) |> Ok
+        | (SRational(n1, d1), _), (SReal r2, _) -> pred2 (toFloat n1 d1) r2 |> Ok
+        | (SReal r1, _), (SRational(n2, d2), _) -> pred2 r1 (toFloat n2 d2) |> Ok
+        | (SReal r1, _), (SReal r2, _) -> pred2 r1 r2 |> Ok
         | (SComplex _, _), _
         | _, (SComplex _, _) as pair ->
             match toComplex (fst pair), toComplex (snd pair) with
@@ -141,36 +141,37 @@ module Math =
 
     let complexReal op (x: System.Numerics.Complex) (y: System.Numerics.Complex) =
         if x.Imaginary = 0.0 && y.Imaginary = 0.0 then
-            Ok(op x.Real y.Real)
+            op x.Real y.Real |> Ok
         else
-            Error(EvalError("Ordering on complex numbers with non-zero imaginary parts is undefined.", None))
+            EvalError("Ordering on complex numbers with non-zero imaginary parts is undefined.", None)
+            |> Error
 
-    let equalNumber envs =
+    let sEqualNumber envs =
         compareNumber (=) (=) (fun x y -> Ok(x = y))
 
-    let lessNumber envs = compareNumber (<) (<) (complexReal (<))
+    let sLessNumber envs = compareNumber (<) (<) (complexReal (<))
 
-    let greaterNumber envs = compareNumber (>) (>) (complexReal (>))
+    let sGreaterNumber envs = compareNumber (>) (>) (complexReal (>))
 
-    let lessEqualNumber envs =
+    let sLessEqualNumber envs =
         compareNumber (<=) (<=) (complexReal (<=))
 
-    let greaterEqualNumber envs =
+    let sGreaterEqualNumber envs =
         compareNumber (>=) (>=) (complexReal (>=))
 
     let isZero envs pos cont =
         function
-        | [ x ] -> equalNumber envs pos cont [ x; SZero, pos ]
+        | [ x ] -> sEqualNumber envs pos cont [ x; SZero, pos ]
         | x -> x |> invalidParameter pos "'%s' invalid zero? parameter." |> cont
 
     let isPositive envs pos cont =
         function
-        | [ x ] -> greaterNumber envs pos cont [ x; SZero, pos ]
+        | [ x ] -> sGreaterNumber envs pos cont [ x; SZero, pos ]
         | x -> x |> invalidParameter pos "'%s' invalid positive? parameter." |> cont
 
     let isNegative envs pos cont =
         function
-        | [ x ] -> lessNumber envs pos cont [ x; SZero, pos ]
+        | [ x ] -> sLessNumber envs pos cont [ x; SZero, pos ]
         | x -> x |> invalidParameter pos "'%s' invalid negative? parameter." |> cont
 
     let isOdd envs pos cont =
@@ -215,7 +216,7 @@ module Math =
                 |> Result.map (fun maxVal ->
                     if isAnyInexact args then
                         match maxVal with
-                        | SRational(n, d), _ -> SReal(float n / float d), pos
+                        | SRational(n, d), _ -> float n / float d |> SReal, pos
                         | x -> x
                     else
                         maxVal)
@@ -269,11 +270,12 @@ module Math =
             | Ok(SComplex _, _), _
             | Ok _, SComplex _ ->
                 match acc |> Result.bind toComplex, toComplex (x, pos') with
-                | Ok c1, Ok c2 -> xs |> loopCalc op1 op2 op3 pos cont (wrap (op3 c1 c2))
+                | Ok c1, Ok c2 -> xs |> loopCalc op1 op2 op3 pos cont (op3 c1 c2 |> wrap)
                 | Error e, _ -> Error e |> cont
                 | _, Error e -> Error e |> cont
             | Ok a, b ->
-                Error(EvalError(sprintf "'%s', '%s' not number." (a |> Print.print) ((b, pos') |> Print.print), pos))
+                EvalError(sprintf "'%s', '%s' not number." (a |> Print.print) ((b, pos') |> Print.print), pos)
+                |> Error
                 |> cont
             | x, _ -> x |> cont
 
@@ -290,7 +292,7 @@ module Math =
         | [ SComplex c, _ ] -> op3 ident3 c |> wrap |> cont
         | x :: xs -> xs |> loopCalc op1 op2 op3 pos cont (Ok x)
 
-    let addNumber envs =
+    let sAddNumber envs =
         calc
             (fun n1 d1 n2 d2 -> newSRational (n1 * d2 + n2 * d1) (d1 * d2))
             (fun r1 r2 -> r1 + r2 |> SReal |> Ok)
@@ -299,7 +301,7 @@ module Math =
             0.0
             System.Numerics.Complex.Zero
 
-    let multiplyNumber envs =
+    let sMultiplyNumber envs =
         calc
             (fun n1 d1 n2 d2 -> newSRational (n1 * n2) (d1 * d2))
             (fun r1 r2 -> r1 * r2 |> SReal |> Ok)
@@ -308,7 +310,7 @@ module Math =
             1.0
             System.Numerics.Complex.One
 
-    let subtractNumber envs =
+    let sSubtractNumber envs =
         calc
             (fun n1 d1 n2 d2 -> newSRational (n1 * d2 - n2 * d1) (d1 * d2))
             (fun r1 r2 -> r1 - r2 |> SReal |> Ok)
@@ -317,7 +319,7 @@ module Math =
             0.0
             System.Numerics.Complex.Zero
 
-    let divideNumber envs =
+    let sDivideNumber envs =
         calc
             (fun n1 d1 n2 d2 -> newSRational (n1 * d2) (d1 * n2))
             (fun r1 r2 ->
@@ -400,13 +402,13 @@ module Math =
     let sQuotient envs pos cont =
         function
         | [ SRational(n1, d1), _; SRational(n2, d2), _ ] when d1 = 1I && d2 = 1I ->
-            Ok(newInteger (n1 / n2), pos) |> cont
+            Ok(n1 / n2 |> newInteger, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid quotient parameter." |> cont
 
     let sRemainder envs pos cont =
         function
         | [ SRational(n1, d1), _; SRational(n2, d2), _ ] when d1 = 1I && d2 = 1I ->
-            Ok(newInteger (n1 % n2), pos) |> cont
+            Ok(n1 % n2 |> newInteger, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid remainder parameter." |> cont
 
     let sModulo envs pos cont =
@@ -415,9 +417,9 @@ module Math =
             let remainder = n1 % n2
 
             if remainder <> 0I && n1.Sign <> n2.Sign then
-                Ok(newInteger (remainder + n2), pos) |> cont
+                Ok(remainder + n2 |> newInteger, pos) |> cont
             else
-                Ok(newInteger remainder, pos) |> cont
+                Ok(remainder |> newInteger, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid modulo parameter." |> cont
 
     let gcd x y = bigint.GreatestCommonDivisor(x, y)
@@ -477,19 +479,19 @@ module Math =
 
     let sTruncate envs pos cont =
         function
-        | [ SRational(n, d), _ ] -> Ok(newInteger (n / d), pos) |> cont
+        | [ SRational(n, d), _ ] -> Ok(n / d |> newInteger, pos) |> cont
         | [ SReal r, _ ] -> Ok(r |> truncate |> SReal, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid truncate parameter." |> cont
 
     let sRound envs pos cont =
         function
-        | [ SRational(n, d), _ ] -> Ok(newInteger (float n / float d |> round |> bigint), pos) |> cont
+        | [ SRational(n, d), _ ] -> Ok(float n / float d |> round |> bigint |> newInteger, pos) |> cont
         | [ SReal r, _ ] -> Ok(r |> round |> SReal, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid round parameter." |> cont
 
     [<TailCall>]
-    let rec simplestRational x y pos cont =
-        match x, y with
+    let rec simplestRational pos cont =
+        function
         | Ok(SRational(n1, d1), _), Ok(SRational(n2, d2), _) ->
             let floorL = if n1 >= 0I then n1 / d1 else (n1 - d1 + 1I) / d1
             let ceilL = if n1 % d1 = 0I then floorL else floorL + 1I
@@ -501,20 +503,20 @@ module Math =
                 else Ok(SZero, pos) |> cont
             else
                 simplestRational
-                    (newSRational d2 (n2 - floorL * d2)
-                     |> Result.map (fun n -> n, pos)
-                     |> Result.mapError (fun msg -> EvalError(msg, pos)))
-                    (newSRational d1 (n1 - floorL * d1)
-                     |> Result.map (fun n -> n, pos)
-                     |> Result.mapError (fun msg -> EvalError(msg, pos)))
                     pos
                     (function
-                     | Ok(SRational(pn, pd), _) ->
-                         newSRational (floorL * pn + pd) pn
-                         |> Result.map (fun n -> n, pos)
-                         |> Result.mapError (fun msg -> EvalError(msg, pos))
-                         |> cont
-                     | x -> x |> cont)
+                    | Ok(SRational(pn, pd), _) ->
+                        newSRational (floorL * pn + pd) pn
+                        |> Result.map (fun n -> n, pos)
+                        |> Result.mapError (fun msg -> EvalError(msg, pos))
+                        |> cont
+                    | x -> x |> cont)
+                    (newSRational d2 (n2 - floorL * d2)
+                     |> Result.map (fun n -> n, pos)
+                     |> Result.mapError (fun msg -> EvalError(msg, pos)),
+                     newSRational d1 (n1 - floorL * d1)
+                     |> Result.map (fun n -> n, pos)
+                     |> Result.mapError (fun msg -> EvalError(msg, pos)))
         | _ -> Error(EvalError("Operands not rational", pos)) |> cont
 
     let sRationalize envs pos cont =
@@ -528,12 +530,12 @@ module Math =
         | [ x; y ] ->
             match toExactValue x, toExactValue y with
             | Ok(SRational _, _ as xVal), Ok(SRational _, _ as yVal) ->
-                match subtractNumber envs pos id [ xVal; yVal ] with
+                match sSubtractNumber envs pos id [ xVal; yVal ] with
                 | Ok l ->
-                    match addNumber envs pos id [ xVal; yVal ] with
+                    match sAddNumber envs pos id [ xVal; yVal ] with
                     | Ok r ->
                         match l, r with
-                        | (SRational _, _), (SRational _, _) -> simplestRational (Ok l) (Ok r) pos cont
+                        | (SRational _, _), (SRational _, _) -> simplestRational pos cont (Ok l, Ok r)
                         | _ -> Ok x |> cont
                     | x -> x |> cont
                 | x -> x |> cont
@@ -605,8 +607,8 @@ module Math =
             let toFloat =
                 function
                 | SReal r, _ -> Ok r
-                | SRational(n, d), _ -> Ok(float n / float d)
-                | _, pos -> Error(EvalError("atan expected real", pos))
+                | SRational(n, d), _ -> float n / float d |> Ok
+                | _, pos -> EvalError("atan expected real", pos) |> Error
 
             match toFloat y, toFloat x with
             | Ok yVal, Ok xVal -> Ok(System.Math.Atan2(yVal, xVal) |> SReal, pos) |> cont
@@ -616,7 +618,7 @@ module Math =
 
     let sSquare envs pos cont =
         function
-        | [ x ] -> multiplyNumber envs pos cont [ x; x ]
+        | [ x ] -> sMultiplyNumber envs pos cont [ x; x ]
         | x -> x |> invalidParameter pos "'%s' invalid square parameter." |> cont
 
     let sSqrt envs pos cont =
@@ -662,7 +664,7 @@ module Math =
         | [ x; y ] ->
             match x, y with
             | (SRational(n1, d1), _), (SRational(n2, d2), _) when d1 = 1I && d2 = 1I && n2 >= 0I ->
-                Ok(newInteger (bigint.Pow(n1, int n2)), pos) |> cont
+                Ok(bigint.Pow(n1, int n2) |> newInteger, pos) |> cont
             | _ ->
                 match toComplex x, toComplex y with
                 | Ok c1, Ok c2 -> Ok(System.Numerics.Complex.Pow(c1, c2) |> SComplex, pos) |> cont
@@ -712,7 +714,7 @@ module Math =
 
     let sInexact envs pos cont =
         function
-        | [ SRational(n, d), _ ] -> Ok(SReal(float n / float d), pos) |> cont
+        | [ SRational(n, d), _ ] -> Ok(float n / float d |> SReal, pos) |> cont
         | [ SReal _, _ ] as x -> Ok x.Head |> cont
         | [ SComplex _, _ ] as x -> Ok x.Head |> cont
         | x -> x |> invalidParameter pos "'%s' invalid inexact parameter." |> cont
@@ -735,7 +737,7 @@ module Math =
                      | 8 -> Ok(System.Convert.ToString(int64 n', 8))
                      | 10 -> Ok(string n')
                      | 16 -> Ok(System.Convert.ToString(int64 n', 16))
-                     | x -> Error(EvalError(sprintf "'%d' unsupported radix in number->string." x, pos))
+                     | x -> EvalError(sprintf "'%d' unsupported radix in number->string." x, pos) |> Error
                  else
                      Ok(sprintf "%A/%A" n' d'))
                 |> Result.map (fun s -> newSString true s, pos)

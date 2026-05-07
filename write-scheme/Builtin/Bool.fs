@@ -17,7 +17,7 @@ module Bool =
         | [ _ ] -> Ok(SFalse, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid boolean? parameter." |> cont
 
-    let isBooleanEq envs pos cont =
+    let sBooleanEq envs pos cont =
         mapResult (function
             | SBool b, _ -> Ok b
             | x -> x |> invalid (snd x) "'%s' is not a boolean in boolean=?.")

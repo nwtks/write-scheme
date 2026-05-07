@@ -9,14 +9,14 @@ module Helper =
         Print.print
         >> fun s ->
             let msg = sprintf (Printf.StringFormat<string -> string> fmt) s
-            Error(EvalError(msg, pos))
+            EvalError(msg, pos) |> Error
 
     let invalidParameter pos fmt = toSPair >> invalid pos fmt
 
     [<TailCall>]
     let rec loopMapResult f acc =
         function
-        | [] -> Ok(List.rev acc)
+        | [] -> acc |> List.rev |> Ok
         | x :: xs ->
             match f x with
             | Ok r -> xs |> loopMapResult f (r :: acc)
@@ -26,9 +26,9 @@ module Helper =
 
     let eachBinding =
         function
-        | SPair { car = SSymbol var, _
-                  cdr = SPair { car = expr; cdr = SEmpty, _ }, _ },
-          _ -> Ok(var, expr)
+        | SPair { car = SSymbol variable, _
+                  cdr = SPair { car = expression; cdr = SEmpty, _ }, _ },
+          _ -> Ok(variable, expression)
         | x -> x |> invalid (snd x) "'%s' invalid binding."
 
     [<TailCall>]
@@ -69,40 +69,40 @@ module Helper =
             | _ -> List.rev accS, List.rev accT
 
     [<TailCall>]
-    let rec runWindLeaves envs next cur =
+    let rec runWindLeaves envs next current =
         function
-        | [] -> Ok cur |> next
+        | [] -> Ok current |> next
         | head :: rest ->
-            let nextCur = Context.leaveWinder envs cur head.id
+            let nextCurrent = Context.leaveWinder envs current head.id
 
             head.after
             |> Eval.apply
                 envs
                 (function
-                | Ok _ -> rest |> runWindLeaves envs next nextCur
+                | Ok _ -> rest |> runWindLeaves envs next nextCurrent
                 | Error e -> Error e |> next)
                 []
 
     [<TailCall>]
-    let rec runWindEnters envs next cur =
+    let rec runWindEnters envs next current =
         function
-        | [] -> Ok cur |> next
+        | [] -> Ok current |> next
         | head :: rest ->
             head.before
             |> Eval.apply
                 envs
                 (function
                 | Ok _ ->
-                    let nextCur = Context.enterWinder envs cur head
-                    rest |> runWindEnters envs next nextCur
+                    let nextCurrent = head |> Context.enterWinder envs current
+                    rest |> runWindEnters envs next nextCurrent
                 | Error e -> Error e |> next)
                 []
 
-    let doWind envs cont tgt arg =
-        let src = envs.winders.Value
+    let doWind envs cont savedWinders arg =
+        let currentWinders = envs.winders.Value
 
         let leaves, enters =
-            loopDiffWinders src tgt (List.length src) (List.length tgt) [] []
+            loopDiffWinders currentWinders savedWinders (List.length currentWinders) (List.length savedWinders) [] []
 
         let entersRev = List.rev enters
 
@@ -110,9 +110,9 @@ module Helper =
         |> runWindLeaves
             envs
             (function
-            | Ok cur -> entersRev |> runWindEnters envs (fun _ -> cont arg) cur
+            | Ok current -> entersRev |> runWindEnters envs (fun _ -> cont arg) current
             | Error e -> Error e |> cont)
-            src
+            currentWinders
 
     let doAroundProc envs cont before thunk after =
         let id = Context.getNextWinderId envs
@@ -127,7 +127,7 @@ module Helper =
                       before = before
                       after = after }
 
-                Context.pushWinder envs winder
+                winder |> Context.pushWinder envs
 
                 thunk
                 |> Eval.apply

@@ -13,18 +13,18 @@ module DatumLabel =
     let rec collectDatum labels =
         function
         | [] -> Ok labels
-        | e :: rest ->
-            match e with
+        | expression :: rest ->
+            match expression with
+            | SDatumLabel(n, _), pos when labels |> Map.containsKey n ->
+                EvalError(sprintf "Duplicate datum label definition: #%d=" n, pos) |> Error
             | SDatumLabel(n, d), pos ->
-                if Map.containsKey n labels then
-                    Error(EvalError(sprintf "Duplicate datum label definition: #%d=" n, pos))
-                else
-                    let labels' = Map.add n (unwrapDatumLabel d, pos) labels
-                    d :: rest |> collectDatum labels'
+                let labels' = labels |> Map.add n (unwrapDatumLabel d, pos)
+                d :: rest |> collectDatum labels'
             | SPair p, _ -> p.car :: p.cdr :: rest |> collectDatum labels
-            | SVector v, _ -> Array.foldBack (fun e s -> e :: s) v rest |> collectDatum labels
+            | SVector v, _ -> rest |> Array.foldBack (fun e s -> e :: s) v |> collectDatum labels
             | SRecord(_, _, fields), _ ->
-                Array.foldBack (fun (f: SExpression ref) s -> f.Value :: s) fields rest
+                rest
+                |> Array.foldBack (fun (f: SExpression ref) s -> f.Value :: s) fields
                 |> collectDatum labels
             | SValues args, _
             | SError(_, args), _ -> args @ rest |> collectDatum labels
@@ -34,25 +34,28 @@ module DatumLabel =
             | SUnquoteSplicing d, _ -> d :: rest |> collectDatum labels
             | _ -> rest |> collectDatum labels
 
-    let isBefore pos1 pos2 =
-        match pos1, pos2 with
+    let isBefore =
+        function
         | Some p1, Some p2 -> p1.Line < p2.Line || p1.Line = p2.Line && p1.Column < p2.Column
         | _ -> false
 
     [<TailCall>]
     let rec resolveLabel n pos labels visited =
-        if Set.contains n visited then
-            Error(EvalError(sprintf "Invalid circular reference for datum label: #%d#" n, pos))
+        if visited |> Set.contains n then
+            EvalError(sprintf "Invalid circular reference for datum label: #%d#" n, pos)
+            |> Error
         else
-            match Map.tryFind n labels with
-            | Some(v, defPos) ->
-                if isBefore pos defPos then
-                    Error(EvalError(sprintf "Invalid forward reference for datum label: #%d#" n, pos))
-                else
+            labels
+            |> Map.tryFind n
+            |> function
+                | Some(_, defPos) when isBefore (pos, defPos) ->
+                    EvalError(sprintf "Invalid forward reference for datum label: #%d#" n, pos)
+                    |> Error
+                | Some(v, _) ->
                     match v with
-                    | SDatumRef m, refPos -> resolveLabel m refPos labels (Set.add n visited)
+                    | SDatumRef m, refPos -> resolveLabel m refPos labels (visited |> Set.add n)
                     | _ -> Ok v
-            | None -> Error(EvalError(sprintf "Undefined datum label: #%d#" n, pos))
+                | None -> EvalError(sprintf "Undefined datum label: #%d#" n, pos) |> Error
 
     [<TailCall>]
     let rec resolveDatumRef labels next =
@@ -106,12 +109,12 @@ module DatumLabel =
 
     and [<TailCall>] resolveDatumRefList labels acc next =
         function
-        | [] -> List.rev acc |> next
+        | [] -> acc |> List.rev |> next
         | x :: xs ->
             x
             |> resolveDatumRefBind labels (fun r -> xs |> resolveDatumRefList labels (r :: acc) next)
 
-    let resolveLabels expr =
-        [ expr ]
+    let resolveLabels expression =
+        [ expression ]
         |> collectDatum Map.empty
-        |> Result.bind (fun labels -> expr |> resolveDatumRef labels id)
+        |> Result.bind (fun labels -> expression |> resolveDatumRef labels id)

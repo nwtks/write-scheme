@@ -18,10 +18,10 @@ module Core =
             zipVectorEqual x y (i - 1) ((x.[i], y.[i]) :: acc)
 
     [<TailCall>]
-    let rec loopByteVectorEqual (x: byte array) (y: byte array) i =
+    let rec byteVectorEqual (x: byte array) (y: byte array) i =
         if i < 0 then true
         elif x.[i] <> y.[i] then false
-        else loopByteVectorEqual x y (i - 1)
+        else byteVectorEqual x y (i - 1)
 
     [<TailCall>]
     let rec loopEqual =
@@ -39,7 +39,7 @@ module Core =
                 if a.Length <> b.Length then
                     false
                 else
-                    loopByteVectorEqual a b (a.Length - 1) && loopEqual xs
+                    byteVectorEqual a b (a.Length - 1) && loopEqual xs
             | (SValues a, _), (SValues b, _) ->
                 if a.Length <> b.Length then
                     false

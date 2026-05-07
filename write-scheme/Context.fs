@@ -30,22 +30,26 @@ module Context =
         { envs with
             environments = envs.environments @ captureEnvs.environments }
 
-    let tryLookupEnv (env: Environment) symbol = Map.tryFind symbol env.Value
+    let tryLookupEnv (env: Environment) symbol = env.Value |> Map.tryFind symbol
 
     let defineEnvVar envs symbol value =
         let env = envs.environments.Head
 
-        match tryLookupEnv env symbol with
-        | Some r -> r.Value <- value
-        | None -> env.Value <- Map.add symbol (ref value) env.Value
+        symbol
+        |> tryLookupEnv env
+        |> function
+            | Some r -> r.Value <- value
+            | None -> env.Value <- env.Value |> Map.add symbol (ref value)
 
     let tryLookupEnvs envs symbol =
-        List.tryPick (fun env -> tryLookupEnv env symbol) envs.environments
+        envs.environments |> List.tryPick (fun env -> tryLookupEnv env symbol)
 
     let lookupEnvs envs pos symbol =
-        match tryLookupEnvs envs symbol with
-        | Some x -> Ok x
-        | None -> Error(EvalError(sprintf "No binding for '%s'." symbol, pos))
+        symbol
+        |> tryLookupEnvs envs
+        |> function
+            | Some x -> Ok x
+            | None -> EvalError(sprintf "No binding for '%s'." symbol, pos) |> Error
 
     let getNextRecordTypeId envs =
         envs.nextRecordTypeId <- envs.nextRecordTypeId + 1
@@ -55,22 +59,22 @@ module Context =
         envs.nextExpansionId <- envs.nextExpansionId + 1
         envs.nextExpansionId
 
-    let enterWinder envs cur winder =
-        let next = winder :: cur
+    let enterWinder envs current winder =
+        let next = winder :: current
         envs.winders.Value <- next
         next
 
-    let leaveWinder envs cur id =
+    let leaveWinder envs current id =
         let next =
-            match cur with
+            match current with
             | h :: t when h.id = id -> t
-            | xs -> xs
+            | x -> x
 
         envs.winders.Value <- next
         next
 
     let pushWinder envs winder =
-        enterWinder envs envs.winders.Value winder |> ignore
+        winder |> enterWinder envs envs.winders.Value |> ignore
 
     let popWinder envs id =
         leaveWinder envs envs.winders.Value id |> ignore

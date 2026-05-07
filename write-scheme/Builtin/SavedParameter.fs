@@ -11,9 +11,9 @@ module SavedParameter =
 
     let eachParamBinding =
         function
-        | SPair { car = param
-                  cdr = SPair { car = expr; cdr = SEmpty, _ }, _ },
-          _ -> Ok(param, expr)
+        | SPair { car = parameter
+                  cdr = SPair { car = expression; cdr = SEmpty, _ }, _ },
+          _ -> Ok(parameter, expression)
         | x -> x |> invalid (snd x) "'%s' invalid parameterize binding."
 
     [<TailCall>]

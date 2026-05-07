@@ -72,7 +72,8 @@ module Type =
     let toSBool x = if x then STrue else SFalse
 
     let toSPair xs =
-        List.foldBack (fun x acc -> SPair { car = x; cdr = acc }, snd x) xs (SEmpty, None)
+        (SEmpty, None)
+        |> List.foldBack (fun x acc -> SPair { car = x; cdr = acc }, snd x) xs
 
     // Floyd's cycle-finding algorithm
     [<TailCall>]
@@ -86,8 +87,9 @@ module Type =
                 match tortoise with
                 | SPair pTortoise, _ when obj.ReferenceEquals(pTortoise, pHareNext) -> Error "circular list."
                 | SPair pTortoise, _ ->
-                    let nextList = accList |> Option.map (fun l -> pHareNext.car :: pHare.car :: l)
-                    loopListInfo pTortoise.cdr pHareNext.cdr (accLength + 2I) nextList
+                    accList
+                    |> Option.map (fun l -> pHareNext.car :: pHare.car :: l)
+                    |> loopListInfo pTortoise.cdr pHareNext.cdr (accLength + 2I)
                 | _ -> Error "invalid list structure."
             | _ -> Error "not a proper list."
         | _ -> Error "not a proper list."
@@ -95,21 +97,21 @@ module Type =
     let isProperList =
         function
         | SEmpty, _ -> true
-        | SPair _, _ as expr ->
-            match loopListInfo expr expr 0I None with
+        | SPair _, _ as pair ->
+            match loopListInfo pair pair 0I None with
             | Ok _ -> true
             | Error _ -> false
         | _ -> false
 
-    let toList expr =
-        match expr with
+    let toList =
+        function
         | SEmpty, _ -> Ok []
-        | SPair _, _ ->
-            match loopListInfo expr expr 0I (Some []) with
+        | SPair _, _ as pair ->
+            match loopListInfo pair pair 0I (Some []) with
             | Ok(Some l, _) -> Ok l
             | Ok(None, _) -> failwith "unreachable."
-            | Error msg -> Error(EvalError(msg, snd expr))
-        | _, p -> Error(EvalError("not a proper list.", p))
+            | Error msg -> EvalError(msg, snd pair) |> Error
+        | _, pos -> EvalError("not a proper list.", pos) |> Error
 
     let SZero = SRational(0I, 1I)
 
@@ -126,9 +128,9 @@ module Type =
             let n', d' = n / g, d / g
 
             if d' < 0I then
-                Ok(SRational(-n', -d'))
+                SRational(-n', -d') |> Ok
             else
-                Ok(SRational(n', d'))
+                SRational(n', d') |> Ok
 
     let realToRational x =
         if System.Double.IsInfinity x || System.Double.IsNaN x then
@@ -160,10 +162,7 @@ module Type =
 
     let runesToString runes =
         let sb = System.Text.StringBuilder()
-
-        for r in runes do
-            r |> string |> sb.Append |> ignore
-
+        runes |> Seq.iter (string >> sb.Append >> ignore)
         sb |> string
 
     let newSString isImmutable (str: string) =

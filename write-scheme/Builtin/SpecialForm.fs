@@ -17,7 +17,7 @@ module SpecialForm =
             if List.isEmpty args then
                 Ok acc
             else
-                Error(EvalError("Too many arguments.", pos))
+                EvalError("Too many arguments.", pos) |> Error
         | SSymbol var, _ -> Ok((var, args |> toSPair) :: acc)
         | SPair p, _ ->
             match args with
@@ -25,7 +25,7 @@ module SpecialForm =
                 match p.car with
                 | SSymbol var, _ -> p.cdr |> loopZipFormals pos t ((var, h) :: acc)
                 | x -> x |> invalid (snd x) "'%s' is not a symbol."
-            | [] -> Error(EvalError("Not enough arguments.", pos))
+            | [] -> EvalError("Not enough arguments.", pos) |> Error
         | x -> x |> invalid (snd x) "'%s' is not a symbol."
 
     let zipFormals pos args =
@@ -64,14 +64,15 @@ module SpecialForm =
         | [ test; consequent ] -> if' test consequent (SEmpty, pos)
         | x -> x |> invalidParameter pos "'%s' invalid if parameter." |> cont
 
-    let sSet envs pos cont =
+    let sSetBang envs pos cont =
         function
         | [ SSymbol variable, pos'; expression ] ->
             expression
             |> Eval.eval
                 envs
                 (Result.bind (fun exprVal ->
-                    Context.lookupEnvs envs pos' variable
+                    variable
+                    |> Context.lookupEnvs envs pos'
                     |> Result.map (fun v ->
                         v.Value <- exprVal
                         exprVal)))
@@ -364,7 +365,7 @@ module SpecialForm =
                         | value -> [ value ]
 
                     if List.length vars <> List.length values then
-                        Error(EvalError("Values count mismatch in let-values.", pos)) |> cont
+                        EvalError("Values count mismatch in let-values.", pos) |> Error |> cont
                     else
                         let bindings' =
                             List.zip vars values |> List.map (fun (variable, value) -> variable, ref value)
@@ -397,7 +398,7 @@ module SpecialForm =
                         | value -> [ value ]
 
                     if List.length vars <> List.length values then
-                        Error(EvalError("Values count mismatch in let-star-values.", pos)) |> cont
+                        EvalError("Values count mismatch in let-star-values.", pos) |> Error |> cont
                     else
                         let nextEnvs =
                             List.zip vars values
@@ -456,7 +457,7 @@ module SpecialForm =
                     |> evalDoStep envs pos cont bindings test expressions commands loopEnvs ((variable, ref s) :: acc)
                 | x -> x |> cont)
         | (variable, varPos, _, None) :: bindings' ->
-            match Context.lookupEnvs loopEnvs varPos variable with
+            match variable |> Context.lookupEnvs loopEnvs varPos with
             | Ok v ->
                 bindings'
                 |> evalDoStep envs pos cont bindings test expressions commands loopEnvs ((variable, ref v.Value) :: acc)
@@ -525,8 +526,8 @@ module SpecialForm =
         function
         | parameters :: body ->
             match parameters |> toList with
-            | Ok blist ->
-                match blist |> mapResult eachParamBinding with
+            | Ok plist ->
+                match plist |> mapResult eachParamBinding with
                 | Ok parameters' -> parameters' |> loopParameterize envs pos cont body []
                 | Error e -> Error e |> cont
             | Error e -> Error e |> cont
@@ -617,9 +618,9 @@ module SpecialForm =
                 match a |> toList with
                 | Ok alist ->
                     try
-                        Ok(List.foldBack (fun h acc -> SPair { car = h; cdr = acc }, snd h) alist b)
+                        Ok(b |> List.foldBack (fun h acc -> SPair { car = h; cdr = acc }, snd h) alist)
                     with _ ->
-                        Error(EvalError("unquote-splicing must return a list.", pos))
+                        EvalError("unquote-splicing must return a list.", pos) |> Error
                 | Error e -> Error e
             | x -> x |> invalid (snd x) "'%s' invalid unquote-splicing parameter."
 
@@ -779,7 +780,7 @@ module SpecialForm =
             if List.isEmpty values then
                 Ok acc
             else
-                Error(EvalError("Too many arguments.", pos))
+                EvalError("Too many arguments.", pos) |> Error
         | SSymbol variable, _ -> Ok((variable, ref (values |> toSPair |> SQuote, pos)) :: acc)
         | SPair formals, _ ->
             match values with
@@ -787,7 +788,7 @@ module SpecialForm =
                 match formals.car with
                 | SSymbol variable, _ -> formals.cdr |> loopZipFormalsRef pos t ((variable, ref h) :: acc)
                 | x -> x |> invalid (snd x) "'%s' is not a symbol."
-            | [] -> Error(EvalError("Not enough arguments.", pos))
+            | [] -> EvalError("Not enough arguments.", pos) |> Error
         | x -> x |> invalid (snd x) "'%s' is not a symbol."
 
     let zipFormalsRef pos values =
@@ -841,12 +842,11 @@ module SpecialForm =
         (args: SExpression list)
         =
         if args.Length <> constructorFields.Length then
-            Error(
-                EvalError(
-                    sprintf "%s requires %d arguments, but got %d." constructorName constructorFields.Length args.Length,
-                    pos
-                )
+            EvalError(
+                sprintf "%s requires %d arguments, but got %d." constructorName constructorFields.Length args.Length,
+                pos
             )
+            |> Error
             |> cont
         else
             let recordFields = Array.init fieldNames.Length (fun _ -> ref (SUnspecified, pos))
@@ -860,7 +860,11 @@ module SpecialForm =
                     | SSymbol fieldName, _ ->
                         let idx = fieldNames |> List.findIndex ((=) fieldName)
                         recordFields.[idx].Value <- value
-                    | _ -> error <- Some(Error(EvalError("Constructor field mapping failed: not a symbol", pos))))
+                    | _ ->
+                        error <-
+                            EvalError("Constructor field mapping failed: not a symbol", pos)
+                            |> Error
+                            |> Some)
 
             error
             |> Option.defaultWith (fun () -> Ok(SRecord(typeId, name, recordFields), pos))
@@ -875,12 +879,12 @@ module SpecialForm =
         function
         | [ SRecord(tid, _, fs), _ ] when tid = typeId -> Ok fs.[idx].Value |> cont
         | [ x ] ->
-            Error(
-                EvalError(sprintf "Accessor %s expected %s, but got %s." accessorName name (x |> Print.print), x |> snd)
-            )
+            EvalError(sprintf "Accessor %s expected %s, but got %s." accessorName name (x |> Print.print), x |> snd)
+            |> Error
             |> cont
         | _ ->
-            Error(EvalError(sprintf "Accessor %s requires 1 argument." accessorName, pos))
+            EvalError(sprintf "Accessor %s requires 1 argument." accessorName, pos)
+            |> Error
             |> cont
 
     let recordFieldModifierProc typeId name idx modifierName envs pos cont =
@@ -889,12 +893,12 @@ module SpecialForm =
             fs.[idx].Value <- v
             Ok(SUnspecified, pos) |> cont
         | [ x; _ ] ->
-            Error(
-                EvalError(sprintf "Modifier %s expected %s, but got %s." modifierName name (x |> Print.print), x |> snd)
-            )
+            EvalError(sprintf "Modifier %s expected %s, but got %s." modifierName name (x |> Print.print), x |> snd)
+            |> Error
             |> cont
         | _ ->
-            Error(EvalError(sprintf "Modifier %s requires 2 arguments." modifierName, pos))
+            EvalError(sprintf "Modifier %s requires 2 arguments." modifierName, pos)
+            |> Error
             |> cont
 
     let sDefineRecordType envs pos cont =
