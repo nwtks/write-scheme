@@ -4,7 +4,7 @@ open FParsec
 open Type
 
 module Read =
-    type SState = unit
+    type SState = bool
     type Parser<'t> = Parser<'t, SState>
 
     let pIntralineWhitespace = anyOf " \t"
@@ -281,7 +281,13 @@ module Read =
               stringCIReturn "#f" SFalse ]
         |> parseWithPos
 
-    let parseSymbol = pIdentifier |>> SSymbol |> parseWithPos
+    let parseSymbol =
+        pIdentifier
+        >>= fun id ->
+            getUserState
+            |>> fun foldCase -> if foldCase then id.ToLowerInvariant() else id
+            |>> SSymbol
+        |> parseWithPos
 
     let parseChar =
         pCharacter |>> (fun s -> System.Text.Rune.GetRuneAt(s, 0) |> SChar)
@@ -381,8 +387,26 @@ module Read =
               parseDatumLabelDef
               parseDatumLabelRef ]
 
-    let read input =
-        match input |> run (pIntertokenSpace >>. parseDatum .>> pIntertokenSpace .>> eof) with
+    let read foldCase input =
+        match
+            input
+            |> runParserOnString (pIntertokenSpace >>. parseDatum .>> pIntertokenSpace .>> eof) foldCase ""
+        with
+        | Success(res, _, _) -> Result.Ok res
+        | Failure(msg, error, _) ->
+            ParseError(
+                msg,
+                Some
+                    { Line = int64 error.Position.Line
+                      Column = int64 error.Position.Column }
+            )
+            |> Result.Error
+
+    let readAll foldCase input =
+        match
+            input
+            |> runParserOnString (pIntertokenSpace >>. many (parseDatum .>> pIntertokenSpace) .>> eof) foldCase ""
+        with
         | Success(res, _, _) -> Result.Ok res
         | Failure(msg, error, _) ->
             ParseError(

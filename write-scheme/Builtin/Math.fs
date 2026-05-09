@@ -750,7 +750,7 @@ module Math =
         | [ SString s, _ ] ->
             s.runes
             |> runesToString
-            |> Read.read
+            |> Read.read false
             |> Result.map (function
                 | SRational _, _
                 | SReal _, _

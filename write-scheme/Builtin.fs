@@ -4,13 +4,15 @@ open Type
 open WriteScheme.Builtins
 
 module Builtin =
-    let builtin =
+    let builtinEnvs =
         Context.extendEnvs
             Context.empty
             [ "quote", (SSyntax sQuote, None) |> ref
               "lambda", (SSyntax sLambda, None) |> ref
               "if", (SSyntax sIf, None) |> ref
               "set!", (SSyntax sSetBang, None) |> ref
+              "include", (SSyntax sInclude, None) |> ref
+              "include-ci", (SSyntax sIncludeCi, None) |> ref
               "cond", (SSyntax sCond, None) |> ref
               "case", (SSyntax sCase, None) |> ref
               "and", (SSyntax sAnd, None) |> ref
@@ -36,10 +38,12 @@ module Builtin =
               "letrec-syntax", (SSyntax sLetRecSyntax, None) |> ref
               "syntax-rules", (SSyntax sSyntaxRules, None) |> ref
               "syntax-error", (SSyntax sSyntaxError, None) |> ref
+              "import", (SSyntax sImport, None) |> ref
               "define", (SSyntax sDefine, None) |> ref
               "define-values", (SSyntax sDefineValues, None) |> ref
               "define-syntax", (SSyntax sDefineSyntax, None) |> ref
               "define-record-type", (SSyntax sDefineRecordType, None) |> ref
+              "define-library", (SSyntax sDefineLibrary, None) |> ref
               "force", (SProcedure sForce, None) |> ref
               "promise?", (SProcedure isPromise, None) |> ref
               "make-promise", (SProcedure sMakePromise, None) |> ref
@@ -243,3 +247,20 @@ module Builtin =
               "error-object-irritants", (SProcedure sErrorObjectIrritants, None) |> ref
               "display", (SProcedure sDisplay, None) |> ref
               "load", (SProcedure sLoad, None) |> ref ]
+
+    let builtin =
+        let schemeBaseName =
+            SPair
+                { car = SSymbol "scheme", None
+                  cdr =
+                    SPair
+                        { car = SSymbol "base", None
+                          cdr = SEmpty, None },
+                    None },
+            None
+
+        builtinEnvs.environments.Head.Value.Keys
+        |> Set.ofSeq
+        |> Context.registerLibrary builtinEnvs schemeBaseName builtinEnvs.environments.Head
+
+        builtinEnvs

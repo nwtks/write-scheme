@@ -79,14 +79,14 @@ module Core =
 
     let sLoad envs pos cont =
         function
-        | [ SString f, _ ] ->
-            let path = f.runes |> runesToString
-
-            path
-            |> System.IO.File.ReadAllText
-            |> Read.read
-            |> Result.bind DatumLabel.resolveLabels
-            |> Result.bind (Eval.eval envs id)
-            |> Result.map (fun _ -> path |> sprintf "Loaded '%s'." |> SSymbol, pos)
-            |> cont
+        | [ SString f, p ] ->
+            match tryReadAll false f p with
+            | Ok exprs ->
+                match exprs |> mapResult DatumLabel.resolveLabels with
+                | Ok rs ->
+                    match rs |> mapResult (Eval.eval envs id) with
+                    | Ok _ -> Ok(f.runes |> runesToString |> sprintf "Loaded '%s'." |> SSymbol, pos) |> cont
+                    | Error e -> Error e |> cont
+                | Error e -> Error e |> cont
+            | Error e -> Error e |> cont
         | x -> x |> invalidParameter pos "'%s' invalid load parameter." |> cont

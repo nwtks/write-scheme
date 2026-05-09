@@ -138,3 +138,12 @@ module Helper =
                     []
             | x -> x |> cont)
             []
+
+    let tryReadAll foldCase filename pos =
+        let path = filename.runes |> runesToString
+
+        try
+            path |> System.IO.File.ReadAllText |> Read.readAll foldCase
+        with
+        | :? System.IO.FileNotFoundException -> EvalError(sprintf "File not found: %s." path, pos) |> Error
+        | ex -> EvalError(sprintf "Error reading file %s: %s." path ex.Message, pos) |> Error

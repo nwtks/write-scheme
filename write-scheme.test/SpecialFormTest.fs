@@ -138,7 +138,11 @@ let ``cond-expand`` () =
 
     "(cond-expand ((not r7rs) 'no) (else 'yes))" |> rep |> should equal "yes"
 
-    "(cond-expand ((library (scheme base)) 'no) (else 'yes))"
+    "(cond-expand ((library (scheme base)) 'yes) (else 'no))"
+    |> rep
+    |> should equal "yes"
+
+    "(cond-expand ((library (example unregistered)) 'no) (else 'yes))"
     |> rep
     |> should equal "yes"
 

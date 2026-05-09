@@ -80,6 +80,28 @@ module SpecialForm =
         | x -> x |> invalidParameter pos "'%s' invalid set! parameter." |> cont
 
     [<TailCall>]
+    let rec sIncludeFiles foldCase envs pos cont acc =
+        function
+        | [] ->
+            match acc |> List.rev with
+            | [] -> Ok(SUnspecified, pos) |> cont
+            | exprs -> exprs |> Eval.eachEval envs cont (Ok(SUnspecified, pos))
+        | (SString f, p) :: rest ->
+            match tryReadAll foldCase f p with
+            | Ok exprs ->
+                match exprs |> mapResult DatumLabel.resolveLabels with
+                | Ok rs -> rest |> sIncludeFiles foldCase envs pos cont (List.rev rs @ acc)
+                | Error e -> Error e |> cont
+            | Error e -> Error e |> cont
+        | x :: _ -> [ x ] |> invalidParameter pos "'%s' invalid include parameter." |> cont
+
+    let sInclude envs pos cont files =
+        files |> sIncludeFiles false envs pos cont []
+
+    let sIncludeCi envs pos cont files =
+        files |> sIncludeFiles true envs pos cont []
+
+    [<TailCall>]
     let rec sCond envs pos cont =
         function
         | [] -> Ok(SUnspecified, pos) |> cont
@@ -219,24 +241,40 @@ module SpecialForm =
               "ratios" ]
 
     [<TailCall>]
-    let rec checkFeatureRequirement =
+    let rec checkFeatureRequirement envs pos negate =
         function
-        | SSymbol feat, _ -> supportedFeatures |> Set.contains feat
+        | SSymbol feat, _ ->
+            let r = supportedFeatures |> Set.contains feat
+            if negate then not r else r
         | SPair { car = SSymbol "and", _; cdr = args }, _ ->
             match args |> toList with
-            | Ok reqs -> reqs |> List.forall checkFeatureRequirement
+            | Ok reqs ->
+                if negate then
+                    reqs |> List.exists (checkFeatureRequirement envs pos true)
+                else
+                    reqs |> List.forall (checkFeatureRequirement envs pos false)
             | Error _ -> false
         | SPair { car = SSymbol "or", _; cdr = args }, _ ->
             match args |> toList with
-            | Ok reqs -> reqs |> List.exists checkFeatureRequirement
+            | Ok reqs ->
+                if negate then
+                    reqs |> List.forall (checkFeatureRequirement envs pos true)
+                else
+                    reqs |> List.exists (checkFeatureRequirement envs pos false)
             | Error _ -> false
         | SPair { car = SSymbol "not", _
                   cdr = SPair { car = inner; cdr = SEmpty, _ }, _ },
-          _ -> not (checkFeatureRequirement inner)
-        | SPair { car = SSymbol "library", _ }, _ ->
-            // Library support not yet implemented; always false
-            false
-        | _ -> false
+          _ -> inner |> checkFeatureRequirement envs pos (not negate) // tail call
+        | SPair { car = SSymbol "library", _
+                  cdr = SPair { car = libName; cdr = SEmpty, _ }, _ },
+          _ ->
+            let r =
+                match libName |> Context.lookupLibrary envs pos with
+                | Ok _ -> true
+                | Error _ -> false
+
+            if negate then not r else r
+        | _ -> if negate then true else false
 
     [<TailCall>]
     let rec sCondExpand envs pos cont =
@@ -249,7 +287,7 @@ module SpecialForm =
                 | Ok exprs -> exprs |> Eval.eachEval envs cont (Ok(SUnspecified, pos))
                 | Error e -> Error e |> cont
             | SPair { car = req; cdr = body }, _ ->
-                if checkFeatureRequirement req then
+                if checkFeatureRequirement envs pos false req then
                     match body |> toList with
                     | Ok exprs -> exprs |> Eval.eachEval envs cont (Ok(SUnspecified, pos))
                     | Error e -> Error e |> cont
@@ -802,17 +840,26 @@ module SpecialForm =
         | x -> x |> invalidParameter pos "'%s' invalid quasiquote parameter." |> cont
 
     [<TailCall>]
+    let rec arityMatches args =
+        function
+        | SEmpty, _ -> List.isEmpty args
+        | SPair p, _ ->
+            match args with
+            | _ :: tail -> p.cdr |> arityMatches tail
+            | [] -> false
+        | _ -> true
+
+    [<TailCall>]
     let rec caseClosure captureEnvs clauses envs pos cont args =
         match clauses with
         | [] -> EvalError("No matching clause in case-lambda.", pos) |> Error |> cont
         | (formals, body) :: rest ->
-            match formals |> zipFormals pos args with
-            | Ok bindings -> bindings |> bindArgs (Context.mergeEnvs envs captureEnvs) pos cont body []
-            | Error e ->
-                match e with
-                | EvalError(msg, _) when msg = "Too many arguments." || msg = "Not enough arguments." ->
-                    caseClosure captureEnvs rest envs pos cont args
-                | _ -> Error e |> cont
+            if formals |> arityMatches args then
+                match formals |> zipFormals pos args with
+                | Ok bindings -> bindings |> bindArgs (Context.mergeEnvs envs captureEnvs) pos cont body []
+                | Error e -> Error e |> cont
+            else
+                caseClosure captureEnvs rest envs pos cont args
 
     let sCaseLambda envs pos cont clauses =
         let parseClause =
@@ -826,6 +873,45 @@ module SpecialForm =
         match clauses |> mapResult parseClause with
         | Ok parsedClauses -> Ok(SProcedure(caseClosure envs parsedClauses), pos) |> cont
         | Error e -> Error e |> cont
+
+    [<TailCall>]
+    let rec processImportSet envs pos cont =
+        function
+        | SPair { car = SSymbol "only", _
+                  cdr = SPair { car = imports; cdr = _ }, _ },
+          _
+        | SPair { car = SSymbol "except", _
+                  cdr = SPair { car = imports; cdr = _ }, _ },
+          _
+        | SPair { car = SSymbol "prefix", _
+                  cdr = SPair { car = imports; cdr = _ }, _ },
+          _
+        | SPair { car = SSymbol "rename", _
+                  cdr = SPair { car = imports; cdr = _ }, _ },
+          _ -> imports |> processImportSet envs pos cont
+        | imports ->
+            match imports |> Context.lookupLibrary envs pos with
+            | Ok lib ->
+                let currentEnv = envs.environments.Head
+
+                lib.exports
+                |> Set.iter (fun exportName ->
+                    match exportName |> Context.tryLookupEnv lib.env with
+                    | Some refVal -> currentEnv.Value <- currentEnv.Value |> Map.add exportName refVal
+                    | None -> ())
+
+                Ok(SUnspecified, pos) |> cont
+            | Error e -> Error e |> cont
+
+    [<TailCall>]
+    let rec sImport envs pos cont =
+        function
+        | [] -> Ok(SUnspecified, pos) |> cont
+        | imports :: rest ->
+            imports
+            |> processImportSet envs pos (function
+                | Ok _ -> rest |> sImport envs pos cont
+                | Error e -> Error e |> cont)
 
     let sDefine envs pos cont =
         let define' variable =
@@ -1011,3 +1097,169 @@ module SpecialForm =
                 | Error e -> Error e |> cont
             | Error e -> Error e |> cont
         | x -> x |> invalidParameter pos "'%s' invalid define-record-type parameter." |> cont
+
+    [<TailCall>]
+    let rec loopLibraryExport pos acc =
+        function
+        | [] -> Ok acc
+        | (SSymbol name, _) :: rest -> rest |> loopLibraryExport pos (acc |> Set.add name)
+        | (SPair { car = SSymbol "rename", _
+                   cdr = SPair { car = SSymbol oldName, _
+                                 cdr = SPair { car = SSymbol newName, _
+                                               cdr = SEmpty, _ },
+                                       _ },
+                         _ },
+           _) :: rest -> rest |> loopLibraryExport pos (acc |> Set.add oldName)
+        | x :: _ -> [ x ] |> invalidParameter pos "'%s' invalid export parameter."
+
+    let processLibraryExport exports pos cont declaration =
+        match declaration |> toList with
+        | Ok dlist ->
+            match dlist |> loopLibraryExport pos exports with
+            | Ok newExports -> Ok newExports |> cont
+            | Error e -> Error e |> cont
+        | Error e -> Error e |> cont
+
+    [<TailCall>]
+    let rec readLibraryDeclarations pos foldCase acc =
+        function
+        | [] -> Ok(List.rev acc)
+        | (SString f, fp) :: tail ->
+            match tryReadAll foldCase f fp with
+            | Ok exprs -> tail |> readLibraryDeclarations pos foldCase (List.rev exprs @ acc)
+            | Error e -> Error e
+        | x :: _ ->
+            EvalError(sprintf "'%s' invalid include-library-declarations parameter." (Print.print x), pos)
+            |> Error
+
+    [<TailCall>]
+    let rec processLibraryDeclaration envs pos cont foldCase libEnvs exports =
+        function
+        | [] -> Ok exports |> cont
+        | declaration :: declarations ->
+            match declaration with
+            | SPair { car = SSymbol "import", _
+                      cdr = importSets },
+              _ ->
+                match importSets |> toList with
+                | Ok isets ->
+                    isets
+                    |> sImport libEnvs pos (function
+                        | Ok _ -> declarations |> processLibraryDeclaration envs pos cont foldCase libEnvs exports
+                        | Error e -> Error e |> cont)
+                | Error e -> Error e |> cont
+            | SPair { car = SSymbol "export", _
+                      cdr = exportSpecs },
+              _ ->
+                exportSpecs
+                |> processLibraryExport exports pos (function
+                    | Ok newExports ->
+                        declarations
+                        |> processLibraryDeclaration envs pos cont foldCase libEnvs newExports
+                    | Error e -> Error e |> cont)
+            | SPair { car = SSymbol "begin", _
+                      cdr = exprs },
+              _ ->
+                match exprs |> toList with
+                | Ok elist ->
+                    elist
+                    |> Eval.eachEval
+                        libEnvs
+                        (function
+                        | Ok _ -> declarations |> processLibraryDeclaration envs pos cont foldCase libEnvs exports
+                        | Error e -> Error e |> cont)
+                        (Ok(SUnspecified, pos))
+                | Error e -> Error e |> cont
+            | SPair { car = SSymbol "include", p
+                      cdr = files },
+              _ ->
+                match files |> toList with
+                | Ok flist ->
+                    flist
+                    |> sIncludeFiles
+                        false
+                        libEnvs
+                        p
+                        (function
+                        | Ok _ -> declarations |> processLibraryDeclaration envs pos cont foldCase libEnvs exports
+                        | Error e -> Error e |> cont)
+                        []
+                | Error e -> Error e |> cont
+            | SPair { car = SSymbol "include-ci", p
+                      cdr = files },
+              _ ->
+                match files |> toList with
+                | Ok flist ->
+                    flist
+                    |> sIncludeFiles
+                        true
+                        libEnvs
+                        p
+                        (function
+                        | Ok _ -> declarations |> processLibraryDeclaration envs pos cont foldCase libEnvs exports
+                        | Error e -> Error e |> cont)
+                        []
+                | Error e -> Error e |> cont
+            | SPair { car = SSymbol "include-library-declarations", p
+                      cdr = files },
+              _ ->
+                match files |> toList with
+                | Ok flist ->
+                    match flist |> readLibraryDeclarations p foldCase [] with
+                    | Ok decls ->
+                        decls @ declarations
+                        |> processLibraryDeclaration envs pos cont foldCase libEnvs exports
+                    | Error e -> Error e |> cont
+                | Error e -> Error e |> cont
+            | SPair { car = SSymbol "cond-expand", expandPos
+                      cdr = clauses },
+              _ ->
+                match clauses |> toList with
+                | Ok clist ->
+                    clist
+                    |> evalLibraryCondExpand envs pos cont foldCase libEnvs exports expandPos declarations
+                | Error e -> Error e |> cont
+            | x -> x |> invalid (snd x) "'%s' invalid library declaration." |> cont
+
+    and [<TailCall>] evalLibraryCondExpand envs pos cont foldCase libEnvs exports expandPos declarations =
+        function
+        | [] -> EvalError("No matching clause in cond-expand.", expandPos) |> Error |> cont
+        | clause :: cRest ->
+            match clause with
+            | SPair { car = SSymbol "else", _; cdr = body }, _ ->
+                match body |> toList with
+                | Ok exprs ->
+                    exprs @ declarations
+                    |> processLibraryDeclaration envs pos cont foldCase libEnvs exports
+                | Error e -> Error e |> cont
+            | SPair { car = req; cdr = body }, _ ->
+                if checkFeatureRequirement envs pos false req then
+                    match body |> toList with
+                    | Ok exprs ->
+                        exprs @ declarations
+                        |> processLibraryDeclaration envs pos cont foldCase libEnvs exports
+                    | Error e -> Error e |> cont
+                else
+                    cRest
+                    |> evalLibraryCondExpand envs pos cont foldCase libEnvs exports expandPos declarations
+            | x -> x |> invalid (snd x) "'%s' invalid cond-expand clause." |> cont
+
+
+    let sDefineLibrary envs pos cont =
+        function
+        | name :: declarations ->
+            let libEnvs = Context.extendEnvs { envs with environments = [] } []
+
+            declarations
+            |> processLibraryDeclaration
+                envs
+                pos
+                (function
+                | Ok exports ->
+                    exports |> Context.registerLibrary envs name libEnvs.environments.Head
+                    Ok(SUnspecified, pos) |> cont
+                | Error e -> Error e |> cont)
+                false
+                libEnvs
+                Set.empty
+        | x -> x |> invalidParameter pos "'%s' invalid define-library parameter." |> cont

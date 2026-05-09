@@ -9,7 +9,7 @@ module Repl =
         | None -> ""
 
     let rep envs =
-        Read.read
+        Read.read false
         >> Result.bind DatumLabel.resolveLabels
         >> Result.bind (Eval.eval envs id)
         >> Result.map Print.print

@@ -49,6 +49,7 @@ module Type =
 
     and Context =
         { environments: Environment list
+          libraries: Map<string, Library> ref
           mutable nextExpansionId: int
           mutable nextRecordTypeId: int
           winders: Winder list ref
@@ -56,6 +57,11 @@ module Type =
           handlers: SExpression list ref }
 
     and Environment = Map<string, SExpression ref> ref
+
+    and Library =
+        { name: string
+          env: Environment
+          exports: Set<string> }
 
     and Winder =
         { id: int

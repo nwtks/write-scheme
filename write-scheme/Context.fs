@@ -12,6 +12,7 @@ module Context =
 
     let empty =
         { environments = []
+          libraries = ref Map.empty
           nextExpansionId = 0
           nextRecordTypeId = 0
           winders = ref []
@@ -51,13 +52,30 @@ module Context =
             | Some x -> Ok x
             | None -> EvalError(sprintf "No binding for '%s'." symbol, pos) |> Error
 
-    let getNextRecordTypeId envs =
-        envs.nextRecordTypeId <- envs.nextRecordTypeId + 1
-        envs.nextRecordTypeId
+    let registerLibrary envs name env exports =
+        let libName = Print.print name
+
+        let lib =
+            { name = libName
+              env = env
+              exports = exports }
+
+        envs.libraries.Value <- envs.libraries.Value |> Map.add libName lib
+
+    let lookupLibrary envs pos name =
+        let libName = Print.print name
+
+        match envs.libraries.Value |> Map.tryFind libName with
+        | Some lib -> Ok lib
+        | None -> EvalError(sprintf "Library '%s' not found." libName, pos) |> Error
 
     let getNextExpansionId envs =
         envs.nextExpansionId <- envs.nextExpansionId + 1
         envs.nextExpansionId
+
+    let getNextRecordTypeId envs =
+        envs.nextRecordTypeId <- envs.nextRecordTypeId + 1
+        envs.nextRecordTypeId
 
     let enterWinder envs current winder =
         let next = winder :: current
