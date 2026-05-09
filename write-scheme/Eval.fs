@@ -87,6 +87,7 @@ module Eval =
         | x :: xs ->
             x
             |> eval envs (function
+                | Ok(SValues _, p) -> EvalError("Multiple values in single value context.", p) |> Error |> cont
                 | Ok a -> xs |> evalArgs envs cont fn (a :: acc)
                 | x -> x |> cont)
 

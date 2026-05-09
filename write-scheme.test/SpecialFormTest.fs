@@ -62,7 +62,7 @@ let cond () =
     |> rep
     |> should equal "((b 2) (c 3))"
 
-    "(cond ((> 1 2) 'a) ((> 1 3) 'b))" |> rep |> should equal "()"
+    "(cond ((> 1 2) 'a) ((> 1 3) 'b))" |> rep |> should equal "#<unspecified>"
 
 [<Fact>]
 let ``case`` () =
@@ -74,9 +74,9 @@ let ``case`` () =
     |> rep
     |> should equal "c"
 
-    "(case (car '(c d)) ((a) 'a) ((b) 'b))" |> rep |> should equal "()"
+    "(case (car '(c d)) ((a) 'a) ((b) 'b))" |> rep |> should equal "#<unspecified>"
     "(case (* 2 3) ((1 4 6 8 9) => (lambda (x) x)))" |> rep |> should equal "6"
-    "(case 1)" |> rep |> should equal "()"
+    "(case 1)" |> rep |> should equal "#<unspecified>"
     "(case 1 (else => (lambda (x) x)))" |> rep |> should equal "1"
     "(case 1 (else 1 2 3))" |> rep |> should equal "3"
     "(case 1 ((1 2) => (lambda (x) x)))" |> rep |> should equal "1"
@@ -102,13 +102,49 @@ let ``or`` () =
 let ``when`` () =
     "(when (= 1 1) 'result)" |> rep |> should equal "result"
     "(when (= 1 1) 'first 'second)" |> rep |> should equal "second"
-    "(when (= 1 2) 'result)" |> rep |> should equal "()"
+    "(when (= 1 2) 'result)" |> rep |> should equal "#<unspecified>"
 
 [<Fact>]
 let ``unless`` () =
     "(unless (= 1 2) 'result)" |> rep |> should equal "result"
     "(unless (= 1 2) 'first 'second)" |> rep |> should equal "second"
-    "(unless (= 1 1) 'result)" |> rep |> should equal "()"
+    "(unless (= 1 1) 'result)" |> rep |> should equal "#<unspecified>"
+
+[<Fact>]
+let ``cond-expand`` () =
+    "(cond-expand (r7rs 'yes) (else 'no))" |> rep |> should equal "yes"
+    "(cond-expand (exact-rational 'yes) (else 'no))" |> rep |> should equal "yes"
+    "(cond-expand (ieee-float 'yes) (else 'no))" |> rep |> should equal "yes"
+
+    "(cond-expand (unsupported-feature 'no) (else 'yes))"
+    |> rep
+    |> should equal "yes"
+
+    "(cond-expand ((and r7rs exact-rational) 'yes) (else 'no))"
+    |> rep
+    |> should equal "yes"
+
+    "(cond-expand ((and r7rs unsupported-feature) 'no) (else 'yes))"
+    |> rep
+    |> should equal "yes"
+
+    "(cond-expand ((or unsupported-feature r7rs) 'yes) (else 'no))"
+    |> rep
+    |> should equal "yes"
+
+    "(cond-expand ((not unsupported-feature) 'yes) (else 'no))"
+    |> rep
+    |> should equal "yes"
+
+    "(cond-expand ((not r7rs) 'no) (else 'yes))" |> rep |> should equal "yes"
+
+    "(cond-expand ((library (scheme base)) 'no) (else 'yes))"
+    |> rep
+    |> should equal "yes"
+
+    "(cond-expand (unsupported-feature 'no))"
+    |> rep
+    |> should startWith "No matching clause"
 
 [<Fact>]
 let ``let`` () =
@@ -211,6 +247,10 @@ let ``let-values`` () =
 
     "(let-values (((x) 42)) x)" |> rep |> should equal "42"
 
+    "(let-values (((a b c) (values 1 2))) a)"
+    |> rep
+    |> should startWith "Values count mismatch in let-values."
+
 [<Fact>]
 let ``let*-values`` () =
     "(let*-values (((a b) (values 1 2))
@@ -237,6 +277,34 @@ let ``values and call-with-values`` () =
 
     "(call-with-values (lambda () 42) (lambda (x) x))" |> rep |> should equal "42"
 
+    "(call-with-values (lambda () (begin 1 (values 2 3))) +)"
+    |> rep
+    |> should equal "5"
+
+    "(call-with-values (lambda () (let ((x 1)) (values x 2))) +)"
+    |> rep
+    |> should equal "3"
+
+    "(call-with-values (lambda () (if #t (values 1 2) 3)) +)"
+    |> rep
+    |> should equal "3"
+
+    "(call-with-values (lambda () (do ((i 0 (+ i 1))) ((= i 3) (values 1 2)))) +)"
+    |> rep
+    |> should equal "3"
+
+    "(call-with-values (lambda () (cond (#t => (lambda (x) (values 1 2))))) +)"
+    |> rep
+    |> should equal "3"
+
+    "(+ 1 (values 2 3))"
+    |> rep
+    |> should startWith "Multiple values in single value context"
+
+    "(list (values 1 2))"
+    |> rep
+    |> should startWith "Multiple values in single value context"
+
 [<Fact>]
 let ``begin`` () =
     let rep = repEnvs ()
@@ -259,7 +327,7 @@ let ``do`` () =
     |> rep
     |> should equal "25"
 
-    "(do ((i 0 (+ i 1))) ((= i 3)))" |> rep |> should equal "()"
+    "(do ((i 0 (+ i 1))) ((= i 3)))" |> rep |> should equal "#<unspecified>"
     "(do ((i 0 (+ i 1)) (s 0)) ((= i 3) (list i s)))" |> rep |> should equal "(3 0)"
 
 [<Fact>]
@@ -401,14 +469,28 @@ let ``quasiquote`` () =
 
     "`(,@'(1 2) ,@'(3 4))" |> rep |> should equal "(1 2 3 4)"
     "`(,@'())" |> rep |> should equal "()"
-    "`(,@'() . ,@'())" |> rep |> should equal "()"
     "`(,@'() 1 2)" |> rep |> should equal "(1 2)"
-    "`,@'(1 2)" |> rep |> should equal "(1 2)"
-    "``(a . ,,@'(1 2))" |> rep |> should equal "`(a . ,(1 2))"
+
+    "`(,@'() . ,@'())"
+    |> rep
+    |> should startWith "unquote-splicing must be in a list or vector context."
+
+    "`,@'(1 2)"
+    |> rep
+    |> should startWith "unquote-splicing must be in a list or vector context."
+
+    "``(a . ,,@'(1 2))"
+    |> rep
+    |> should startWith "unquote-splicing must be in a list or vector context."
+
     "`(,@'(1 2) . 3)" |> rep |> should equal "(1 2 . 3)"
     "`(1 2 . ,(append '(3 4) 5))" |> rep |> should equal "(1 2 3 4 . 5)"
     "`(,@'(1 2) . ,(append '(3 4) 5))" |> rep |> should equal "(1 2 3 4 . 5)"
-    "`(a . ,(values 1 2))" |> rep |> should equal "(a . (values 1 2))"
+
+    "`(a . ,(values 1 2))"
+    |> rep
+    |> should startWith "Multiple values in single value context."
+
     "`(,@(values '(1 2)))" |> rep |> should equal "(1 2)"
     "`#()" |> rep |> should equal "#()"
     "`#(1 ,@(values '(2 3)) 4)" |> rep |> should equal "#(1 2 3 4)"
@@ -418,17 +500,38 @@ let ``quasiquote`` () =
     "(let ((x '(1 2))) `#(a ,@x ,x))" |> rep |> should equal "#(a 1 2 (1 2))"
     "(let ((x '(1 2))) `(a . ,x))" |> rep |> should equal "(a 1 2)"
     "(let ((x '(1 2))) `(a ,@x . 3))" |> rep |> should equal "(a 1 2 . 3)"
-    "(let ((x '(1 2)) (y '(3 4))) `(,@x . ,@y))" |> rep |> should equal "(1 2 3 4)"
     "(let ((x '(1 2))) `(a `(b . ,@x)))" |> rep |> should equal "(a `(b . ,@x))"
     "(let ((x '(1 2))) `(a `(b ,@,x)))" |> rep |> should equal "(a `(b ,@(1 2)))"
-    "(let ((x '((1 2)))) `(a `(b ,,@x)))" |> rep |> should equal "(a `(b ,((1 2))))"
+
+    "(let ((x '(1 2)) (y '(3 4))) `(,@x . ,@y))"
+    |> rep
+    |> should startWith "unquote-splicing must be in a list or vector context."
+
+    "(let ((x '((1 2)))) `(a `(b ,,@x)))"
+    |> rep
+    |> should startWith "unquote-splicing must be in a list or vector context."
+
+[<Fact>]
+let ``case-lambda`` () =
+    "(define f (case-lambda (() 0) ((x) 1) ((x y) 2) ((x y . z) 3)))"
+    |> rep
+    |> should equal "#<unspecified>"
+
+    "(f)" |> rep |> should equal "0"
+    "(f 1)" |> rep |> should equal "1"
+    "(f 1 2)" |> rep |> should equal "2"
+    "(f 1 2 3)" |> rep |> should equal "3"
+    "(f 1 2 3 4)" |> rep |> should equal "3"
+
+    "((case-lambda) 1)" |> rep |> should startWith "No matching clause"
+    "((case-lambda ((x) x)) 1 2)" |> rep |> should startWith "No matching clause"
 
 [<Fact>]
 let ``define`` () =
-    "(define add3 (lambda (x) (+ x 3)))" |> rep |> ignore
+    "(define add3 (lambda (x) (+ x 3)))" |> rep |> should equal "#<unspecified>"
     "(add3 3)" |> rep |> should equal "6"
 
-    "(define first car)" |> rep |> ignore
+    "(define first car)" |> rep |> should equal "#<unspecified>"
     "(first '(1 2))" |> rep |> should equal "1"
 
     "(define (square x) (* x x))" |> rep |> ignore

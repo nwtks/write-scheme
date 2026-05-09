@@ -17,6 +17,7 @@ module Builtin =
               "or", (SSyntax sOr, None) |> ref
               "when", (SSyntax sWhen, None) |> ref
               "unless", (SSyntax sUnless, None) |> ref
+              "cond-expand", (SSyntax sCondExpand, None) |> ref
               "let", (SSyntax sLet, None) |> ref
               "let*", (SSyntax sLetStar, None) |> ref
               "letrec", (SSyntax sLetRec, None) |> ref
@@ -30,6 +31,7 @@ module Builtin =
               "parameterize", (SSyntax sParameterize, None) |> ref
               "guard", (SSyntax sGuard, None) |> ref
               "quasiquote", (SSyntax sQuasiquote, None) |> ref
+              "case-lambda", (SSyntax sCaseLambda, None) |> ref
               "let-syntax", (SSyntax sLetSyntax, None) |> ref
               "letrec-syntax", (SSyntax sLetRecSyntax, None) |> ref
               "syntax-rules", (SSyntax sSyntaxRules, None) |> ref

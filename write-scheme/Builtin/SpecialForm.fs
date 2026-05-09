@@ -61,7 +61,7 @@ module SpecialForm =
 
         function
         | [ test; consequent; alternate ] -> if' test consequent alternate
-        | [ test; consequent ] -> if' test consequent (SEmpty, pos)
+        | [ test; consequent ] -> if' test consequent (SUnspecified, pos)
         | x -> x |> invalidParameter pos "'%s' invalid if parameter." |> cont
 
     let sSetBang envs pos cont =
@@ -82,14 +82,14 @@ module SpecialForm =
     [<TailCall>]
     let rec sCond envs pos cont =
         function
-        | [] -> Ok(SEmpty, pos) |> cont
+        | [] -> Ok(SUnspecified, pos) |> cont
         | clause :: clauses ->
             match clause with
             | SPair { car = SSymbol "else", _
                       cdr = expressions },
               _ ->
                 match expressions |> toList with
-                | Ok elist -> elist |> Eval.eachEval envs cont (Ok(SEmpty, pos))
+                | Ok elist -> elist |> Eval.eachEval envs cont (Ok(SUnspecified, pos))
                 | Error e -> Error e |> cont
             | SPair { car = test
                       cdr = SPair { car = SSymbol "=>", _
@@ -115,7 +115,7 @@ module SpecialForm =
     [<TailCall>]
     let rec testCase envs pos cont key =
         function
-        | [] -> Ok(SEmpty, pos) |> cont
+        | [] -> Ok(SUnspecified, pos) |> cont
         | clause :: clauses ->
             match clause with
             | SPair { car = SSymbol "else", _
@@ -127,7 +127,7 @@ module SpecialForm =
                       cdr = expressions },
               _ ->
                 match expressions |> toList with
-                | Ok elist -> elist |> Eval.eachEval envs cont (Ok(SEmpty, pos))
+                | Ok elist -> elist |> Eval.eachEval envs cont (Ok(SUnspecified, pos))
                 | Error e -> Error e |> cont
             | SPair { car = datums
                       cdr = SPair { car = SSymbol "=>", _
@@ -146,7 +146,7 @@ module SpecialForm =
                 | Ok dlist ->
                     if dlist |> List.exists (fun datum -> eqv (key, datum)) then
                         match expressions |> toList with
-                        | Ok elist -> elist |> Eval.eachEval envs cont (Ok(SEmpty, pos))
+                        | Ok elist -> elist |> Eval.eachEval envs cont (Ok(SUnspecified, pos))
                         | Error e -> Error e |> cont
                     else
                         clauses |> testCase envs pos cont key
@@ -194,8 +194,8 @@ module SpecialForm =
         | test :: expressions ->
             test
             |> Eval.eval envs (function
-                | Ok(SBool false, _) -> Ok(SEmpty, pos) |> cont
-                | Ok _ -> expressions |> Eval.eachEval envs cont (Ok(SEmpty, pos))
+                | Ok(SBool false, _) -> Ok(SUnspecified, pos) |> cont
+                | Ok _ -> expressions |> Eval.eachEval envs cont (Ok(SUnspecified, pos))
                 | x -> x |> cont)
         | x -> x |> invalidParameter pos "'%s' invalid when parameter." |> cont
 
@@ -204,17 +204,65 @@ module SpecialForm =
         | test :: expressions ->
             test
             |> Eval.eval envs (function
-                | Ok(SBool false, _) -> expressions |> Eval.eachEval envs cont (Ok(SEmpty, pos))
-                | Ok _ -> Ok(SEmpty, pos) |> cont
+                | Ok(SBool false, _) -> expressions |> Eval.eachEval envs cont (Ok(SUnspecified, pos))
+                | Ok _ -> Ok(SUnspecified, pos) |> cont
                 | x -> x |> cont)
         | x -> x |> invalidParameter pos "'%s' invalid unless parameter." |> cont
+
+    let supportedFeatures =
+        Set.ofList
+            [ "r7rs"
+              "exact-closed"
+              "exact-rational"
+              "ieee-float"
+              "full-unicode"
+              "ratios" ]
+
+    [<TailCall>]
+    let rec checkFeatureRequirement =
+        function
+        | SSymbol feat, _ -> supportedFeatures |> Set.contains feat
+        | SPair { car = SSymbol "and", _; cdr = args }, _ ->
+            match args |> toList with
+            | Ok reqs -> reqs |> List.forall checkFeatureRequirement
+            | Error _ -> false
+        | SPair { car = SSymbol "or", _; cdr = args }, _ ->
+            match args |> toList with
+            | Ok reqs -> reqs |> List.exists checkFeatureRequirement
+            | Error _ -> false
+        | SPair { car = SSymbol "not", _
+                  cdr = SPair { car = inner; cdr = SEmpty, _ }, _ },
+          _ -> not (checkFeatureRequirement inner)
+        | SPair { car = SSymbol "library", _ }, _ ->
+            // Library support not yet implemented; always false
+            false
+        | _ -> false
+
+    [<TailCall>]
+    let rec sCondExpand envs pos cont =
+        function
+        | [] -> EvalError("No matching clause in cond-expand.", pos) |> Error |> cont
+        | clause :: rest ->
+            match clause with
+            | SPair { car = SSymbol "else", _; cdr = body }, _ ->
+                match body |> toList with
+                | Ok exprs -> exprs |> Eval.eachEval envs cont (Ok(SUnspecified, pos))
+                | Error e -> Error e |> cont
+            | SPair { car = req; cdr = body }, _ ->
+                if checkFeatureRequirement req then
+                    match body |> toList with
+                    | Ok exprs -> exprs |> Eval.eachEval envs cont (Ok(SUnspecified, pos))
+                    | Error e -> Error e |> cont
+                else
+                    rest |> sCondExpand envs pos cont
+            | x -> x |> invalid (snd x) "'%s' invalid cond-expand clause." |> cont
 
     [<TailCall>]
     let rec bindLet envs pos cont body acc =
         function
         | [] ->
             body
-            |> Eval.eachEval (acc |> List.rev |> Context.extendEnvs envs) cont (Ok(SEmpty, pos))
+            |> Eval.eachEval (acc |> List.rev |> Context.extendEnvs envs) cont (Ok(SUnspecified, pos))
         | (variable, init) :: bindings ->
             init
             |> Eval.eval envs (function
@@ -251,7 +299,7 @@ module SpecialForm =
     [<TailCall>]
     let rec bindLetStar envs pos cont body =
         function
-        | [] -> body |> Eval.eachEval envs cont (Ok(SEmpty, pos))
+        | [] -> body |> Eval.eachEval envs cont (Ok(SUnspecified, pos))
         | (variable, init) :: bindings ->
             init
             |> Eval.eval envs (function
@@ -274,7 +322,7 @@ module SpecialForm =
     [<TailCall>]
     let rec bindLetRec envs pos cont body =
         function
-        | [] -> body |> Eval.eachEval envs cont (Ok(SEmpty, pos))
+        | [] -> body |> Eval.eachEval envs cont (Ok(SUnspecified, pos))
         | (variable, init) :: bindings ->
             init
             |> Eval.eval envs (function
@@ -304,7 +352,7 @@ module SpecialForm =
     let rec bindLetRecStar envs pos cont body =
         function
         | [], _
-        | _, [] -> body |> Eval.eachEval envs cont (Ok(SEmpty, pos))
+        | _, [] -> body |> Eval.eachEval envs cont (Ok(SUnspecified, pos))
         | (_, init) :: bindings, refs: SExpression ref :: rs ->
             init
             |> Eval.eval envs (function
@@ -354,7 +402,7 @@ module SpecialForm =
         function
         | [] ->
             body
-            |> Eval.eachEval (acc |> List.rev |> Context.extendEnvs envs) cont (Ok(SEmpty, pos))
+            |> Eval.eachEval (acc |> List.rev |> Context.extendEnvs envs) cont (Ok(SUnspecified, pos))
         | (vars, init) :: bindings ->
             init
             |> Eval.eval envs (function
@@ -387,7 +435,7 @@ module SpecialForm =
     [<TailCall>]
     let rec bindLetStarValues envs pos cont body =
         function
-        | [] -> body |> Eval.eachEval envs cont (Ok(SEmpty, pos))
+        | [] -> body |> Eval.eachEval envs cont (Ok(SUnspecified, pos))
         | (vars, init) :: xs ->
             init
             |> Eval.eval envs (function
@@ -420,7 +468,7 @@ module SpecialForm =
         | x -> x |> invalidParameter pos "'%s' invalid let*-values parameter." |> cont
 
     let sBegin envs pos cont =
-        Eval.eachEval envs cont (Ok(SEmpty, pos))
+        Eval.eachEval envs cont (Ok(SUnspecified, pos))
 
     [<TailCall>]
     let rec loopDo envs pos cont bindings test expressions commands loopEnvs =
@@ -438,7 +486,7 @@ module SpecialForm =
                     (Ok(SEmpty, pos))
             | Ok testResult ->
                 match expressions with
-                | [] -> Ok(SEmpty, pos) |> cont
+                | [] -> Ok(SUnspecified, pos) |> cont
                 | _ -> expressions |> Eval.eachEval loopEnvs cont (Ok testResult)
             | x -> x |> cont)
 
@@ -633,6 +681,7 @@ module SpecialForm =
             if n = 0 then
                 template
                 |> Eval.eval envs (function
+                    | Ok(SValues _, p) -> EvalError("Multiple values in single value context.", p) |> Error |> next
                     | Ok a ->
                         rest
                         |> replaceQuasiquoteList envs pos cont n (Result.map (fun b -> cons a b) >> next) tail
@@ -715,7 +764,10 @@ module SpecialForm =
                   cdr = SPair { car = template; cdr = SEmpty, _ }, _ },
           _ ->
             if n = 0 then
-                template |> Eval.eval envs next
+                template
+                |> Eval.eval envs (function
+                    | Ok(SValues _, p) -> EvalError("Multiple values in single value context.", p) |> Error |> next
+                    | x -> x |> next)
             else
                 template
                 |> replaceQuasiquote envs pos cont (n - 1) (Result.map (fun x' -> SUnquote x', pos) >> next)
@@ -724,7 +776,9 @@ module SpecialForm =
                   cdr = SPair { car = template; cdr = SEmpty, _ }, _ },
           _ ->
             if n = 0 then
-                template |> Eval.eval envs next
+                EvalError("unquote-splicing must be in a list or vector context.", pos)
+                |> Error
+                |> next
             else
                 template
                 |> replaceQuasiquote envs pos cont (n - 1) (Result.map (fun x' -> SUnquoteSplicing x', pos) >> next)
@@ -747,11 +801,37 @@ module SpecialForm =
         | [ template ] -> template |> replaceQuasiquote envs pos cont 0 cont
         | x -> x |> invalidParameter pos "'%s' invalid quasiquote parameter." |> cont
 
+    [<TailCall>]
+    let rec caseClosure captureEnvs clauses envs pos cont args =
+        match clauses with
+        | [] -> EvalError("No matching clause in case-lambda.", pos) |> Error |> cont
+        | (formals, body) :: rest ->
+            match formals |> zipFormals pos args with
+            | Ok bindings -> bindings |> bindArgs (Context.mergeEnvs envs captureEnvs) pos cont body []
+            | Error e ->
+                match e with
+                | EvalError(msg, _) when msg = "Too many arguments." || msg = "Not enough arguments." ->
+                    caseClosure captureEnvs rest envs pos cont args
+                | _ -> Error e |> cont
+
+    let sCaseLambda envs pos cont clauses =
+        let parseClause =
+            function
+            | SPair { car = formals; cdr = body }, _ ->
+                match body |> toList with
+                | Ok b -> Ok(formals, b)
+                | Error e -> Error e
+            | x -> x |> invalid (snd x) "'%s' invalid case-lambda clause."
+
+        match clauses |> mapResult parseClause with
+        | Ok parsedClauses -> Ok(SProcedure(caseClosure envs parsedClauses), pos) |> cont
+        | Error e -> Error e |> cont
+
     let sDefine envs pos cont =
         let define' variable =
             Result.map (fun value ->
                 Context.defineEnvVar envs variable value
-                SSymbol variable, pos)
+                SUnspecified, pos)
             >> cont
 
         function
@@ -762,15 +842,15 @@ module SpecialForm =
         | x -> x |> invalidParameter pos "'%s' invalid define parameter." |> cont
 
     [<TailCall>]
-    let rec bindDefineValues envs cont formals =
+    let rec bindDefineValues pos envs cont =
         function
-        | [] -> formals |> Ok |> cont
+        | [] -> Ok(SUnspecified, pos) |> cont
         | (variable, expression) :: bindings ->
             expression
             |> Eval.eval envs (function
                 | Ok value ->
                     Context.defineEnvVar envs variable value
-                    bindings |> bindDefineValues envs cont formals
+                    bindings |> bindDefineValues pos envs cont
                 | x -> x |> cont)
 
     [<TailCall>]
@@ -811,7 +891,7 @@ module SpecialForm =
                     | Ok bindings ->
                         bindings
                         |> List.map (fun (v, r) -> v, r.Value)
-                        |> bindDefineValues envs cont formals
+                        |> bindDefineValues pos envs cont
                     | Error e -> Error e |> cont
                 | x -> x |> cont)
         | x -> x |> invalidParameter pos "'%s' invalid define-values parameter." |> cont
@@ -927,7 +1007,7 @@ module SpecialForm =
                         |> Option.iter (fun modifierName ->
                             defineProc modifierName (recordFieldModifierProc typeId name idx modifierName)))
 
-                    Ok(SSymbol name, pos) |> cont
+                    Ok(SUnspecified, pos) |> cont
                 | Error e -> Error e |> cont
             | Error e -> Error e |> cont
         | x -> x |> invalidParameter pos "'%s' invalid define-record-type parameter." |> cont

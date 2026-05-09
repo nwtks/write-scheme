@@ -41,7 +41,11 @@ let ``eqv?`` () =
     "(eqv? 1 \"1\")" |> rep |> should equal "#f"
     "(eqv? '#(1 2 3) '#(1 2 3))" |> rep |> should equal "#f"
     "(eqv? #u8(1 2 3) #u8(1 2 3))" |> rep |> should equal "#f"
-    "(eqv? (values 1 2) (values 1 2))" |> rep |> should equal "#f"
+
+    "(eqv? (values 1 2) (values 1 2))"
+    |> rep
+    |> should startWith "Multiple values in single value context."
+
     "(let ((p \"a\")) (eqv? p p))" |> rep |> should equal "#t"
     "(eqv? '() '())" |> rep |> should equal "#t"
     "(eqv? (cons 1 2) (cons 1 2))" |> rep |> should equal "#f"
@@ -99,9 +103,11 @@ let ``equal?`` () =
     "(equal? #u8(1) #u8(1 2))" |> rep |> should equal "#f"
     "(equal? #u8(1 2) #u8(1 2 3))" |> rep |> should equal "#f"
     "(equal? #u8(1 2) #u8(1 3))" |> rep |> should equal "#f"
-    "(equal? (values 1 2) (values 1 2))" |> rep |> should equal "#t"
-    "(equal? (values 1 2) (values 1 3))" |> rep |> should equal "#f"
-    "(equal? (values 1 2) (values 1 2 3))" |> rep |> should equal "#f"
+
+    "(equal? (values 1 2) (values 1 2))"
+    |> rep
+    |> should startWith "Multiple values in single value context."
+
     "(let ((p \"a\")) (equal? p p))" |> rep |> should equal "#t"
     "(equal? '() '())" |> rep |> should equal "#t"
     "(equal? (cons 1 2) (cons 1 2))" |> rep |> should equal "#t"
