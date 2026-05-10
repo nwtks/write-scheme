@@ -44,10 +44,6 @@ module Builtin =
               "define-syntax", (SSyntax sDefineSyntax, None) |> ref
               "define-record-type", (SSyntax sDefineRecordType, None) |> ref
               "define-library", (SSyntax sDefineLibrary, None) |> ref
-              "force", (SProcedure sForce, None) |> ref
-              "promise?", (SProcedure isPromise, None) |> ref
-              "make-promise", (SProcedure sMakePromise, None) |> ref
-              "make-parameter", (SProcedure sMakeParameter, None) |> ref
               "eqv?", (SProcedure isEqv, None) |> ref
               "eq?", (SProcedure isEqv, None) |> ref
               "equal?", (SProcedure isEqual, None) |> ref
@@ -246,6 +242,10 @@ module Builtin =
               "error-object?", (SProcedure isErrorObject, None) |> ref
               "error-object-message", (SProcedure sErrorObjectMessage, None) |> ref
               "error-object-irritants", (SProcedure sErrorObjectIrritants, None) |> ref
+              "force", (SProcedure sForce, None) |> ref
+              "promise?", (SProcedure isPromise, None) |> ref
+              "make-promise", (SProcedure sMakePromise, None) |> ref
+              "make-parameter", (SProcedure sMakeParameter, None) |> ref
               "display", (SProcedure sDisplay, None) |> ref
               "load", (SProcedure sLoad, None) |> ref ]
 

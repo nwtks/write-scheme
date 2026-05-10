@@ -26,27 +26,28 @@ dotnet test
 | Integer / Rational | `42`, `-1`, `1/2`, `10/3` |
 | Real | `3.14`, `1e2`, `+inf.0`, `-inf.0`, `+nan.0` |
 | Complex | `1+2i`, `1@1.57` (polar) |
+| Numeric radix | `#x1F` (hex), `#o17` (octal), `#b1010` (binary) |
+| Exactness | `#e1.0` (exact), `#i1/2` (inexact) |
 | String | `"hello"`, `"\n"`, `"\x3071;"` (ぱ) |
 | Character | `#\a`, `#\space`, `#\newline`, `#\x3071` |
 | Symbol | `foo`, `+`, `list->vector`, `|two words|` |
 | Pair / List | `(1 2 3)`, `(a . b)` |
 | Vector | `#(1 2 3)` |
 | Bytevector | `#u8(0 10 255)` |
-| Numeric radix | `#x1F` (hex), `#o17` (octal), `#b1010` (binary) |
-| Exactness | `#e1.0` (exact), `#i1/2` (inexact) |
 
 ### Special Forms
 
 | Syntax | Description |
 |--------|-------------|
 | `quote`, `'` | Quotation |
-| `quasiquote`, `` ` `` | Quasiquotation (`unquote` `,` / `unquote-splicing` `,@`) |
 | `lambda` | Closure creation (variadic `. rest` supported) |
-| `set!` | Variable assignment |
 | `if` | Conditional branching |
+| `set!` | Variable assignment |
+| `include`, `include-ci` | File inclusion (ci: case-insensitive) |
 | `cond`, `case` | Multi-way conditional (`else`, `=>` supported) |
 | `and`, `or` | Short-circuit evaluation |
 | `when`, `unless` | Conditional execution |
+| `cond-expand` | Feature-based conditional expansion |
 | `let`, `let*`, `letrec`, `letrec*` | Local bindings |
 | `let-values`, `let*-values` | Binding multiple values in a local scope |
 | `begin` | Sequential execution |
@@ -54,17 +55,17 @@ dotnet test
 | `delay`, `delay-force` | Lazy evaluation (promises) |
 | `parameterize` | Dynamic binding of parameters |
 | `guard` | Exception handling with condition matching |
+| `quasiquote`, `` ` `` | Quasiquotation (`unquote` `,` / `unquote-splicing` `,@`) |
+| `case-lambda` | Case-based lambda creation |
 | `let-syntax`, `letrec-syntax` | Local macro bindings |
 | `syntax-rules` | Hygienic macros (R7RS compliant: flexible ellipsis positions, custom ellipsis symbols, and escaping support) |
 | `syntax-error` | Signalling a syntax error at expansion time |
-| `include`, `include-ci` | File inclusion (ci: case-insensitive) |
-| `cond-expand` | Feature-based conditional expansion |
 | `import` | R7RS import sets (`only`, `except`, `prefix`, `rename` supported) |
-| `define-library` | R7RS library definition |
 | `define` | Variable / procedure definition (Tail-recursive internal definitions supported) |
 | `define-values` | Binding multiple values returned by an expression |
 | `define-syntax` | Syntax definition |
 | `define-record-type` | R7RS record type definition |
+| `define-library` | R7RS library definition |
 
 ### Performance & Reliability
 
@@ -82,49 +83,238 @@ dotnet test
 ### Built-in Procedures
 
 #### Equivalence
-`eqv?`, `eq?`, `equal?`
+`eqv?`,
+`eq?`,
+`equal?`
 
 #### Numeric
-`+`, `-`, `*`, `/`, `=`, `<`, `>`, `<=`, `>=`, `number?`, `complex?`, `real?`, `rational?`, `integer?`, `exact?`, `inexact?`, `exact-integer?`, `finite?`, `infinite?`, `nan?`, `zero?`, `positive?`, `negative?`, `odd?`, `even?`, `make-rectangular`, `make-polar`, `real-part`, `imag-part`, `magnitude`, `angle`, `number->string`, `string->number`
+`number?`,
+`complex?`,
+`real?`,
+`rational?`,
+`integer?`,
+`exact?`,
+`inexact?`,
+`exact-integer?`,
+`finite?`,
+`infinite?`,
+`nan?`,
+`=`,
+`<`,
+`>`,
+`<=`,
+`>=`,
+`zero?`,
+`positive?`,
+`negative?`,
+`odd?`,
+`even?`,
+`max`,
+`min`,
+`+`,
+`*`,
+`-`,
+`/`,
+`abs`,
+`floor/`,
+`floor-quotient`,
+`floor-remainder`,
+`truncate/`,
+`truncate-quotient`,
+`truncate-remainder`,
+`quotient`,
+`remainder`,
+`modulo`,
+`gcd`,
+`lcm`,
+`numerator`,
+`denominator`,
+`floor`,
+`ceiling`,
+`truncate`,
+`round`,
+`rationalize`,
+`exp`,
+`log`,
+`sin`,
+`cos`,
+`tan`,
+`asin`,
+`acos`,
+`atan`,
+`square`,
+`sqrt`,
+`exact-integer-sqrt`,
+`expt`,
+`make-rectangular`,
+`make-polar`,
+`real-part`,
+`imag-part`,
+`magnitude`,
+`angle`,
+`inexact`,
+`exact`,
+`number->string`,
+`string->number`
 
 #### Boolean
-`not`, `boolean?`, `boolean=?`
+`not`,
+`boolean?`,
+`boolean=?`
 
 #### List Operations
-`cons`, `car`, `cdr`, `caar`...`cddr`, `set-car!`, `set-cdr!`, `pair?`, `null?`, `list?`, `make-list`, `list`, `length`, `append`, `reverse`, `list-tail`, `list-ref`, `memq`, `memv`, `member`, `assq`, `assv`, `assoc`, `list-copy`
+`pair?`,
+`cons`,
+`car`,
+`cdr`,
+`caar`...`cddr`,
+`set-car!`,
+`set-cdr!`,
+`null?`,
+`list?`,
+`make-list`,
+`list`,
+`length`,
+`append`,
+`reverse`,
+`list-tail`,
+`list-ref`,
+`list-set!`,
+`memq`,
+`memv`,
+`member`,
+`assq`,
+`assv`,
+`assoc`,
+`list-copy`
 
 #### Symbol Operations
-`symbol?`, `symbol=?`, `symbol->string`, `string->symbol`
+`symbol?`,
+`symbol=?`,
+`symbol->string`,
+`string->symbol`
 
 #### Character Operations
-`char?`, `char=?`, `char<?`, `char>?`, `char<=?`, `char>=?`, `char-ci=?`, `char-ci<?`, `char-ci>?`, `char-ci<=?`, `char-ci>=?`, `char-alphabetic?`, `char-numeric?`, `char-whitespace?`, `char-upper-case?`, `char-lower-case?`, `digit-value`, `char->integer`, `integer->char`, `char-upcase`, `char-downcase`, `char-foldcase`
+`char?`,
+`char=?`,
+`char<?`,
+`char>?`,
+`char<=?`,
+`char>=?`,
+`char-ci=?`,
+`char-ci<?`,
+`char-ci>?`,
+`char-ci<=?`,
+`char-ci>=?`,
+`char-alphabetic?`,
+`char-numeric?`,
+`char-whitespace?`,
+`char-upper-case?`,
+`char-lower-case?`,
+`digit-value`,
+`char->integer`,
+`integer->char`,
+`char-upcase`,
+`char-downcase`,
+`char-foldcase`
 
 #### String Operations
-`string?`, `make-string`, `string`, `string-length`, `string-ref`, `string-set!`, `string=?`, `string<?`, `string>?`, `string<=?`, `string>=?`, `string-ci=?`, `string-ci<?`, `string-ci>?`, `string-ci<=?`, `string-ci>=?`, `string-upcase`, `string-downcase`, `string-foldcase`, `substring`, `string-append`, `string->list`, `list->string`, `string-copy`, `string-copy!`, `string-fill!`
+`string?`,
+`make-string`,
+`string`,
+`string-length`,
+`string-ref`,
+`string-set!`,
+`string=?`,
+`string<?`,
+`string>?`,
+`string<=?`,
+`string>=?`,
+`string-ci=?`,
+`string-ci<?`,
+`string-ci>?`,
+`string-ci<=?`,
+`string-ci>=?`,
+`string-upcase`,
+`string-downcase`,
+`string-foldcase`,
+`substring`,
+`string-append`,
+`string->list`,
+`list->string`,
+`string-copy`,
+`string-copy!`,
+`string-fill!`
 
 #### Vector Operations
-`vector?`, `make-vector`, `vector`, `vector-length`, `vector-ref`, `vector-set!`, `vector->list`, `list->vector`, `vector->string`, `string->vector`, `vector-copy`, `vector-copy!`, `vector-append`, `vector-fill!`
+`vector?`,
+`make-vector`,
+`vector`,
+`vector-length`,
+`vector-ref`,
+`vector-set!`,
+`vector->list`,
+`list->vector`,
+`vector->string`,
+`string->vector`,
+`vector-copy`,
+`vector-copy!`,
+`vector-append`,
+`vector-fill!`
 
 #### Bytevector Operations
-`bytevector?`, `make-bytevector`, `bytevector`, `bytevector-length`, `bytevector-u8-ref`, `bytevector-u8-set!`, `bytevector-copy`, `bytevector-copy!`, `bytevector-append`, `utf8->string`, `string->utf8`
+`bytevector?`,
+`make-bytevector`,
+`bytevector`,
+`bytevector-length`,
+`bytevector-u8-ref`,
+`bytevector-u8-set!`,
+`bytevector-copy`,
+`bytevector-copy!`,
+`bytevector-append`,
+`utf8->string`,
+`string->utf8`
 
 #### Higher-Order Functions
-`apply`, `map`, `string-map`, `vector-map`, `for-each`, `string-for-each`, `vector-for-each`
+`procedure?`,
+`apply`,
+`map`,
+`string-map`,
+`vector-map`,
+`for-each`,
+`string-for-each`,
+`vector-for-each`
 
 #### Continuations & Control
-`call/cc`, `call-with-current-continuation`, `values`, `call-with-values`, `dynamic-wind`
-
-#### Lazy Evaluation
-`delay`, `delay-force`, `force`, `promise?`, `make-promise`
+`call-with-current-continuation`,
+`call/cc`,
+`values`,
+`call-with-values`,
+`dynamic-wind`
 
 #### Exception Handling
-`with-exception-handler`, `raise`, `error`, `error-object?`, `error-object-message`, `error-object-irritants`
+`with-exception-handler`,
+`raise`,
+`raise-continuable`,
+`error`,
+`error-object?`,
+`error-object-message`,
+`error-object-irritants`
+
+#### Lazy Evaluation
+`delay`,
+`delay-force`,
+`force`,
+`promise?`,
+`make-promise`
 
 #### Parameters
-`make-parameter`, `parameterize`
+`make-parameter`,
+`parameterize`
 
 #### I/O
-`display`, `load`
+`display`,
+`load`
 
 ## R7RS Compliance & Known Issues
 
