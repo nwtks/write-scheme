@@ -100,3 +100,83 @@ module Eval =
             |> eval envs (function
                 | Ok a -> xs |> eachEval envs cont (Ok a)
                 | x -> x |> cont)
+
+    [<TailCall>]
+    let rec getVariablesFromFormals acc =
+        function
+        | SEmpty, _ -> acc |> List.rev
+        | SSymbol v, _ -> v :: acc |> List.rev
+        | SPair { car = SSymbol v, _; cdr = rest }, _ -> rest |> getVariablesFromFormals (v :: acc)
+        | _ -> acc |> List.rev
+
+    let getDefinedVars =
+        function
+        | SPair { car = SSymbol "define", _
+                  cdr = SPair { car = body; cdr = _ }, _ },
+          _ ->
+            match body with
+            | SSymbol var, _ -> [ var ]
+            | SPair { car = SSymbol var, _; cdr = _ }, _ -> [ var ]
+            | _ -> []
+        | SPair { car = SSymbol "define-values", _
+                  cdr = SPair { car = formals; cdr = _ }, _ },
+          _ -> formals |> getVariablesFromFormals []
+        | _ -> []
+
+    [<TailCall>]
+    let rec collectInternalDefinitions acc =
+        function
+        | [] -> List.rev acc, []
+        | [] :: stack -> stack |> collectInternalDefinitions acc
+        | (head :: rest) :: stack ->
+            match head with
+            | SPair { car = SSymbol "define", _; cdr = _ }, _
+            | SPair { car = SSymbol "define-values", _
+                      cdr = _ },
+              _ -> rest :: stack |> collectInternalDefinitions (head :: acc)
+            | SPair { car = SSymbol "begin", _
+                      cdr = inner },
+              _ ->
+                match inner |> toList with
+                | Ok ilist -> ilist :: rest :: stack |> collectInternalDefinitions acc
+                | Error _ -> List.rev acc, head :: rest @ List.concat stack
+            | _ -> List.rev acc, head :: rest @ List.concat stack
+
+    let isDefinition =
+        function
+        | SPair { car = SSymbol "define", _; cdr = _ }, _ -> true
+        | SPair { car = SSymbol "define-values", _
+                  cdr = _ },
+          _ -> true
+        | _ -> false
+
+    let evalBody envs cont acc body =
+        let defs, exprs = [ body ] |> collectInternalDefinitions []
+
+        match exprs |> List.tryFind isDefinition with
+        | Some(_, pos) ->
+            EvalError("Definitions must appear at the beginning of a body.", pos)
+            |> Error
+            |> cont
+        | None ->
+            if List.isEmpty defs then
+                body |> eachEval envs cont acc
+            else if List.isEmpty exprs then
+                EvalError("Internal definitions must be followed by at least one expression.", snd (List.last defs))
+                |> Error
+                |> cont
+            else
+                let vars = defs |> List.collect getDefinedVars |> List.distinct
+
+                let envs' =
+                    vars
+                    |> List.map (fun v -> v, ref (SUnspecified, None))
+                    |> Context.extendEnvs envs
+
+                defs
+                |> eachEval
+                    envs'
+                    (function
+                    | Ok _ -> exprs |> eachEval envs' cont acc
+                    | x -> x |> cont)
+                    (Ok(SUnspecified, None))

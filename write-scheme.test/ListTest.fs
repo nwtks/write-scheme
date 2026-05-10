@@ -153,11 +153,11 @@ let ``list-set!`` () =
 
     "(let ((x (list 'a 'b 'c))) (list-set! x 3 'z))"
     |> rep
-    |> should startWith "Out of range "
+    |> should startWith "Out of range or not a pair in list-set!."
 
     "(let ((x (list 'a 'b 'c))) (list-set! x -1 'z))"
     |> rep
-    |> should startWith "'((a b c) -1 z)' invalid list-set!"
+    |> should startWith "'((a b c) -1 z)' invalid list-set! parameter."
 
 [<Fact>]
 let ``memq`` () =

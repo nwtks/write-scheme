@@ -368,7 +368,7 @@ module Macro =
     [<TailCall>]
     let rec trySyntaxRules defEnvs useEnvs pos cont ellipsis literalSet args =
         function
-        | [] -> EvalError("no matching syntax-rules pattern.", pos) |> Error |> cont
+        | [] -> EvalError("No matching syntax-rules pattern.", pos) |> Error |> cont
         | (elements, template) :: rest ->
             elements
             |> matchPatternList defEnvs useEnvs literalSet ellipsis args (function

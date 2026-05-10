@@ -5,6 +5,9 @@ open FsUnit.Xunit
 
 let rep = WriteScheme.Repl.rep WriteScheme.Builtin.builtin
 
+let repEnvs () =
+    WriteScheme.Repl.newEnvs () |> WriteScheme.Repl.rep
+
 [<Fact>]
 let ``procedure?`` () =
     "(procedure? car)" |> rep |> should equal "#t"
@@ -82,6 +85,8 @@ let ``vector-for-each`` () =
 
 [<Fact>]
 let ``call-with-current-continuation`` () =
+    let rep = repEnvs ()
+
     "(define list-length
        (lambda (obj)
          (call-with-current-continuation
@@ -99,11 +104,3 @@ let ``call-with-current-continuation`` () =
 
     "(list-length '(a b c d))" |> rep |> should equal "4"
     "(list-length '(a b . c))" |> rep |> should equal "#f"
-
-[<Fact>]
-let ``values`` () =
-    "(call-with-values (lambda () (values 1 2 3)) list)"
-    |> rep
-    |> should equal "(1 2 3)"
-
-    "(values 42)" |> rep |> should equal "42"

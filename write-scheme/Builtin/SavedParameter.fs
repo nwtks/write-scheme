@@ -39,7 +39,7 @@ module SavedParameter =
                 Ok(SUnspecified, pos) |> cont
 
             let thunk envs pos cont _ =
-                body |> Eval.eachEval envs cont (Ok(SEmpty, pos))
+                body |> Eval.evalBody envs cont (Ok(SUnspecified, pos))
 
             doAroundProc envs cont (SProcedure before, pos) (SProcedure thunk, pos) (SProcedure after, pos)
         | (param, value) :: parameters ->

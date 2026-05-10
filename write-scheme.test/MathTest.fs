@@ -363,7 +363,7 @@ let truncate () =
 [<Fact>]
 let round () =
     "(round 1.5)" |> rep |> should equal "2"
-    "(round 2.5)" |> rep |> should equal "2" // Ties to even in .NET/R7RS? R7RS says ties to even.
+    "(round 2.5)" |> rep |> should equal "2"
     "(round 3.5)" |> rep |> should equal "4"
     "(round 5/2)" |> rep |> should equal "2"
     "(round 7/2)" |> rep |> should equal "4"

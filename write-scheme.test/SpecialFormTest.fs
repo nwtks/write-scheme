@@ -21,6 +21,8 @@ let quote () =
 
 [<Fact>]
 let ``lambda`` () =
+    let rep = repEnvs ()
+
     "((lambda (x) (+ x x)) 4)" |> rep |> should equal "8"
     "((lambda x x))" |> rep |> should equal "()"
     "((lambda x x) 1)" |> rep |> should equal "(1)"
@@ -45,6 +47,8 @@ let ``if`` () =
 
 [<Fact>]
 let ``set!`` () =
+    let rep = repEnvs ()
+
     "(define x 2)" |> rep |> ignore
     "(+ x 1)" |> rep |> should equal "3"
     "(set! x 4)" |> rep |> ignore
@@ -148,10 +152,12 @@ let ``cond-expand`` () =
 
     "(cond-expand (unsupported-feature 'no))"
     |> rep
-    |> should startWith "No matching clause"
+    |> should startWith "No matching clause in cond-expand."
 
 [<Fact>]
 let ``let`` () =
+    let rep = repEnvs ()
+
     "(let ((a 1) (A 2)) (list a A))" |> rep |> should equal "(1 2)"
     "(let ((x 2) (y 3)) (* x y))" |> rep |> should equal "6"
 
@@ -194,6 +200,8 @@ let ``let`` () =
 
 [<Fact>]
 let ``let*`` () =
+    let rep = repEnvs ()
+
     "(let ((x 2) (y 3)) (let* ((x 7) (z (+ x y))) (* z x)))"
     |> rep
     |> should equal "70"
@@ -202,6 +210,8 @@ let ``let*`` () =
 
 [<Fact>]
 let ``letrec`` () =
+    let rep = repEnvs ()
+
     "(letrec
       ((even?
         (lambda (n)
@@ -223,6 +233,8 @@ let ``letrec`` () =
 
 [<Fact>]
 let ``letrec*`` () =
+    let rep = repEnvs ()
+
     "(letrec*
       ((p (lambda (x) (+ 1 (q (- x 1)))))
        (q (lambda (y) (if (= y 0) 0 (+ 1 (p (- y 1))))))
@@ -243,6 +255,8 @@ let ``letrec*`` () =
 
 [<Fact>]
 let ``let-values`` () =
+    let rep = repEnvs ()
+
     "(let-values (((a b) (values 1 2))) (+ a b))" |> rep |> should equal "3"
 
     "(let-values (((a b c) (values 1 2 3)) ((d) (values 4))) (+ a b c d))"
@@ -257,6 +271,8 @@ let ``let-values`` () =
 
 [<Fact>]
 let ``let*-values`` () =
+    let rep = repEnvs ()
+
     "(let*-values (((a b) (values 1 2))
                    ((c d) (values a b)))
        (+ a b c d))"
@@ -273,6 +289,8 @@ let ``let*-values`` () =
 
 [<Fact>]
 let ``values and call-with-values`` () =
+    let rep = repEnvs ()
+
     "(call-with-values (lambda () (values 1 2)) +)" |> rep |> should equal "3"
 
     "(call-with-values (lambda () (values 4 5)) (lambda (a b) b))"
@@ -317,6 +335,8 @@ let ``begin`` () =
 
 [<Fact>]
 let ``do`` () =
+    let rep = repEnvs ()
+
     "(do ((vec (make-vector 5))
           (i 0 (+ i 1)))
          ((= i 5) vec)
@@ -336,6 +356,8 @@ let ``do`` () =
 
 [<Fact>]
 let ``delay`` () =
+    let rep = repEnvs ()
+
     "(force (delay (+ 1 2)))" |> rep |> should equal "3"
     "(force (make-promise 42))" |> rep |> should equal "42"
 
@@ -348,12 +370,16 @@ let ``delay`` () =
 
 [<Fact>]
 let ``delay-force`` () =
+    let rep = repEnvs ()
+
     "(force (delay-force (delay (delay-force (delay 10)))))"
     |> rep
     |> should equal "10"
 
 [<Fact>]
 let ``parameterize`` () =
+    let rep = repEnvs ()
+
     "(define radix (make-parameter 10))" |> rep |> ignore
     "(radix)" |> rep |> should equal "10"
     "(parameterize ((radix 16)) (radix))" |> rep |> should equal "16"
@@ -393,6 +419,8 @@ let ``parameterize`` () =
 
 [<Fact>]
 let ``guard`` () =
+    let rep = repEnvs ()
+
     "(guard (condition
              (else 'caught))
        (+ 1 2))"
@@ -421,6 +449,8 @@ let ``guard`` () =
 
 [<Fact>]
 let ``let-syntax`` () =
+    let rep = repEnvs ()
+
     "(let-syntax ((when (syntax-rules ()
                           ((when test stmt1 stmt2 ...)
                            (if test
@@ -433,6 +463,8 @@ let ``let-syntax`` () =
 
 [<Fact>]
 let ``letrec-syntax`` () =
+    let rep = repEnvs ()
+
     "(letrec-syntax ((my-or (syntax-rules ()
                               ((my-or) #f)
                               ((my-or e) e)
@@ -517,6 +549,8 @@ let ``quasiquote`` () =
 
 [<Fact>]
 let ``case-lambda`` () =
+    let rep = repEnvs ()
+
     "(define f (case-lambda (() 0) ((x) 1) ((x y) 2) ((x y . z) 3)))"
     |> rep
     |> should equal "#<unspecified>"
@@ -527,11 +561,18 @@ let ``case-lambda`` () =
     "(f 1 2 3)" |> rep |> should equal "3"
     "(f 1 2 3 4)" |> rep |> should equal "3"
 
-    "((case-lambda) 1)" |> rep |> should startWith "No matching clause"
-    "((case-lambda ((x) x)) 1 2)" |> rep |> should startWith "No matching clause"
+    "((case-lambda) 1)"
+    |> rep
+    |> should startWith "No matching clause in case-lambda."
+
+    "((case-lambda ((x) x)) 1 2)"
+    |> rep
+    |> should startWith "No matching clause in case-lambda."
 
 [<Fact>]
 let ``define`` () =
+    let rep = repEnvs ()
+
     "(define add3 (lambda (x) (+ x 3)))" |> rep |> should equal "#<unspecified>"
     "(add3 3)" |> rep |> should equal "6"
 
@@ -543,6 +584,21 @@ let ``define`` () =
 
     "(define (add . xs) (apply + xs))" |> rep |> ignore
     "(add 1 2 3)" |> rep |> should equal "6"
+
+    "(let () (begin (define x 1) (define y 2)) (+ x y))" |> rep |> should equal "3"
+    "(let () (define x 1) (define y 2) (+ x y))" |> rep |> should equal "3"
+
+    "(let () (define (even? n) (if (= n 0) #t (odd? (- n 1)))) (define (odd? n) (if (= n 0) #f (even? (- n 1)))) (even? 10))"
+    |> rep
+    |> should equal "#t"
+
+    "(let () (define x 1) (+ x 1) (define y 2) (+ x y))"
+    |> rep
+    |> should startWith "Definitions must appear at the beginning of a body."
+
+    "(let () (define x 1))"
+    |> rep
+    |> should startWith "Internal definitions must be followed by at least one expression."
 
 [<Fact>]
 let ``define-values`` () =
@@ -558,8 +614,12 @@ let ``define-values`` () =
     "(define-values (z) 42)" |> rep |> ignore
     "z" |> rep |> should equal "42"
 
+    "(let () (define-values (x y) (values 1 2)) (+ x y))" |> rep |> should equal "3"
+
 [<Fact>]
 let ``define-record-type`` () =
+    let rep = repEnvs ()
+
     "(define-record-type <p> (make-p x y) p? (x get-x) (y get-y set-y!))"
     |> rep
     |> ignore
@@ -589,6 +649,8 @@ let ``promise?`` () =
 
 [<Fact>]
 let ``make-parameter`` () =
+    let rep = repEnvs ()
+
     "(define p (make-parameter 0 (lambda (x) (* x 2))))" |> rep |> ignore
     "(p)" |> rep |> should equal "0"
     "(p 10)" |> rep |> should equal "20"

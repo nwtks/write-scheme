@@ -3,10 +3,13 @@ module WriteScheme.Tests.ExceptionTest
 open Xunit
 open FsUnit.Xunit
 
-let rep = WriteScheme.Repl.rep WriteScheme.Builtin.builtin
+let repEnvs () =
+    WriteScheme.Repl.newEnvs () |> WriteScheme.Repl.rep
 
 [<Fact>]
 let ``with-exception-handler`` () =
+    let rep = repEnvs ()
+
     "(with-exception-handler
        (lambda (e) (+ e 100))
        (lambda () (raise 1)))"
@@ -40,6 +43,8 @@ let ``with-exception-handler`` () =
 
 [<Fact>]
 let ``error and error-object?`` () =
+    let rep = repEnvs ()
+
     "(with-exception-handler
        (lambda (e)
          (list (error-object? e)

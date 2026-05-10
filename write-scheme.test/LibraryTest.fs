@@ -7,11 +7,15 @@ open WriteScheme.Type
 
 module LibraryTest =
     let evalAll input =
-        let envs = Context.extendEnvs Builtin.builtin []
-
         match Read.readAll false input with
-        | Ok exprs -> exprs |> Eval.eachEval envs id (Ok(SUnspecified, None))
+        | Ok exprs -> exprs |> Eval.eachEval (Repl.newEnvs ()) id (Ok(SUnspecified, None))
         | Error _ -> failwith "Parse failed"
+
+    let check input expected =
+        match evalAll input with
+        | Ok res -> Print.print res |> should equal expected
+        | Error(EvalError(msg, _)) -> failwithf "Eval failed: %s" msg
+        | Error e -> failwithf "Eval failed: %A" e
 
     [<Fact>]
     let ``define-library exports and imports correctly`` () =
@@ -22,7 +26,6 @@ module LibraryTest =
             (import (scheme base))
             (begin
                 (define (hello) "hello world")))
-
         (begin
             (import (example hello))
             (hello))
@@ -42,7 +45,6 @@ module LibraryTest =
             (begin
                 (define hidden-val 42)
                 (define (get-hidden) hidden-val)))
-
         (import (example hidden))
         (get-hidden)
         """
@@ -73,7 +75,6 @@ module LibraryTest =
             (cond-expand
                 (r7rs (begin (define cond-val 12)))
                 (else (begin (define cond-val 0)))))
-
         (import (example complex))
         (+ (helper1) (+ (helper2) cond-val))
         """
@@ -91,3 +92,81 @@ module LibraryTest =
             System.IO.File.Delete tempFile1
             System.IO.File.Delete tempFile2
             System.IO.File.Delete tempFile3
+
+    [<Fact>]
+    let ``import sets: only`` () =
+        let input =
+            """
+        (define-library (lib) (export a b c) (import (scheme base)) (begin (define a 1) (define b 2) (define c 3)))
+        (import (only (lib) a c))
+        (list a c)
+        """
+
+        check input "(1 3)"
+
+    [<Fact>]
+    let ``import sets: except`` () =
+        let input =
+            """
+        (define-library (lib) (export a b c) (import (scheme base)) (begin (define a 1) (define b 2) (define c 3)))
+        (import (except (lib) b))
+        (list a c)
+        """
+
+        check input "(1 3)"
+
+    [<Fact>]
+    let ``import sets: prefix`` () =
+        let input =
+            """
+        (define-library (lib) (export a b) (import (scheme base)) (begin (define a 1) (define b 2)))
+        (import (prefix (lib) pre:))
+        (list pre:a pre:b)
+        """
+
+        check input "(1 2)"
+
+    [<Fact>]
+    let ``import sets: rename`` () =
+        let input =
+            """
+        (define-library (lib) (export a b) (import (scheme base)) (begin (define a 1) (define b 2)))
+        (import (rename (lib) (a x) (b y)))
+        (list x y)
+        """
+
+        check input "(1 2)"
+
+    [<Fact>]
+    let ``import sets: nested`` () =
+        let input =
+            """
+        (define-library (lib) (export a b c) (import (scheme base)) (begin (define a 1) (define b 2) (define c 3)))
+        (import (prefix (only (lib) a b) p:))
+        (list p:a p:b)
+        """
+
+        check input "(1 2)"
+
+    [<Fact>]
+    let ``import sets: error cases`` () =
+        let lib =
+            "(define-library (lib) (export a) (import (scheme base)) (begin (define a 1)))"
+
+        sprintf "%s (import (only (lib) b))" lib
+        |> evalAll
+        |> function
+            | Error(EvalError(msg, _)) -> msg |> should startWith "only: identifier 'b' not exported."
+            | _ -> failwith "Expected error"
+
+        sprintf "%s (import (except (lib) b))" lib
+        |> evalAll
+        |> function
+            | Error(EvalError(msg, _)) -> msg |> should startWith "except: identifier 'b' not exported."
+            | _ -> failwith "Expected error"
+
+        sprintf "%s (import (rename (lib) (b x)))" lib
+        |> evalAll
+        |> function
+            | Error(EvalError(msg, _)) -> msg |> should startWith "rename: identifier 'b' not exported."
+            | _ -> failwith "Expected error"

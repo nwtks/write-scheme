@@ -260,8 +260,23 @@ let ``datum labels`` () =
     "'(#1=(#1#) #1#)" |> rep |> should equal "((...) (...))"
     "'(#1=(1 . #2=(2 . #1#)) . #2#)" |> rep |> should equal "((1 2 ...) 2 1 ...)"
     "'(#1=#(#1#))" |> rep |> should equal "(#(...))"
-    "'(#1=(#2#) #2=(#1#))" |> rep |> should startWith "Invalid forward reference"
-    "'(#1# #1=1)" |> rep |> should startWith "Invalid forward reference"
-    "'(#1=1 #1=2)" |> rep |> should startWith "Duplicate datum label"
-    "'#1=#1#" |> rep |> should startWith "Invalid circular reference"
-    "'(#1=#2# #2=#1# #1#)" |> rep |> should startWith "Invalid forward reference"
+
+    "'(#1=(#2#) #2=(#1#))"
+    |> rep
+    |> should startWith "Invalid forward reference for datum label: #2#"
+
+    "'(#1# #1=1)"
+    |> rep
+    |> should startWith "Invalid forward reference for datum label: #1#"
+
+    "'(#1=1 #1=2)"
+    |> rep
+    |> should startWith "Duplicate datum label definition: #1="
+
+    "'#1=#1#"
+    |> rep
+    |> should startWith "Invalid circular reference for datum label: #1#"
+
+    "'(#1=#2# #2=#1# #1#)"
+    |> rep
+    |> should startWith "Invalid forward reference for datum label: #2#"

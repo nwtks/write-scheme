@@ -250,7 +250,7 @@ let ``custom ellipsis with literals`` () =
 
     "(let ((lit 0)) (check-lit lit 1 2 3))"
     |> rep
-    |> should equal "no matching syntax-rules pattern."
+    |> should equal "No matching syntax-rules pattern."
 
 [<Fact>]
 let ``ellipsis escape in template`` () =

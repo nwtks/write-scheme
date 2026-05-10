@@ -38,7 +38,7 @@ module SpecialForm =
         function
         | [] ->
             body
-            |> Eval.eachEval (acc |> List.rev |> Context.extendEnvs envs) cont (Ok(SEmpty, pos))
+            |> Eval.evalBody (acc |> List.rev |> Context.extendEnvs envs) cont (Ok(SEmpty, pos))
         | (var, v) :: xs -> xs |> bindArgs envs pos cont body ((var, ref v) :: acc)
 
     let closure captureEnvs formals body envs pos cont args =
@@ -300,7 +300,7 @@ module SpecialForm =
         function
         | [] ->
             body
-            |> Eval.eachEval (acc |> List.rev |> Context.extendEnvs envs) cont (Ok(SUnspecified, pos))
+            |> Eval.evalBody (acc |> List.rev |> Context.extendEnvs envs) cont (Ok(SUnspecified, pos))
         | (variable, init) :: bindings ->
             init
             |> Eval.eval envs (function
@@ -337,7 +337,7 @@ module SpecialForm =
     [<TailCall>]
     let rec bindLetStar envs pos cont body =
         function
-        | [] -> body |> Eval.eachEval envs cont (Ok(SUnspecified, pos))
+        | [] -> body |> Eval.evalBody envs cont (Ok(SUnspecified, pos))
         | (variable, init) :: bindings ->
             init
             |> Eval.eval envs (function
@@ -360,7 +360,7 @@ module SpecialForm =
     [<TailCall>]
     let rec bindLetRec envs pos cont body =
         function
-        | [] -> body |> Eval.eachEval envs cont (Ok(SUnspecified, pos))
+        | [] -> body |> Eval.evalBody envs cont (Ok(SUnspecified, pos))
         | (variable, init) :: bindings ->
             init
             |> Eval.eval envs (function
@@ -390,7 +390,7 @@ module SpecialForm =
     let rec bindLetRecStar envs pos cont body =
         function
         | [], _
-        | _, [] -> body |> Eval.eachEval envs cont (Ok(SUnspecified, pos))
+        | _, [] -> body |> Eval.evalBody envs cont (Ok(SUnspecified, pos))
         | (_, init) :: bindings, refs: SExpression ref :: rs ->
             init
             |> Eval.eval envs (function
@@ -440,7 +440,7 @@ module SpecialForm =
         function
         | [] ->
             body
-            |> Eval.eachEval (acc |> List.rev |> Context.extendEnvs envs) cont (Ok(SUnspecified, pos))
+            |> Eval.evalBody (acc |> List.rev |> Context.extendEnvs envs) cont (Ok(SUnspecified, pos))
         | (vars, init) :: bindings ->
             init
             |> Eval.eval envs (function
@@ -473,7 +473,7 @@ module SpecialForm =
     [<TailCall>]
     let rec bindLetStarValues envs pos cont body =
         function
-        | [] -> body |> Eval.eachEval envs cont (Ok(SUnspecified, pos))
+        | [] -> body |> Eval.evalBody envs cont (Ok(SUnspecified, pos))
         | (vars, init) :: xs ->
             init
             |> Eval.eval envs (function
@@ -627,7 +627,7 @@ module SpecialForm =
             let savedWinders = envs.winders.Value
 
             body
-            |> Eval.eachEval
+            |> Eval.evalBody
                 envs
                 (function
                 | Ok res -> Ok res |> cont
@@ -874,43 +874,135 @@ module SpecialForm =
         | Ok parsedClauses -> Ok(SProcedure(caseClosure envs parsedClauses), pos) |> cont
         | Error e -> Error e |> cont
 
+    let processImportSetOnly cont ids =
+        function
+        | Ok bindings ->
+            match ids |> toList with
+            | Ok idList ->
+                let mutable result = Map.empty
+                let mutable err = None
+
+                idList
+                |> List.iter (function
+                    | SSymbol id, pos ->
+                        match bindings |> Map.tryFind id with
+                        | Some r -> result <- result |> Map.add id r
+                        | None -> err <- Some(EvalError(sprintf "only: identifier '%s' not exported." id, pos))
+                    | x -> err <- Some(EvalError("only: identifier expected.", snd x)))
+
+                match err with
+                | Some e -> Error e |> cont
+                | None -> Ok result |> cont
+            | Error e -> Error e |> cont
+        | x -> x |> cont
+
+    let processImportSetExcept cont ids =
+        function
+        | Ok bindings ->
+            match ids |> toList with
+            | Ok idList ->
+                let mutable result = bindings
+                let mutable err = None
+
+                idList
+                |> List.iter (function
+                    | SSymbol id, pos ->
+                        if bindings |> Map.containsKey id then
+                            result <- result |> Map.remove id
+                        else
+                            err <- Some(EvalError(sprintf "except: identifier '%s' not exported." id, pos))
+                    | x -> err <- Some(EvalError("except: identifier expected.", snd x)))
+
+                match err with
+                | Some e -> Error e |> cont
+                | None -> Ok result |> cont
+            | Error e -> Error e |> cont
+        | x -> x |> cont
+
+    let processImportSetPrefix cont prefix =
+        function
+        | Ok bindings ->
+            bindings
+            |> Map.toSeq
+            |> Seq.map (fun (name, r) -> prefix + name, r)
+            |> Map.ofSeq
+            |> Ok
+            |> cont
+        | x -> x |> cont
+
+    let processImportSetRename cont renames =
+        function
+        | Ok bindings ->
+            match renames |> toList with
+            | Ok renameList ->
+                let mutable result = bindings
+                let mutable err = None
+
+                renameList
+                |> List.iter (function
+                    | SPair { car = SSymbol fromId, _
+                              cdr = SPair { car = SSymbol toId, _
+                                            cdr = SEmpty, _ },
+                                    _ },
+                      pos ->
+                        match bindings |> Map.tryFind fromId with
+                        | Some r -> result <- result |> Map.remove fromId |> Map.add toId r
+                        | None -> err <- Some(EvalError(sprintf "rename: identifier '%s' not exported." fromId, pos))
+                    | x -> err <- Some(EvalError("rename: invalid rename clause.", snd x)))
+
+                match err with
+                | Some e -> Error e |> cont
+                | None -> Ok result |> cont
+            | Error e -> Error e |> cont
+        | x -> x |> cont
+
     [<TailCall>]
     let rec processImportSet envs pos cont =
         function
         | SPair { car = SSymbol "only", _
-                  cdr = SPair { car = imports; cdr = _ }, _ },
-          _
+                  cdr = SPair { car = inner; cdr = ids }, _ },
+          _ -> inner |> processImportSet envs pos (processImportSetOnly cont ids)
         | SPair { car = SSymbol "except", _
-                  cdr = SPair { car = imports; cdr = _ }, _ },
-          _
+                  cdr = SPair { car = inner; cdr = ids }, _ },
+          _ -> inner |> processImportSet envs pos (processImportSetExcept cont ids)
         | SPair { car = SSymbol "prefix", _
-                  cdr = SPair { car = imports; cdr = _ }, _ },
-          _
+                  cdr = SPair { car = inner
+                                cdr = SPair { car = SSymbol prefix, _
+                                              cdr = SEmpty, _ },
+                                      _ },
+                        _ },
+          _ -> inner |> processImportSet envs pos (processImportSetPrefix cont prefix)
         | SPair { car = SSymbol "rename", _
-                  cdr = SPair { car = imports; cdr = _ }, _ },
-          _ -> imports |> processImportSet envs pos cont
+                  cdr = SPair { car = inner; cdr = renames }, _ },
+          _ -> inner |> processImportSet envs pos (processImportSetRename cont renames)
         | imports ->
             match imports |> Context.lookupLibrary envs pos with
             | Ok lib ->
-                let currentEnv = envs.environments.Head
-
                 lib.exports
-                |> Set.iter (fun exportName ->
-                    match exportName |> Context.tryLookupEnv lib.env with
-                    | Some refVal -> currentEnv.Value <- currentEnv.Value |> Map.add exportName refVal
-                    | None -> ())
-
-                Ok(SUnspecified, pos) |> cont
+                |> Set.fold
+                    (fun acc name ->
+                        match name |> Context.tryLookupEnv lib.env with
+                        | Some r -> acc |> Map.add name r
+                        | None -> acc)
+                    Map.empty
+                |> Ok
+                |> cont
             | Error e -> Error e |> cont
 
     [<TailCall>]
     let rec sImport envs pos cont =
         function
         | [] -> Ok(SUnspecified, pos) |> cont
-        | imports :: rest ->
-            imports
+        | importSet :: rest ->
+            importSet
             |> processImportSet envs pos (function
-                | Ok _ -> rest |> sImport envs pos cont
+                | Ok bindings ->
+                    let currentEnv = envs.environments.Head
+
+                    bindings
+                    |> Map.iter (fun name refVal -> currentEnv.Value <- currentEnv.Value |> Map.add name refVal)
+
+                    rest |> sImport envs pos cont
                 | Error e -> Error e |> cont)
 
     let sDefine envs pos cont =
