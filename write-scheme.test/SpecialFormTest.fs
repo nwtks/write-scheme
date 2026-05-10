@@ -67,6 +67,9 @@ let cond () =
     |> should equal "((b 2) (c 3))"
 
     "(cond ((> 1 2) 'a) ((> 1 3) 'b))" |> rep |> should equal "#<unspecified>"
+    "(cond (#t))" |> rep |> should equal "#t"
+    "(cond (1))" |> rep |> should equal "1"
+    "(cond (#f) (else 42))" |> rep |> should equal "42"
 
 [<Fact>]
 let ``case`` () =
@@ -87,6 +90,7 @@ let ``case`` () =
     "(case 3 ((1 2) => (lambda (x) x)) (else 0))" |> rep |> should equal "0"
     "(case 1 ((1 2) 42 99))" |> rep |> should equal "99"
     "(case 3 ((1 2) 42) (else 0))" |> rep |> should equal "0"
+    "(case 1 (() 2) (else 3))" |> rep |> should equal "3"
 
 [<Fact>]
 let ``and`` () =
@@ -94,6 +98,7 @@ let ``and`` () =
     "(and (= 2 2) (< 2 1))" |> rep |> should equal "#f"
     "(and 1 2 'c '(f g))" |> rep |> should equal "(f g)"
     "(and)" |> rep |> should equal "#t"
+    "(and 1)" |> rep |> should equal "1"
 
 [<Fact>]
 let ``or`` () =
@@ -101,6 +106,7 @@ let ``or`` () =
     "(or (= 2 2) (< 2 1))" |> rep |> should equal "#t"
     "(or #f #f #f)" |> rep |> should equal "#f"
     "(or)" |> rep |> should equal "#f"
+    "(or 1)" |> rep |> should equal "1"
 
 [<Fact>]
 let ``when`` () =
@@ -332,6 +338,7 @@ let ``begin`` () =
     let rep = repEnvs ()
     "(define x 0)" |> rep |> ignore
     "(and (= x 0) (begin (set! x 5) (+ x 1)))" |> rep |> should equal "6"
+    "(begin)" |> rep |> should equal "#<unspecified>"
 
 [<Fact>]
 let ``do`` () =
@@ -631,6 +638,7 @@ let ``define-record-type`` () =
     "(get-y p1)" |> rep |> should equal "2"
     "(set-y! p1 10)" |> rep |> ignore
     "(get-y p1)" |> rep |> should equal "10"
+    "(list (make-p 1 2) (make-p 3 4))" |> rep |> should equal "(#<<p>> #<<p>>)"
 
     "(define-record-type <q> (make-q) q?)" |> rep |> ignore
     "(define q1 (make-q))" |> rep |> ignore

@@ -57,7 +57,11 @@ dotnet test
 | `let-syntax`, `letrec-syntax` | Local macro bindings |
 | `syntax-rules` | Hygienic macros (R7RS compliant: flexible ellipsis positions, custom ellipsis symbols, and escaping support) |
 | `syntax-error` | Signalling a syntax error at expansion time |
-| `define` | Variable / procedure definition |
+| `include`, `include-ci` | File inclusion (ci: case-insensitive) |
+| `cond-expand` | Feature-based conditional expansion |
+| `import` | R7RS import sets (`only`, `except`, `prefix`, `rename` supported) |
+| `define-library` | R7RS library definition |
+| `define` | Variable / procedure definition (Tail-recursive internal definitions supported) |
 | `define-values` | Binding multiple values returned by an expression |
 | `define-syntax` | Syntax definition |
 | `define-record-type` | R7RS record type definition |
@@ -65,6 +69,7 @@ dotnet test
 ### Performance & Reliability
 
 - **Stack-Safe Evaluator**: Systematic use of Jump-based CPS and tail-recursive accumulators across the evaluator, macro engine, and list builtins ensures that deep recursion and large list processing never cause stack overflows.
+- **Tail-recursive Internal Definitions**: Collection of internal definitions is performed tail-recursively, ensuring stack safety for large blocks of definitions.
 - **First-Class Continuations**: Full support for `call/cc` and `dynamic-wind` enabled by the CPS architecture.
 - **Hygienic Macros**: R7RS-compliant `syntax-rules` engine with support for flexible ellipsis positions, custom ellipsis symbols, and hygiene via automatic renaming.
 - **Robust Exception Handling**: R7RS `guard` and `with-exception-handler` integrated with the CPS flow for predictable and safe error management.
@@ -121,11 +126,9 @@ dotnet test
 
 ## R7RS Compliance & Known Issues
 
-This project aims for R7RS (Small) compliance. Current limitations and pending features include:
-
-- **Libraries**: The `define-library` system (modules) is not yet implemented.
+This project aims for R7RS (Small) compliance.
+Current limitations and pending features include:
 - **I/O**: File I/O procedures (ports) beyond `load` and `display` are not yet fully implemented.
-- **Macros**: While the `syntax-rules` engine is robust, some advanced R7RS edge cases in pattern matching may still be limited.
 
 ## Architecture
 
