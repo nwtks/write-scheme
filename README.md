@@ -76,6 +76,8 @@ dotnet test
 - **Source-Mapped Errors**: Runtime errors include line and column information from the source.
 - **R7RS Compliant Unicode Support**: Codepoint-aware string operations and full Unicode character support (Runes).
 - **Cycle Detection**: Robust handling of cyclic lists using Floyd's cycle-finding algorithm for predicates (`list?`, `length`) and visited-set tracking for the printer to prevent infinite loops.
+- **Numeric Tower**: Full support for integers, rationals, reals, and complex numbers.
+- **Exactness**: Integers and rationals are exact; reals and complex numbers are inexact. `exact` and `inexact` procedures handle conversions.
 
 ### Built-in Procedures
 

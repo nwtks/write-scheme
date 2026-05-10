@@ -115,3 +115,27 @@ let ``dynamic-wind different stacks jump`` () =
     |> ignore
 
     "path" |> rep |> should equal "(in1 out1 in2 out2 in1 out1)"
+
+[<Fact>]
+let ``dynamic-wind jump into`` () =
+    let rep = repEnvs ()
+
+    "(define path '())" |> rep |> ignore
+    "(define k #f)" |> rep |> ignore
+
+    "(dynamic-wind
+       (lambda () (set! path (append path '(out-in))))
+       (lambda ()
+         (dynamic-wind
+           (lambda () (set! path (append path '(in-in))))
+           (lambda () (call/cc (lambda (cont) (set! k cont))) (set! path (append path '(thunk))))
+           (lambda () (set! path (append path '(in-out))))))
+       (lambda () (set! path (append path '(out-out)))))"
+    |> rep
+    |> ignore
+
+    "(if k (let ((tmp k)) (set! k #f) (tmp #f)))" |> rep |> ignore
+
+    "path"
+    |> rep
+    |> should equal "(out-in in-in thunk in-out out-out out-in in-in thunk in-out out-out)"

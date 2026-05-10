@@ -452,7 +452,7 @@ module Macro =
     [<TailCall>]
     let rec evalLetSyntaxTransformers envs pos cont body acc =
         function
-        | [] -> body |> Eval.eachEval envs cont (Ok(SEmpty, pos))
+        | [] -> body |> Eval.eachEval (Context.extendEnvs envs acc) cont (Ok(SEmpty, pos))
         | (var, expr) :: rest ->
             expr
             |> Eval.eval envs (function

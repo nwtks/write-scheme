@@ -10,11 +10,20 @@ let repEnvs () =
 
 [<Fact>]
 let ``procedure?`` () =
+    let rep = repEnvs ()
     "(procedure? car)" |> rep |> should equal "#t"
     "(procedure? 'car)" |> rep |> should equal "#f"
+
     "(procedure? (lambda (x) (* x x)))" |> rep |> should equal "#t"
     "(procedure? '(lambda (x) (* x x)))" |> rep |> should equal "#f"
+
     "(call-with-current-continuation procedure?)" |> rep |> should equal "#t"
+    "(procedure? if)" |> rep |> should equal "#f"
+
+    "(procedure? (make-parameter 1))" |> rep |> should equal "#t"
+
+    "(define-syntax my-macro (syntax-rules () ((my-macro) #t)))" |> rep |> ignore
+    "(procedure? my-macro)" |> rep |> should equal "#f"
 
 [<Fact>]
 let ``apply`` () =
@@ -22,6 +31,8 @@ let ``apply`` () =
     "(apply + 1 2 '(3))" |> rep |> should equal "6"
     "(apply + '())" |> rep |> should equal "0"
     "(apply list 1 '() '(2))" |> rep |> should equal "(1 () 2)"
+    "(apply + 1 2 3 '(4 5))" |> rep |> should equal "15"
+    "(apply list 1 2 '())" |> rep |> should equal "(1 2)"
 
 [<Fact>]
 let ``map`` () =
@@ -38,11 +49,13 @@ let ``string-map`` () =
 
     "(string-map (lambda (x) x) \"🍎\")" |> rep |> should equal "\"🍎\""
     "(string-map (lambda (x y) x) \"🍎a\" \"bc\")" |> rep |> should equal "\"🍎a\""
+    "(string-map (lambda (x y) x) \"abc\" \"de\")" |> rep |> should equal "\"ab\""
 
 [<Fact>]
 let ``vector-map`` () =
     "(vector-map + '#(1 2 3) '#(4 5 6))" |> rep |> should equal "#(5 7 9)"
     "(vector-map (lambda (x) (* x x)) '#(1 2 3))" |> rep |> should equal "#(1 4 9)"
+    "(vector-map + '#(1 2) '#(10 20 30))" |> rep |> should equal "#(11 22)"
 
 [<Fact>]
 let ``for-each`` () =
@@ -104,3 +117,33 @@ let ``call-with-current-continuation`` () =
 
     "(list-length '(a b c d))" |> rep |> should equal "4"
     "(list-length '(a b . c))" |> rep |> should equal "#f"
+
+[<Fact>]
+let ``call-with-values`` () =
+    let rep = repEnvs ()
+
+    "(call-with-values
+       (lambda () (call-with-values (lambda () (values 1 2)) (lambda (a b) (values b a))))
+       list)"
+    |> rep
+    |> should equal "(2 1)"
+
+    "(call-with-values
+       (lambda () (values 1 2))
+       (lambda (a b) (values b a)))"
+    |> rep
+    |> should equal "(values 2 1)"
+
+[<Fact>]
+let ``call/cc multi-values`` () =
+    let rep = repEnvs ()
+
+    "(call-with-values (lambda () (call/cc (lambda (k) (k 1 2)))) list)"
+    |> rep
+    |> should equal "(1 2)"
+
+    "(values)" |> rep |> should equal "(values)"
+
+    "(call-with-values (lambda () (call/cc (lambda (k) (k)))) list)"
+    |> rep
+    |> should equal "()"

@@ -7,9 +7,9 @@ open Type
 module Procedure =
     let isProcedure envs pos cont =
         function
-        | [ SSyntax _, _ ]
         | [ SProcedure _, _ ]
-        | [ SContinuation _, _ ] -> Ok(STrue, pos) |> cont
+        | [ SContinuation _, _ ]
+        | [ SParameter _, _ ] -> Ok(STrue, pos) |> cont
         | [ _ ] -> Ok(SFalse, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid procedure? parameter." |> cont
 

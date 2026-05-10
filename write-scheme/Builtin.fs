@@ -241,6 +241,7 @@ module Builtin =
               "dynamic-wind", (SProcedure sDynamicWind, None) |> ref
               "with-exception-handler", (SProcedure sWithExceptionHandler, None) |> ref
               "raise", (SProcedure sRaise, None) |> ref
+              "raise-continuable", (SProcedure sRaiseContinuable, None) |> ref
               "error", (SProcedure sError, None) |> ref
               "error-object?", (SProcedure isErrorObject, None) |> ref
               "error-object-message", (SProcedure sErrorObjectMessage, None) |> ref

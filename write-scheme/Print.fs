@@ -109,7 +109,7 @@ module Print =
         | SValues xs, _ ->
             xs
             |> List.map (fun e -> (xs :> obj) :: visited, e)
-            |> formatList (sprintf "(values %s)" >> next)
+            |> formatList (fun s -> (if s = "" then "(values)" else sprintf "(values %s)" s) |> next)
         | SRecord(_, typeName, _), _ -> typeName |> sprintf "#<%s>" |> next
         | SError(msg, irritants), _ ->
             let prefix = msg.runes |> runesToString |> sprintf "#<error \"%s\""

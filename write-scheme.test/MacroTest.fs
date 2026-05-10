@@ -287,3 +287,69 @@ let ``ellipsis literal template`` () =
     |> ignore
 
     "(lit-tmpl 1 2 3)" |> rep |> should equal "(x ...)"
+
+[<Fact>]
+let ``let-syntax basic`` () =
+    let rep = repEnvs ()
+
+    "(let-syntax ((given-that (syntax-rules ()
+                               ((_ test body) (if test body)))))
+       (given-that #t 'yes))"
+    |> rep
+    |> should equal "yes"
+
+    "(let-syntax ((my-macro (syntax-rules () ((_ x) (+ x 1)))))
+       (my-macro 10))"
+    |> rep
+    |> should equal "11"
+
+[<Fact>]
+let ``letrec-syntax recursive`` () =
+    let rep = repEnvs ()
+
+    "(letrec-syntax ((my-or (syntax-rules ()
+                               ((my-or) #f)
+                               ((my-or x) x)
+                               ((my-or x y ...) (let ((temp x)) (if temp temp (my-or y ...)))))))
+       (my-or #f #f 42))"
+    |> rep
+    |> should equal "42"
+
+[<Fact>]
+let ``recursive macro definition`` () =
+    let rep = repEnvs ()
+
+    "(define-syntax my-reverse
+       (syntax-rules ()
+         ((_ () acc) (quote acc))
+         ((_ (x . rest) acc) (my-reverse rest (x . acc)))))"
+    |> rep
+    |> ignore
+
+    "(my-reverse (1 2 3) ())" |> rep |> should equal "(3 2 1)"
+
+[<Fact>]
+let ``multiple ellipsis expansion`` () =
+    let rep = repEnvs ()
+
+    "(define-syntax zip
+       (syntax-rules ()
+         ((_ (x ...) (y ...)) (list (list x y) ...))))"
+    |> rep
+    |> ignore
+
+    "(zip (1 2 3) ('a 'b 'c))" |> rep |> should equal "((1 a) (2 b) (3 c))"
+
+[<Fact>]
+let ``underscore wildcard`` () =
+    let rep = repEnvs ()
+
+    "(define-syntax check-underscore
+       (syntax-rules ()
+         ((_ _) #t)
+         ((_ x) #f)))"
+    |> rep
+    |> ignore
+
+    "(check-underscore 1)" |> rep |> should equal "#t"
+    "(check-underscore (1 2))" |> rep |> should equal "#t"

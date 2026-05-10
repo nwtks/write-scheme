@@ -360,8 +360,11 @@ module Math =
     let sFloorDiv envs pos cont =
         function
         | [ SRational(n1, d1), _; SRational(n2, d2), _ ] when d1 = 1I && d2 = 1I ->
-            let quotient, remainder = floorDiv n1 n2
-            Ok(SValues [ newInteger quotient, pos; newInteger remainder, pos ], pos) |> cont
+            if n2 = 0I then
+                EvalError("Division by zero.", pos) |> Error |> cont
+            else
+                let quotient, remainder = floorDiv n1 n2
+                Ok(SValues [ newInteger quotient, pos; newInteger remainder, pos ], pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid floor/ parameter." |> cont
 
     let sFloorQuotient envs pos cont =
@@ -381,8 +384,11 @@ module Math =
     let sTruncateDiv envs pos cont =
         function
         | [ SRational(n1, d1), _; SRational(n2, d2), _ ] when d1 = 1I && d2 = 1I ->
-            let quotient, remainder = truncateDiv n1 n2
-            Ok(SValues [ newInteger quotient, pos; newInteger remainder, pos ], pos) |> cont
+            if n2 = 0I then
+                EvalError("Division by zero.", pos) |> Error |> cont
+            else
+                let quotient, remainder = truncateDiv n1 n2
+                Ok(SValues [ newInteger quotient, pos; newInteger remainder, pos ], pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid truncate/ parameter." |> cont
 
     let sTruncateQuotient envs pos cont =
@@ -402,24 +408,33 @@ module Math =
     let sQuotient envs pos cont =
         function
         | [ SRational(n1, d1), _; SRational(n2, d2), _ ] when d1 = 1I && d2 = 1I ->
-            Ok(n1 / n2 |> newInteger, pos) |> cont
+            if n2 = 0I then
+                EvalError("Division by zero.", pos) |> Error |> cont
+            else
+                Ok(n1 / n2 |> newInteger, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid quotient parameter." |> cont
 
     let sRemainder envs pos cont =
         function
         | [ SRational(n1, d1), _; SRational(n2, d2), _ ] when d1 = 1I && d2 = 1I ->
-            Ok(n1 % n2 |> newInteger, pos) |> cont
+            if n2 = 0I then
+                EvalError("Division by zero.", pos) |> Error |> cont
+            else
+                Ok(n1 % n2 |> newInteger, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid remainder parameter." |> cont
 
     let sModulo envs pos cont =
         function
         | [ SRational(n1, d1), _; SRational(n2, d2), _ ] when d1 = 1I && d2 = 1I ->
-            let remainder = n1 % n2
-
-            if remainder <> 0I && n1.Sign <> n2.Sign then
-                Ok(remainder + n2 |> newInteger, pos) |> cont
+            if n2 = 0I then
+                EvalError("Division by zero.", pos) |> Error |> cont
             else
-                Ok(remainder |> newInteger, pos) |> cont
+                let remainder = n1 % n2
+
+                if remainder <> 0I && n1.Sign <> n2.Sign then
+                    Ok(remainder + n2 |> newInteger, pos) |> cont
+                else
+                    Ok(remainder |> newInteger, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid modulo parameter." |> cont
 
     let gcd x y = bigint.GreatestCommonDivisor(x, y)
@@ -444,11 +459,19 @@ module Math =
     let sNumerator envs pos cont =
         function
         | [ SRational(n, _), _ ] -> Ok(newInteger n, pos) |> cont
+        | [ SReal r, _ ] when finiteFloat r ->
+            match realToRational r with
+            | SRational(n, _) -> Ok(float n |> SReal, pos) |> cont
+            | _ -> Ok(SReal r, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid numerator parameter." |> cont
 
     let sDenominator envs pos cont =
         function
         | [ SRational(_, d), _ ] -> Ok(newInteger d, pos) |> cont
+        | [ SReal r, _ ] when finiteFloat r ->
+            match realToRational r with
+            | SRational(_, d) -> Ok(float d |> SReal, pos) |> cont
+            | _ -> Ok(SReal 1.0, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid denominator parameter." |> cont
 
     let sFloor envs pos cont =
@@ -586,16 +609,36 @@ module Math =
 
     let sAsin envs pos cont =
         function
-        | [ SReal r, _ ] -> Ok(r |> asin |> SReal, pos) |> cont
+        | [ SReal r, _ ] when r >= -1.0 && r <= 1.0 -> Ok(r |> asin |> SReal, pos) |> cont
+        | [ SReal r, _ ] ->
+            Ok(System.Numerics.Complex(r, 0.0) |> System.Numerics.Complex.Asin |> SComplex, pos)
+            |> cont
         | [ SComplex c, _ ] -> Ok(c |> System.Numerics.Complex.Asin |> SComplex, pos) |> cont
-        | [ SRational(n, d), _ ] -> Ok(float n / float d |> asin |> SReal, pos) |> cont
+        | [ SRational(n, d), _ ] ->
+            let r = float n / float d
+
+            if r >= -1.0 && r <= 1.0 then
+                Ok(r |> asin |> SReal, pos) |> cont
+            else
+                Ok(System.Numerics.Complex(r, 0.0) |> System.Numerics.Complex.Asin |> SComplex, pos)
+                |> cont
         | x -> x |> invalidParameter pos "'%s' invalid asin parameter." |> cont
 
     let sAcos envs pos cont =
         function
-        | [ SReal r, _ ] -> Ok(r |> acos |> SReal, pos) |> cont
+        | [ SReal r, _ ] when r >= -1.0 && r <= 1.0 -> Ok(r |> acos |> SReal, pos) |> cont
+        | [ SReal r, _ ] ->
+            Ok(System.Numerics.Complex(r, 0.0) |> System.Numerics.Complex.Acos |> SComplex, pos)
+            |> cont
         | [ SComplex c, _ ] -> Ok(c |> System.Numerics.Complex.Acos |> SComplex, pos) |> cont
-        | [ SRational(n, d), _ ] -> Ok(float n / float d |> acos |> SReal, pos) |> cont
+        | [ SRational(n, d), _ ] ->
+            let r = float n / float d
+
+            if r >= -1.0 && r <= 1.0 then
+                Ok(r |> acos |> SReal, pos) |> cont
+            else
+                Ok(System.Numerics.Complex(r, 0.0) |> System.Numerics.Complex.Acos |> SComplex, pos)
+                |> cont
         | x -> x |> invalidParameter pos "'%s' invalid acos parameter." |> cont
 
     let sAtan envs pos cont =
@@ -663,8 +706,16 @@ module Math =
         function
         | [ x; y ] ->
             match x, y with
-            | (SRational(n1, d1), _), (SRational(n2, d2), _) when d1 = 1I && d2 = 1I && n2 >= 0I ->
-                Ok(bigint.Pow(n1, int n2) |> newInteger, pos) |> cont
+            | (SRational(n1, d1), _), (SRational(n2, d2), _) when d1 = 1I && d2 = 1I ->
+                if n2 >= 0I then
+                    Ok(bigint.Pow(n1, int n2) |> newInteger, pos) |> cont
+                else if n1 = 0I then
+                    EvalError("Division by zero in expt.", pos) |> Error |> cont
+                else
+                    newSRational 1I (bigint.Pow(n1, int -n2))
+                    |> Result.map (fun r -> r, pos)
+                    |> Result.mapError (fun msg -> EvalError(msg, pos))
+                    |> cont
             | _ ->
                 match toComplex x, toComplex y with
                 | Ok c1, Ok c2 -> Ok(System.Numerics.Complex.Pow(c1, c2) |> SComplex, pos) |> cont

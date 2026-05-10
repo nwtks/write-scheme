@@ -31,9 +31,7 @@ module Eval =
         | SContinuation fn, pos ->
             match args with
             | [ arg ] -> Ok arg |> fn
-            | _ ->
-                EvalError(sprintf "'%s' invalid continuation parameter." (args |> toSPair |> Print.print), pos)
-                |> Error
+            | _ -> (SValues args, pos) |> Ok |> fn
         | x -> EvalError(sprintf "'%s' not operator." (x |> Print.print), snd x) |> Error
 
     [<TailCall>]

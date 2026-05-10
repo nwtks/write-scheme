@@ -12,7 +12,7 @@ let ``with-exception-handler`` () =
 
     "(with-exception-handler
        (lambda (e) (+ e 100))
-       (lambda () (raise 1)))"
+       (lambda () (raise-continuable 1)))"
     |> rep
     |> should equal "101"
 
@@ -36,8 +36,8 @@ let ``with-exception-handler`` () =
        (lambda (e) (+ e 100))
        (lambda ()
          (with-exception-handler
-           (lambda (e) (raise (+ e 10)))
-           (lambda () (raise 1)))))"
+           (lambda (e) (raise-continuable (+ e 10)))
+           (lambda () (raise-continuable 1)))))"
     |> rep
     |> should equal "111"
 
@@ -45,25 +45,59 @@ let ``with-exception-handler`` () =
 let ``error and error-object?`` () =
     let rep = repEnvs ()
 
-    "(with-exception-handler
-       (lambda (e)
-         (list (error-object? e)
-               (error-object-message e)
-               (error-object-irritants e)))
-       (lambda () (error \"bad value\" 1 2)))"
+    "(guard (e (else (list (error-object? e)
+                          (error-object-message e)
+                          (error-object-irritants e))))
+       (error \"bad value\" 1 2))"
     |> rep
     |> should equal "(#t \"bad value\" (1 2))"
 
-    "(with-exception-handler
-        (lambda (e)
-          (list (error-object-message e)
-                (error-object-irritants e)))
-        (lambda () (error \"simple error\")))"
+    "(guard (e (else (list (error-object-message e)
+                          (error-object-irritants e))))
+       (error \"simple error\"))"
     |> rep
     |> should equal "(\"simple error\" ())"
 
-    "(with-exception-handler
-       (lambda (e) (error-object? e))
-       (lambda () (raise 42)))"
+    "(guard (e (else (error-object? e)))
+       (raise 42))"
     |> rep
     |> should equal "#f"
+
+[<Fact>]
+let ``raise vs raise-continuable`` () =
+    let rep = repEnvs ()
+
+    "(with-exception-handler
+       (lambda (e) (+ e 10))
+       (lambda () (raise-continuable 1)))"
+    |> rep
+    |> should equal "11"
+
+    "(with-exception-handler
+       (lambda (e) (+ e 10))
+       (lambda () (raise 1)))"
+    |> rep
+    |> should startWith "Exception handler returned."
+
+[<Fact>]
+let ``raise-continuable multiple values`` () =
+    let rep = repEnvs ()
+
+    "(call-with-values
+       (lambda ()
+         (with-exception-handler
+           (lambda (e) (values 'a 'b))
+           (lambda () (raise-continuable 'err))))
+       list)"
+    |> rep
+    |> should equal "(a b)"
+
+[<Fact>]
+let ``guard re-raise`` () =
+    let rep = repEnvs ()
+
+    "(guard (e ((eq? e 'not-found) 'caught))
+       (guard (e ((eq? e 'foo) 'matched))
+         (raise 'not-found)))"
+    |> rep
+    |> should equal "caught"

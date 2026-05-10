@@ -25,23 +25,29 @@ module Exception =
             |> invalidParameter pos "'%s' invalid with-exception-handler parameter."
             |> cont
 
+    let doRaise continuable envs pos cont obj =
+        let handler = Context.popHandler envs
+
+        Eval.apply
+            envs
+            (fun res ->
+                handler |> Context.pushHandler envs
+
+                match res with
+                | Ok _ when not continuable -> EvalError("Exception handler returned.", pos) |> Error |> cont
+                | _ -> res |> cont)
+            [ obj ]
+            handler
+
     let sRaise envs pos cont =
         function
-        | [ obj ] ->
-            let handler = Context.popHandler envs
-
-            Eval.apply
-                envs
-                (fun res ->
-                    handler |> Context.pushHandler envs
-
-                    match res with
-                    | Ok _ -> res |> cont
-                    | Error(SchemeRaise(obj', _)) -> SchemeRaise(obj', pos) |> Error |> cont
-                    | x -> x |> cont)
-                [ obj ]
-                handler
+        | [ obj ] -> obj |> doRaise false envs pos cont
         | x -> x |> invalidParameter pos "'%s' invalid raise parameter." |> cont
+
+    let sRaiseContinuable envs pos cont =
+        function
+        | [ obj ] -> obj |> doRaise true envs pos cont
+        | x -> x |> invalidParameter pos "'%s' invalid raise-continuable parameter." |> cont
 
     let sError envs pos cont =
         function

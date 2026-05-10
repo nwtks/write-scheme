@@ -261,6 +261,7 @@ let ``/`` () =
     "(/ 1+2i 1+2i)" |> rep |> should equal "1+0i"
     "(/ 5)" |> rep |> should equal "1/5"
     "(/ 2.0)" |> rep |> should equal "0.5"
+    "(/ 1 0)" |> rep |> should startWith "Division by zero."
 
 [<Fact>]
 let abs () =
@@ -309,6 +310,7 @@ let quotient () =
 let remainder () =
     "(remainder 10 3)" |> rep |> should equal "1"
     "(remainder -10 3)" |> rep |> should equal "-1"
+    "(remainder 1 0)" |> rep |> should startWith "Division by zero."
 
 [<Fact>]
 let modulo () =
@@ -333,11 +335,15 @@ let lcm () =
 let numerator () =
     "(numerator 1/2)" |> rep |> should equal "1"
     "(numerator 3)" |> rep |> should equal "3"
+    "(numerator 1.5)" |> rep |> should equal "3"
+    "(numerator 1.0)" |> rep |> should equal "1"
 
 [<Fact>]
 let denominator () =
     "(denominator 1/2)" |> rep |> should equal "2"
     "(denominator 3)" |> rep |> should equal "1"
+    "(denominator 1.5)" |> rep |> should equal "2"
+    "(denominator 1.0)" |> rep |> should equal "1"
 
 [<Fact>]
 let floor () =
@@ -417,12 +423,14 @@ let ``asin`` () =
     "(asin 1/2)" |> rep |> should not' (equal "0")
     "(asin 0.5)" |> rep |> should not' (equal "0")
     "(asin 1+2i)" |> rep |> should not' (equal "0")
+    "(asin 2.0)" |> rep |> should not' (equal "+nan.0")
 
 [<Fact>]
 let ``acos`` () =
     "(acos 1/2)" |> rep |> should not' (equal "0")
     "(acos 0.5)" |> rep |> should not' (equal "0")
     "(acos 1+2i)" |> rep |> should not' (equal "0")
+    "(acos 2.0)" |> rep |> should not' (equal "+nan.0")
 
 [<Fact>]
 let ``atan`` () =
@@ -456,6 +464,8 @@ let expt () =
     "(expt 2 3)" |> rep |> should equal "8"
     "(expt 4 0.5)" |> rep |> should equal "2+0i" // result of complex pow
     "(expt 2 10)" |> rep |> should equal "1024"
+    "(expt 5 -1)" |> rep |> should equal "1/5"
+    "(expt -2 -3)" |> rep |> should equal "-1/8"
 
 [<Fact>]
 let ``make-rectangular`` () =
