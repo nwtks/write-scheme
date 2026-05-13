@@ -3,12 +3,12 @@ module WriteScheme.Tests.MacroTest
 open Xunit
 open FsUnit.Xunit
 
-let repEnvs () =
-    WriteScheme.Repl.newEnvs () |> WriteScheme.Repl.rep
+let newRep () =
+    WriteScheme.Repl.newContext () |> WriteScheme.Repl.rep
 
 [<Fact>]
 let ``syntax-rules basic`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(define-syntax my-if
        (syntax-rules ()
@@ -23,7 +23,7 @@ let ``syntax-rules basic`` () =
 
 [<Fact>]
 let ``syntax-rules ellipsis`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(define-syntax my-list
        (syntax-rules ()
@@ -37,7 +37,7 @@ let ``syntax-rules ellipsis`` () =
 
 [<Fact>]
 let ``syntax-rules multiple rules`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(define-syntax my-and
        (syntax-rules ()
@@ -55,7 +55,7 @@ let ``syntax-rules multiple rules`` () =
 
 [<Fact>]
 let ``syntax-rules swap!`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(define-syntax swap!
        (syntax-rules ()
@@ -74,7 +74,7 @@ let ``syntax-rules swap!`` () =
 
 [<Fact>]
 let ``syntax-rules literal keywords`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(define-syntax my-cond
        (syntax-rules (else)
@@ -88,7 +88,7 @@ let ``syntax-rules literal keywords`` () =
 
 [<Fact>]
 let ``syntax-error`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(syntax-error \"test error\" 1 2)"
     |> rep
@@ -106,7 +106,7 @@ let ``syntax-error`` () =
 
 [<Fact>]
 let ``syntax-rules hygiene shadowing`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(define-syntax swap-hygiene!
        (syntax-rules ()
@@ -131,7 +131,7 @@ let ``syntax-rules hygiene shadowing`` () =
 
 [<Fact>]
 let ``syntax-rules hygiene preservation`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(define-syntax my-if
        (syntax-rules ()
@@ -146,7 +146,7 @@ let ``syntax-rules hygiene preservation`` () =
 
 [<Fact>]
 let ``nested ellipsis`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(define-syntax nested
         (syntax-rules ()
@@ -159,7 +159,7 @@ let ``nested ellipsis`` () =
 
 [<Fact>]
 let ``deeply nested ellipsis`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(define-syntax nested-3
         (syntax-rules ()
@@ -174,7 +174,7 @@ let ``deeply nested ellipsis`` () =
 
 [<Fact>]
 let ``literal matching with shadowing`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(define-syntax check-lit
         (syntax-rules (lit)
@@ -188,7 +188,7 @@ let ``literal matching with shadowing`` () =
 
 [<Fact>]
 let ``dot pair pattern`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(define-syntax my-dot
         (syntax-rules ()
@@ -201,7 +201,7 @@ let ``dot pair pattern`` () =
 
 [<Fact>]
 let ``vector pattern`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(define-syntax my-vector
         (syntax-rules ()
@@ -213,7 +213,7 @@ let ``vector pattern`` () =
 
 [<Fact>]
 let ``ellipsis in middle of pattern`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(define-syntax head-tail
         (syntax-rules ()
@@ -226,7 +226,7 @@ let ``ellipsis in middle of pattern`` () =
 
 [<Fact>]
 let ``custom ellipsis support`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(define-syntax my-list
         (syntax-rules ::: ()
@@ -238,7 +238,7 @@ let ``custom ellipsis support`` () =
 
 [<Fact>]
 let ``custom ellipsis with literals`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(define-syntax check-lit
         (syntax-rules ::: (lit)
@@ -254,7 +254,7 @@ let ``custom ellipsis with literals`` () =
 
 [<Fact>]
 let ``ellipsis escape in template`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(define-syntax escape-test
         (syntax-rules ()
@@ -266,7 +266,7 @@ let ``ellipsis escape in template`` () =
 
 [<Fact>]
 let ``ellipsis escape in pattern`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(define-syntax match-escape
         (syntax-rules ()
@@ -278,7 +278,7 @@ let ``ellipsis escape in pattern`` () =
 
 [<Fact>]
 let ``ellipsis literal template`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(define-syntax lit-tmpl
         (syntax-rules ()
@@ -290,7 +290,7 @@ let ``ellipsis literal template`` () =
 
 [<Fact>]
 let ``let-syntax basic`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(let-syntax ((given-that (syntax-rules ()
                                ((_ test body) (if test body)))))
@@ -305,7 +305,7 @@ let ``let-syntax basic`` () =
 
 [<Fact>]
 let ``letrec-syntax recursive`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(letrec-syntax ((my-or (syntax-rules ()
                                ((my-or) #f)
@@ -317,7 +317,7 @@ let ``letrec-syntax recursive`` () =
 
 [<Fact>]
 let ``recursive macro definition`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(define-syntax my-reverse
        (syntax-rules ()
@@ -330,7 +330,7 @@ let ``recursive macro definition`` () =
 
 [<Fact>]
 let ``multiple ellipsis expansion`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(define-syntax zip
        (syntax-rules ()
@@ -342,7 +342,7 @@ let ``multiple ellipsis expansion`` () =
 
 [<Fact>]
 let ``underscore wildcard`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(define-syntax check-underscore
        (syntax-rules ()

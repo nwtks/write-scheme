@@ -5,7 +5,7 @@ open Type
 
 [<AutoOpen>]
 module Core =
-    let isEqv envs pos cont =
+    let isEqv context pos cont =
         function
         | [ x; y ] -> Ok((x, y) |> eqv |> toSBool, pos) |> cont
         | _ -> Ok(SFalse, pos) |> cont
@@ -27,44 +27,44 @@ module Core =
     let rec loopEqual =
         function
         | [] -> true
-        | (x, y) :: xs ->
+        | (x, y) :: rest ->
             match x, y with
-            | (SPair a, _), (SPair b, _) -> (a.car, b.car) :: (a.cdr, b.cdr) :: xs |> loopEqual
+            | (SPair a, _), (SPair b, _) -> (a.car, b.car) :: (a.cdr, b.cdr) :: rest |> loopEqual
             | (SVector a, _), (SVector b, _) ->
                 if a.Length <> b.Length then
                     false
                 else
-                    zipVectorEqual a b (a.Length - 1) xs |> loopEqual
+                    zipVectorEqual a b (a.Length - 1) rest |> loopEqual
             | (SByteVector a, _), (SByteVector b, _) ->
                 if a.Length <> b.Length then
                     false
                 else
-                    byteVectorEqual a b (a.Length - 1) && loopEqual xs
+                    byteVectorEqual a b (a.Length - 1) && rest |> loopEqual
             | (SValues a, _), (SValues b, _) ->
                 if a.Length <> b.Length then
                     false
                 else
-                    List.zip a b @ xs |> loopEqual
-            | (SQuote a, _), (SQuote b, _) -> (a, b) :: xs |> loopEqual
-            | (SUnquote a, _), (SUnquote b, _) -> (a, b) :: xs |> loopEqual
-            | (SBool a, _), (SBool b, _) -> a = b && loopEqual xs
-            | (SRational(n1, d1), _), (SRational(n2, d2), _) -> n1 = n2 && d1 = d2 && loopEqual xs
-            | (SReal r1, _), (SReal r2, _) -> r1 = r2 && loopEqual xs
-            | (SComplex c1, _), (SComplex c2, _) -> c1 = c2 && loopEqual xs
+                    List.zip a b @ rest |> loopEqual
+            | (SQuote a, _), (SQuote b, _) -> (a, b) :: rest |> loopEqual
+            | (SUnquote a, _), (SUnquote b, _) -> (a, b) :: rest |> loopEqual
+            | (SBool a, _), (SBool b, _) -> a = b && rest |> loopEqual
+            | (SRational(n1, d1), _), (SRational(n2, d2), _) -> n1 = n2 && d1 = d2 && rest |> loopEqual
+            | (SReal r1, _), (SReal r2, _) -> r1 = r2 && rest |> loopEqual
+            | (SComplex c1, _), (SComplex c2, _) -> c1 = c2 && rest |> loopEqual
             | (SString a, _), (SString b, _) ->
                 a.runes.Length = b.runes.Length
                 && Array.forall2 (=) a.runes b.runes
-                && loopEqual xs
-            | (SChar a, _), (SChar b, _) -> a = b && loopEqual xs
-            | (SSymbol a, _), (SSymbol b, _) -> a = b && loopEqual xs
-            | (a, _), (b, _) -> a = b && loopEqual xs
+                && rest |> loopEqual
+            | (SChar a, _), (SChar b, _) -> a = b && rest |> loopEqual
+            | (SSymbol a, _), (SSymbol b, _) -> a = b && rest |> loopEqual
+            | (a, _), (b, _) -> a = b && rest |> loopEqual
 
-    let isEqual envs pos cont =
+    let isEqual context pos cont =
         function
         | [ x; y ] -> Ok([ x, y ] |> loopEqual |> toSBool, pos) |> cont
         | _ -> Ok(SFalse, pos) |> cont
 
-    let sDisplay envs pos cont =
+    let sDisplay context pos cont =
         function
         | [ SString x, _ ] ->
             x.runes |> runesToString |> printf "%s"
@@ -77,14 +77,14 @@ module Core =
             Ok(SUnspecified, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid display parameter." |> cont
 
-    let sLoad envs pos cont =
+    let sLoad context pos cont =
         function
         | [ SString f, p ] ->
             match tryReadAll false f p with
             | Ok exprs ->
                 match exprs |> mapResult DatumLabel.resolveLabels with
-                | Ok rs ->
-                    match rs |> mapResult (Eval.eval envs id) with
+                | Ok exprs' ->
+                    match exprs' |> mapResult (Eval.eval context id) with
                     | Ok _ -> Ok(f.runes |> runesToString |> sprintf "Loaded '%s'." |> SSymbol, pos) |> cont
                     | Error e -> Error e |> cont
                 | Error e -> Error e |> cont

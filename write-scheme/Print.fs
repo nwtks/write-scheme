@@ -33,9 +33,10 @@ module Print =
         |> Seq.iter (
             string
             >> function
-                | "\"" -> sb.Append "\\\""
-                | "\\" -> sb.Append "\\\\"
-                | x -> sb.Append x
+                | "\"" -> "\\\""
+                | "\\" -> "\\\\"
+                | x -> x
+            >> sb.Append
             >> ignore
         )
 
@@ -84,6 +85,17 @@ module Print =
                 |> List.rev
                 |> formatList (fun s1 -> pair.cdr |> printCPS visited' (fun s2 -> sprintf "(%s . %s)" s1 s2 |> next))
 
+    and [<TailCall>] formatError visited next message irritants =
+        let prefix = message.runes |> runesToString |> sprintf "#<error \"%s\""
+
+        match irritants with
+        | [] -> prefix + ">" |> next
+        | _ when isVisited visited irritants -> "..." |> next
+        | _ ->
+            irritants
+            |> List.map (fun e -> (irritants :> obj) :: visited, e)
+            |> formatList (fun s -> prefix + " " + s + ">" |> next)
+
     and [<TailCall>] printCPS visited next =
         function
         | SUnspecified, _ -> "#<unspecified>" |> next
@@ -111,16 +123,7 @@ module Print =
             |> List.map (fun e -> (xs :> obj) :: visited, e)
             |> formatList (fun s -> (if s = "" then "(values)" else sprintf "(values %s)" s) |> next)
         | SRecord(_, typeName, _), _ -> typeName |> sprintf "#<%s>" |> next
-        | SError(msg, irritants), _ ->
-            let prefix = msg.runes |> runesToString |> sprintf "#<error \"%s\""
-
-            match irritants with
-            | [] -> prefix + ">" |> next
-            | _ when isVisited visited irritants -> "..." |> next
-            | _ ->
-                irritants
-                |> List.map (fun e -> (irritants :> obj) :: visited, e)
-                |> formatList (fun s -> prefix + " " + s + ">" |> next)
+        | SError(msg, irritants), _ -> formatError visited next msg irritants
         | SQuote x, _ -> x |> printCPS visited (sprintf "'%s" >> next)
         | SQuasiquote x, _ -> x |> printCPS visited (sprintf "`%s" >> next)
         | SUnquote x, _ -> x |> printCPS visited (sprintf ",%s" >> next)
@@ -133,7 +136,4 @@ module Print =
         | SProcedure _, _ -> "#<procedure>" |> next
         | SContinuation _, _ -> "#<continuation>" |> next
 
-    let printList xs =
-        xs |> List.map (fun x -> [], x) |> formatList id
-
-    let print x = printList [ x ]
+    let print x = x |> printCPS [] id

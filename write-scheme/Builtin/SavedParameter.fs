@@ -17,10 +17,10 @@ module SavedParameter =
         | x -> x |> invalid (snd x) "'%s' invalid parameterize binding."
 
     [<TailCall>]
-    let rec loopParameterize envs pos cont body acc =
+    let rec loopParameterize context pos cont body acc =
         function
         | [] ->
-            let triples = List.rev acc
+            let triples = acc |> List.rev
 
             let before _ pos cont _ =
                 triples
@@ -38,29 +38,29 @@ module SavedParameter =
 
                 Ok(SUnspecified, pos) |> cont
 
-            let thunk envs pos cont _ =
-                body |> Eval.evalBody envs cont (Ok(SUnspecified, pos))
+            let thunk context pos cont _ =
+                body |> Eval.evalBody context cont (Ok(SUnspecified, pos))
 
-            doAroundProc envs cont (SProcedure before, pos) (SProcedure thunk, pos) (SProcedure after, pos)
+            doAroundProc context cont (SProcedure before, pos) (SProcedure thunk, pos) (SProcedure after, pos)
         | (param, value) :: parameters ->
             param
-            |> Eval.eval envs (function
+            |> Eval.eval context (function
                 | Ok(SParameter(paramVal, convOpt), _) ->
                     value
-                    |> Eval.eval envs (function
+                    |> Eval.eval context (function
                         | Ok newVal ->
                             match convOpt with
                             | Some converter ->
                                 converter
                                 |> Eval.apply
-                                    envs
+                                    context
                                     (function
                                     | Ok converted ->
                                         let oldVal = paramVal.Value
 
                                         parameters
                                         |> loopParameterize
-                                            envs
+                                            context
                                             pos
                                             cont
                                             body
@@ -71,18 +71,18 @@ module SavedParameter =
                                 let oldVal = paramVal.Value
 
                                 parameters
-                                |> loopParameterize envs pos cont body ((paramVal, ref newVal, ref oldVal) :: acc)
+                                |> loopParameterize context pos cont body ((paramVal, ref newVal, ref oldVal) :: acc)
                         | x -> x |> cont)
                 | Ok x -> x |> invalid (snd x) "'%s' is not a parameter."
                 | x -> x |> cont)
 
-    let sMakeParameter envs pos cont =
+    let sMakeParameter context pos cont =
         function
         | [ init ] -> Ok(SParameter(ref init, None), pos) |> cont
         | [ init; converter ] ->
             converter
             |> Eval.apply
-                envs
+                context
                 (function
                 | Ok converted -> Ok(SParameter(ref converted, Some converter), pos) |> cont
                 | x -> x |> cont)

@@ -5,13 +5,13 @@ open Type
 
 [<AutoOpen>]
 module List =
-    let isPair envs pos cont =
+    let isPair context pos cont =
         function
         | [ SPair _, _ ] -> Ok(STrue, pos) |> cont
         | [ _ ] -> Ok(SFalse, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid pair? parameter." |> cont
 
-    let sCons envs pos cont =
+    let sCons context pos cont =
         function
         | [ x; y ] -> Ok(SPair { car = x; cdr = y }, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid cons parameter." |> cont
@@ -26,62 +26,62 @@ module List =
         | SPair pair, _ -> Ok pair.cdr
         | x -> x |> invalid (snd x) "'%s' invalid cdr parameter."
 
-    let sCar envs pos cont =
+    let sCar context pos cont =
         function
         | [ pair ] -> pair |> getCar |> cont
         | x -> x |> invalidParameter pos "'%s' invalid car parameter." |> cont
 
-    let sCdr envs pos cont =
+    let sCdr context pos cont =
         function
         | [ pair ] -> pair |> getCdr |> cont
         | x -> x |> invalidParameter pos "'%s' invalid cdr parameter." |> cont
 
-    let sSetCarBang envs pos cont =
+    let sSetCarBang context pos cont =
         function
         | [ SPair pair, _; obj ] ->
             pair.car <- obj
             Ok(SUnspecified, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid set-car! parameter." |> cont
 
-    let sSetCdrBang envs pos cont =
+    let sSetCdrBang context pos cont =
         function
         | [ SPair pair, _; obj ] ->
             pair.cdr <- obj
             Ok(SUnspecified, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid set-cdr! parameter." |> cont
 
-    let sCaar envs pos cont =
+    let sCaar context pos cont =
         function
         | [ pair ] -> pair |> getCar |> Result.bind getCar |> cont
         | x -> x |> invalidParameter pos "'%s' invalid caar parameter." |> cont
 
-    let sCadr envs pos cont =
+    let sCadr context pos cont =
         function
         | [ pair ] -> pair |> getCdr |> Result.bind getCar |> cont
         | x -> x |> invalidParameter pos "'%s' invalid cadr parameter." |> cont
 
-    let sCdar envs pos cont =
+    let sCdar context pos cont =
         function
         | [ pair ] -> pair |> getCar |> Result.bind getCdr |> cont
         | x -> x |> invalidParameter pos "'%s' invalid cdar parameter." |> cont
 
-    let sCddr envs pos cont =
+    let sCddr context pos cont =
         function
         | [ pair ] -> pair |> getCdr |> Result.bind getCdr |> cont
         | x -> x |> invalidParameter pos "'%s' invalid cddr parameter." |> cont
 
-    let isNull envs pos cont =
+    let isNull context pos cont =
         function
         | [ SEmpty, _ ] -> Ok(STrue, pos) |> cont
         | [ _ ] -> Ok(SFalse, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid null? parameter." |> cont
 
-    let isList envs pos cont =
+    let isList context pos cont =
         function
         | [ obj ] -> Ok(obj |> isProperList |> toSBool, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid list? parameter." |> cont
 
-    let sMakeList envs pos cont =
+    let sMakeList context pos cont =
         function
         | [ SRational(len, d), _ ] when d = 1I && len >= 0I ->
             Ok(List.replicate (int len) (SUnspecified, pos) |> toSPair) |> cont
@@ -89,9 +89,9 @@ module List =
             Ok(List.replicate (int len) fill |> toSPair) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid make-list parameter." |> cont
 
-    let sList envs pos cont = toSPair >> Ok >> cont
+    let sList context pos cont = toSPair >> Ok >> cont
 
-    let sLength envs pos cont =
+    let sLength context pos cont =
         let length list =
             match list with
             | SEmpty, _ -> Ok 0I
@@ -125,7 +125,7 @@ module List =
             | Ok res -> t |> loopAppend res
             | x -> x
 
-    let sAppend envs pos cont =
+    let sAppend context pos cont =
         function
         | [] -> Ok(SEmpty, pos) |> cont
         | [ list ] -> Ok list |> cont
@@ -138,7 +138,7 @@ module List =
         | SPair pair, _ -> pair.cdr |> loopReverse (SPair { car = pair.car; cdr = acc }, snd pair.car)
         | x -> x |> invalid (snd x) "'%s' is not a proper list in reverse."
 
-    let sReverse envs pos cont =
+    let sReverse context pos cont =
         function
         | [ list ] -> list |> loopReverse (SEmpty, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid reverse parameter." |> cont
@@ -152,7 +152,7 @@ module List =
             | SPair pair, _ -> pair.cdr |> loopListTail (n - 1I)
             | x -> x |> invalid (snd x) "'%s' invalid list-tail parameter."
 
-    let sListTail envs pos cont =
+    let sListTail context pos cont =
         function
         | [ list; SRational(n, d), _ ] when d = 1I && n >= 0I -> list |> loopListTail n |> cont
         | x -> x |> invalidParameter pos "'%s' invalid list-tail parameter." |> cont
@@ -167,12 +167,12 @@ module List =
                 pair.cdr |> loopListRef (n - 1I)
         | x -> x |> invalid (snd x) "'%s' invalid list-ref parameter."
 
-    let sListRef envs pos cont =
+    let sListRef context pos cont =
         function
         | [ list; SRational(n, d), _ ] when d = 1I && n >= 0I -> list |> loopListRef n |> cont
         | x -> x |> invalidParameter pos "'%s' invalid list-ref parameter." |> cont
 
-    let sListSetBang envs pos cont =
+    let sListSetBang context pos cont =
         function
         | [ list; SRational(n, d), _; obj ] when d = 1I && n >= 0I ->
             list
@@ -196,35 +196,35 @@ module List =
                 p.cdr |> findMember pos compare obj
         | x -> Ok(SFalse, pos)
 
-    let sMemq envs pos cont =
+    let sMemq context pos cont =
         function
         | [ obj; list ] -> list |> findMember pos (fun a b -> eqv (a, b)) obj |> cont
         | x -> x |> invalidParameter pos "'%s' invalid memq parameter." |> cont
 
-    let sMemv envs pos cont =
+    let sMemv context pos cont =
         function
         | [ obj; list ] -> list |> findMember pos (fun a b -> eqv (a, b)) obj |> cont
         | x -> x |> invalidParameter pos "'%s' invalid memv parameter." |> cont
 
     [<TailCall>]
-    let rec loopMember envs pos cont compare obj =
+    let rec loopMember context pos cont compare obj =
         function
         | SEmpty, _ -> Ok(SFalse, pos) |> cont
         | SPair p, _ as pair ->
             compare
             |> Eval.apply
-                envs
+                context
                 (function
-                | Ok(SBool false, _) -> p.cdr |> loopMember envs pos cont compare obj
+                | Ok(SBool false, _) -> p.cdr |> loopMember context pos cont compare obj
                 | Ok _ -> Ok pair |> cont
                 | x -> x |> cont)
                 [ obj; p.car ]
         | x -> Ok(SFalse, pos) |> cont
 
-    let sMember envs pos cont =
+    let sMember context pos cont =
         function
         | [ obj; list ] -> list |> findMember pos (fun a b -> loopEqual [ a, b ]) obj |> cont
-        | [ obj; list; compare ] -> list |> loopMember envs pos cont compare obj
+        | [ obj; list; compare ] -> list |> loopMember context pos cont compare obj
         | x -> x |> invalidParameter pos "'%s' invalid member parameter." |> cont
 
     [<TailCall>]
@@ -241,18 +241,18 @@ module List =
             | x -> x
         | _ -> Ok(SFalse, pos)
 
-    let sAssq envs pos cont =
+    let sAssq context pos cont =
         function
         | [ obj; list ] -> list |> findAssoc pos (fun a b -> eqv (a, b)) obj |> cont
         | x -> x |> invalidParameter pos "'%s' invalid assq parameter." |> cont
 
-    let sAssv envs pos cont =
+    let sAssv context pos cont =
         function
         | [ obj; list ] -> list |> findAssoc pos (fun a b -> eqv (a, b)) obj |> cont
         | x -> x |> invalidParameter pos "'%s' invalid assv parameter." |> cont
 
     [<TailCall>]
-    let rec loopAssoc envs pos cont compare obj =
+    let rec loopAssoc context pos cont compare obj =
         function
         | SEmpty, _ -> Ok(SFalse, pos) |> cont
         | SPair pair, _ ->
@@ -260,19 +260,19 @@ module List =
             | Ok car ->
                 compare
                 |> Eval.apply
-                    envs
+                    context
                     (function
-                    | Ok(SBool false, _) -> pair.cdr |> loopAssoc envs pos cont compare obj
+                    | Ok(SBool false, _) -> pair.cdr |> loopAssoc context pos cont compare obj
                     | Ok _ -> Ok pair.car |> cont
                     | x -> x |> cont)
                     [ obj; car ]
             | x -> x |> cont
         | _ -> Ok(SFalse, pos) |> cont
 
-    let sAssoc envs pos cont =
+    let sAssoc context pos cont =
         function
         | [ obj; list ] -> list |> findAssoc pos (fun a b -> loopEqual [ a, b ]) obj |> cont
-        | [ obj; list; compare ] -> list |> loopAssoc envs pos cont compare obj
+        | [ obj; list; compare ] -> list |> loopAssoc context pos cont compare obj
         | x -> x |> invalidParameter pos "'%s' invalid assoc parameter." |> cont
 
     [<TailCall>]
@@ -284,7 +284,7 @@ module List =
             |> List.foldBack (fun h t -> SPair { car = h; cdr = t }, snd h) (acc |> List.rev)
             |> Ok
 
-    let sListCopy envs pos cont =
+    let sListCopy context pos cont =
         function
         | [ obj ] -> obj |> loopListCopy [] |> cont
         | x -> x |> invalidParameter pos "'%s' invalid list-copy parameter." |> cont

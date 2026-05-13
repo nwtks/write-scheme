@@ -3,12 +3,12 @@ module WriteScheme.Tests.ExceptionTest
 open Xunit
 open FsUnit.Xunit
 
-let repEnvs () =
-    WriteScheme.Repl.newEnvs () |> WriteScheme.Repl.rep
+let newRep () =
+    WriteScheme.Repl.newContext () |> WriteScheme.Repl.rep
 
 [<Fact>]
 let ``with-exception-handler`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(with-exception-handler
        (lambda (e) (+ e 100))
@@ -43,7 +43,7 @@ let ``with-exception-handler`` () =
 
 [<Fact>]
 let ``error and error-object?`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(guard (e (else (list (error-object? e)
                           (error-object-message e)
@@ -65,7 +65,7 @@ let ``error and error-object?`` () =
 
 [<Fact>]
 let ``raise vs raise-continuable`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(with-exception-handler
        (lambda (e) (+ e 10))
@@ -81,7 +81,7 @@ let ``raise vs raise-continuable`` () =
 
 [<Fact>]
 let ``raise-continuable multiple values`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(call-with-values
        (lambda ()
@@ -94,7 +94,7 @@ let ``raise-continuable multiple values`` () =
 
 [<Fact>]
 let ``guard re-raise`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(guard (e ((eq? e 'not-found) 'caught))
        (guard (e ((eq? e 'foo) 'matched))

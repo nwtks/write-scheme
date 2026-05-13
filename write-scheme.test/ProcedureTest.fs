@@ -3,14 +3,14 @@ module WriteScheme.Tests.ProcedureTest
 open Xunit
 open FsUnit.Xunit
 
-let rep = WriteScheme.Repl.rep WriteScheme.Builtin.builtin
+let rep = WriteScheme.Repl.rep WriteScheme.Builtin.builtinContext
 
-let repEnvs () =
-    WriteScheme.Repl.newEnvs () |> WriteScheme.Repl.rep
+let newRep () =
+    WriteScheme.Repl.newContext () |> WriteScheme.Repl.rep
 
 [<Fact>]
 let ``procedure?`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
     "(procedure? car)" |> rep |> should equal "#t"
     "(procedure? 'car)" |> rep |> should equal "#f"
 
@@ -98,7 +98,7 @@ let ``vector-for-each`` () =
 
 [<Fact>]
 let ``call-with-current-continuation`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(define list-length
        (lambda (obj)
@@ -120,7 +120,7 @@ let ``call-with-current-continuation`` () =
 
 [<Fact>]
 let ``call-with-values`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(call-with-values
        (lambda () (call-with-values (lambda () (values 1 2)) (lambda (a b) (values b a))))
@@ -136,7 +136,7 @@ let ``call-with-values`` () =
 
 [<Fact>]
 let ``call/cc multi-values`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(call-with-values (lambda () (call/cc (lambda (k) (k 1 2)))) list)"
     |> rep

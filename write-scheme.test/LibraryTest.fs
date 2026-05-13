@@ -7,13 +7,13 @@ open WriteScheme.Type
 
 module LibraryTest =
     let evalAll input =
-        match Read.readAll false input with
-        | Ok exprs -> exprs |> Eval.eachEval (Repl.newEnvs ()) id (Ok(SUnspecified, None))
+        match input |> Read.readAll false with
+        | Ok exprs -> exprs |> Eval.eachEval (Repl.newContext ()) id (Ok(SUnspecified, None))
         | Error _ -> failwith "Parse failed"
 
     let check input expected =
-        match evalAll input with
-        | Ok res -> Print.print res |> should equal expected
+        match input |> evalAll with
+        | Ok res -> res |> Print.print |> should equal expected
         | Error(EvalError(msg, _)) -> failwithf "Eval failed: %s" msg
         | Error e -> failwithf "Eval failed: %A" e
 
@@ -32,7 +32,7 @@ module LibraryTest =
         """
 
         match evalAll input with
-        | Ok(SString str, _) -> runesToString str.runes |> should equal "hello world"
+        | Ok(SString str, _) -> str.runes |> runesToString |> should equal "hello world"
         | _ -> failwith "Expected string 'hello world'"
 
     [<Fact>]

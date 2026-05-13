@@ -3,10 +3,10 @@ module WriteScheme.Tests.SpecialFormTest
 open Xunit
 open FsUnit.Xunit
 
-let rep = WriteScheme.Repl.rep WriteScheme.Builtin.builtin
+let rep = WriteScheme.Repl.rep WriteScheme.Builtin.builtinContext
 
-let repEnvs () =
-    WriteScheme.Repl.newEnvs () |> WriteScheme.Repl.rep
+let newRep () =
+    WriteScheme.Repl.newContext () |> WriteScheme.Repl.rep
 
 [<Fact>]
 let quote () =
@@ -21,7 +21,7 @@ let quote () =
 
 [<Fact>]
 let ``lambda`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "((lambda (x) (+ x x)) 4)" |> rep |> should equal "8"
     "((lambda x x))" |> rep |> should equal "()"
@@ -47,7 +47,7 @@ let ``if`` () =
 
 [<Fact>]
 let ``set!`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(define x 2)" |> rep |> ignore
     "(+ x 1)" |> rep |> should equal "3"
@@ -162,7 +162,7 @@ let ``cond-expand`` () =
 
 [<Fact>]
 let ``let`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(let ((a 1) (A 2)) (list a A))" |> rep |> should equal "(1 2)"
     "(let ((x 2) (y 3)) (* x y))" |> rep |> should equal "6"
@@ -206,7 +206,7 @@ let ``let`` () =
 
 [<Fact>]
 let ``let*`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(let ((x 2) (y 3)) (let* ((x 7) (z (+ x y))) (* z x)))"
     |> rep
@@ -216,7 +216,7 @@ let ``let*`` () =
 
 [<Fact>]
 let ``letrec`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(letrec
       ((even?
@@ -239,7 +239,7 @@ let ``letrec`` () =
 
 [<Fact>]
 let ``letrec*`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(letrec*
       ((p (lambda (x) (+ 1 (q (- x 1)))))
@@ -261,7 +261,7 @@ let ``letrec*`` () =
 
 [<Fact>]
 let ``let-values`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(let-values (((a b) (values 1 2))) (+ a b))" |> rep |> should equal "3"
 
@@ -277,7 +277,7 @@ let ``let-values`` () =
 
 [<Fact>]
 let ``let*-values`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(let*-values (((a b) (values 1 2))
                    ((c d) (values a b)))
@@ -295,7 +295,7 @@ let ``let*-values`` () =
 
 [<Fact>]
 let ``values and call-with-values`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(call-with-values (lambda () (values 1 2)) +)" |> rep |> should equal "3"
 
@@ -335,14 +335,14 @@ let ``values and call-with-values`` () =
 
 [<Fact>]
 let ``begin`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
     "(define x 0)" |> rep |> ignore
     "(and (= x 0) (begin (set! x 5) (+ x 1)))" |> rep |> should equal "6"
     "(begin)" |> rep |> should equal "#<unspecified>"
 
 [<Fact>]
 let ``do`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(do ((vec (make-vector 5))
           (i 0 (+ i 1)))
@@ -363,7 +363,7 @@ let ``do`` () =
 
 [<Fact>]
 let ``delay`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(force (delay (+ 1 2)))" |> rep |> should equal "3"
     "(force (make-promise 42))" |> rep |> should equal "42"
@@ -377,7 +377,7 @@ let ``delay`` () =
 
 [<Fact>]
 let ``delay-force`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(force (delay-force (delay (delay-force (delay 10)))))"
     |> rep
@@ -385,7 +385,7 @@ let ``delay-force`` () =
 
 [<Fact>]
 let ``parameterize`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(define radix (make-parameter 10))" |> rep |> ignore
     "(radix)" |> rep |> should equal "10"
@@ -426,7 +426,7 @@ let ``parameterize`` () =
 
 [<Fact>]
 let ``guard`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(guard (condition
              (else 'caught))
@@ -456,7 +456,7 @@ let ``guard`` () =
 
 [<Fact>]
 let ``let-syntax`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(let-syntax ((when (syntax-rules ()
                           ((when test stmt1 stmt2 ...)
@@ -470,7 +470,7 @@ let ``let-syntax`` () =
 
 [<Fact>]
 let ``letrec-syntax`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(letrec-syntax ((my-or (syntax-rules ()
                               ((my-or) #f)
@@ -556,7 +556,7 @@ let ``quasiquote`` () =
 
 [<Fact>]
 let ``case-lambda`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(define f (case-lambda (() 0) ((x) 1) ((x y) 2) ((x y . z) 3)))"
     |> rep
@@ -578,7 +578,7 @@ let ``case-lambda`` () =
 
 [<Fact>]
 let ``define`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(define add3 (lambda (x) (+ x 3)))" |> rep |> should equal "#<unspecified>"
     "(add3 3)" |> rep |> should equal "6"
@@ -609,7 +609,7 @@ let ``define`` () =
 
 [<Fact>]
 let ``define-values`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(define-values (x y) (values 1 2))" |> rep |> ignore
     "(+ x y)" |> rep |> should equal "3"
@@ -625,7 +625,7 @@ let ``define-values`` () =
 
 [<Fact>]
 let ``define-record-type`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(define-record-type <p> (make-p x y) p? (x get-x) (y get-y set-y!))"
     |> rep
@@ -657,7 +657,7 @@ let ``promise?`` () =
 
 [<Fact>]
 let ``make-parameter`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(define p (make-parameter 0 (lambda (x) (* x 2))))" |> rep |> ignore
     "(p)" |> rep |> should equal "0"

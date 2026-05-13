@@ -3,7 +3,7 @@ module WriteScheme.Tests.BoolTest
 open Xunit
 open FsUnit.Xunit
 
-let rep = WriteScheme.Repl.rep WriteScheme.Builtin.builtin
+let rep = WriteScheme.Repl.rep WriteScheme.Builtin.builtinContext
 
 [<Fact>]
 let ``not`` () =

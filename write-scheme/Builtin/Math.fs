@@ -5,7 +5,7 @@ open Type
 
 [<AutoOpen>]
 module Math =
-    let isNumber envs pos cont =
+    let isNumber context pos cont =
         function
         | [ SRational _, _ ]
         | [ SReal _, _ ]
@@ -13,7 +13,7 @@ module Math =
         | [ _ ] -> Ok(SFalse, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid number? parameter." |> cont
 
-    let isComplex envs pos cont =
+    let isComplex context pos cont =
         function
         | [ SComplex _, _ ]
         | [ SReal _, _ ]
@@ -21,7 +21,7 @@ module Math =
         | [ _ ] -> Ok(SFalse, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid complex? parameter." |> cont
 
-    let isReal envs pos cont =
+    let isReal context pos cont =
         function
         | [ SRational _, _ ]
         | [ SReal _, _ ] -> Ok(STrue, pos) |> cont
@@ -35,7 +35,7 @@ module Math =
 
     let noFractionFloat (d: float) = d = System.Math.Truncate d
 
-    let isRational envs pos cont =
+    let isRational context pos cont =
         function
         | [ SRational _, _ ] -> Ok(STrue, pos) |> cont
         | [ SReal r, _ ] when finiteFloat r -> Ok(STrue, pos) |> cont
@@ -43,7 +43,7 @@ module Math =
         | [ _ ] -> Ok(SFalse, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid rational? parameter." |> cont
 
-    let isInteger envs pos cont =
+    let isInteger context pos cont =
         function
         | [ SRational(_, d), _ ] when d = 1I -> Ok(STrue, pos) |> cont
         | [ SReal r, _ ] when finiteFloat r && noFractionFloat r -> Ok(STrue, pos) |> cont
@@ -52,26 +52,26 @@ module Math =
         | [ _ ] -> Ok(SFalse, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid integer? parameter." |> cont
 
-    let isExact envs pos cont =
+    let isExact context pos cont =
         function
         | [ SRational _, _ ] -> Ok(STrue, pos) |> cont
         | [ _ ] -> Ok(SFalse, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid exact? parameter." |> cont
 
-    let isInexact envs pos cont =
+    let isInexact context pos cont =
         function
         | [ SReal _, _ ]
         | [ SComplex _, _ ] -> Ok(STrue, pos) |> cont
         | [ _ ] -> Ok(SFalse, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid inexact? parameter." |> cont
 
-    let isExactInteger envs pos cont =
+    let isExactInteger context pos cont =
         function
         | [ SRational(_, d), _ ] when d = 1I -> Ok(STrue, pos) |> cont
         | [ _ ] -> Ok(SFalse, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid exact-integer? parameter." |> cont
 
-    let isFinite envs pos cont =
+    let isFinite context pos cont =
         function
         | [ SRational _, _ ] -> Ok(STrue, pos) |> cont
         | [ SReal r, _ ] -> Ok(finiteFloat r |> toSBool, pos) |> cont
@@ -79,7 +79,7 @@ module Math =
         | [ _ ] -> Ok(SFalse, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid finite? parameter." |> cont
 
-    let isInfinite envs pos cont =
+    let isInfinite context pos cont =
         function
         | [ SReal r, _ ] -> Ok(System.Double.IsInfinity r |> toSBool, pos) |> cont
         | [ SComplex c, _ ] ->
@@ -92,7 +92,7 @@ module Math =
         | [ _ ] -> Ok(SFalse, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid infinite? parameter." |> cont
 
-    let isNaN envs pos cont =
+    let isNaN context pos cont =
         function
         | [ SReal r, _ ] -> Ok(System.Double.IsNaN r |> toSBool, pos) |> cont
         | [ SComplex c, _ ] ->
@@ -146,35 +146,35 @@ module Math =
             EvalError("Ordering on complex numbers with non-zero imaginary parts is undefined.", None)
             |> Error
 
-    let sEqualNumber envs =
+    let sEqualNumber context =
         compareNumber (=) (=) (fun x y -> Ok(x = y))
 
-    let sLessNumber envs = compareNumber (<) (<) (complexReal (<))
+    let sLessNumber context = compareNumber (<) (<) (complexReal (<))
 
-    let sGreaterNumber envs = compareNumber (>) (>) (complexReal (>))
+    let sGreaterNumber context = compareNumber (>) (>) (complexReal (>))
 
-    let sLessEqualNumber envs =
+    let sLessEqualNumber context =
         compareNumber (<=) (<=) (complexReal (<=))
 
-    let sGreaterEqualNumber envs =
+    let sGreaterEqualNumber context =
         compareNumber (>=) (>=) (complexReal (>=))
 
-    let isZero envs pos cont =
+    let isZero context pos cont =
         function
-        | [ x ] -> sEqualNumber envs pos cont [ x; SZero, pos ]
+        | [ x ] -> sEqualNumber context pos cont [ x; SZero, pos ]
         | x -> x |> invalidParameter pos "'%s' invalid zero? parameter." |> cont
 
-    let isPositive envs pos cont =
+    let isPositive context pos cont =
         function
-        | [ x ] -> sGreaterNumber envs pos cont [ x; SZero, pos ]
+        | [ x ] -> sGreaterNumber context pos cont [ x; SZero, pos ]
         | x -> x |> invalidParameter pos "'%s' invalid positive? parameter." |> cont
 
-    let isNegative envs pos cont =
+    let isNegative context pos cont =
         function
-        | [ x ] -> sLessNumber envs pos cont [ x; SZero, pos ]
+        | [ x ] -> sLessNumber context pos cont [ x; SZero, pos ]
         | x -> x |> invalidParameter pos "'%s' invalid negative? parameter." |> cont
 
-    let isOdd envs pos cont =
+    let isOdd context pos cont =
         function
         | [ SRational(n, d), _ ] when d = 1I -> Ok(abs n % 2I = 1I |> toSBool, pos) |> cont
         | [ SReal r, _ ] when finiteFloat r && noFractionFloat r -> Ok(abs r % 2.0 = 1.0 |> toSBool, pos) |> cont
@@ -182,7 +182,7 @@ module Math =
             Ok(abs c.Real % 2.0 = 1.0 |> toSBool, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid odd? parameter." |> cont
 
-    let isEven envs pos cont =
+    let isEven context pos cont =
         function
         | [ SRational(n, d), _ ] when d = 1I -> Ok(n % 2I = 0I |> toSBool, pos) |> cont
         | [ SReal r, _ ] when finiteFloat r && noFractionFloat r -> Ok(r % 2.0 = 0.0 |> toSBool, pos) |> cont
@@ -205,8 +205,8 @@ module Math =
             | Ok false -> xs |> findMaxValue x
             | Error e -> Error e
 
-    let sMax envs pos cont args =
-        if List.isEmpty args then
+    let sMax context pos cont args =
+        if args |> List.isEmpty then
             args |> invalidParameter pos "'%s' invalid max parameter." |> cont
         else
             match args with
@@ -233,8 +233,8 @@ module Math =
             | Ok false -> xs |> findMinValue x
             | Error e -> Error e
 
-    let sMin envs pos cont args =
-        if List.isEmpty args then
+    let sMin context pos cont args =
+        if args |> List.isEmpty then
             args |> invalidParameter pos "'%s' invalid min parameter." |> cont
         else
             match args with
@@ -292,7 +292,7 @@ module Math =
         | [ SComplex c, _ ] -> op3 ident3 c |> wrap |> cont
         | x :: xs -> xs |> loopCalc op1 op2 op3 pos cont (Ok x)
 
-    let sAddNumber envs =
+    let sAddNumber context =
         calc
             (fun n1 d1 n2 d2 -> newSRational (n1 * d2 + n2 * d1) (d1 * d2))
             (fun r1 r2 -> r1 + r2 |> SReal |> Ok)
@@ -301,7 +301,7 @@ module Math =
             0.0
             System.Numerics.Complex.Zero
 
-    let sMultiplyNumber envs =
+    let sMultiplyNumber context =
         calc
             (fun n1 d1 n2 d2 -> newSRational (n1 * n2) (d1 * d2))
             (fun r1 r2 -> r1 * r2 |> SReal |> Ok)
@@ -310,7 +310,7 @@ module Math =
             1.0
             System.Numerics.Complex.One
 
-    let sSubtractNumber envs =
+    let sSubtractNumber context =
         calc
             (fun n1 d1 n2 d2 -> newSRational (n1 * d2 - n2 * d1) (d1 * d2))
             (fun r1 r2 -> r1 - r2 |> SReal |> Ok)
@@ -319,7 +319,7 @@ module Math =
             0.0
             System.Numerics.Complex.Zero
 
-    let sDivideNumber envs =
+    let sDivideNumber context =
         calc
             (fun n1 d1 n2 d2 -> newSRational (n1 * d2) (d1 * n2))
             (fun r1 r2 ->
@@ -336,7 +336,7 @@ module Math =
             1.0
             System.Numerics.Complex.One
 
-    let sAbs envs pos cont =
+    let sAbs context pos cont =
         function
         | [ SRational(n, d), _ ] ->
             newSRational (abs n) d
@@ -357,7 +357,7 @@ module Math =
         else
             quotient, remainder
 
-    let sFloorDiv envs pos cont =
+    let sFloorDiv context pos cont =
         function
         | [ SRational(n1, d1), _; SRational(n2, d2), _ ] when d1 = 1I && d2 = 1I ->
             if n2 = 0I then
@@ -367,21 +367,21 @@ module Math =
                 Ok(SValues [ newInteger quotient, pos; newInteger remainder, pos ], pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid floor/ parameter." |> cont
 
-    let sFloorQuotient envs pos cont =
+    let sFloorQuotient context pos cont =
         function
         | [ SRational(n1, d1), _; SRational(n2, d2), _ ] when d1 = 1I && d2 = 1I ->
             let quotient, _ = floorDiv n1 n2
             Ok(newInteger quotient, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid floor-quotient parameter." |> cont
 
-    let sFloorRemainder envs pos cont =
+    let sFloorRemainder context pos cont =
         function
         | [ SRational(n1, d1), _; SRational(n2, d2), _ ] when d1 = 1I && d2 = 1I ->
             let _, remainder = floorDiv n1 n2
             Ok(newInteger remainder, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid floor-remainder parameter." |> cont
 
-    let sTruncateDiv envs pos cont =
+    let sTruncateDiv context pos cont =
         function
         | [ SRational(n1, d1), _; SRational(n2, d2), _ ] when d1 = 1I && d2 = 1I ->
             if n2 = 0I then
@@ -391,21 +391,21 @@ module Math =
                 Ok(SValues [ newInteger quotient, pos; newInteger remainder, pos ], pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid truncate/ parameter." |> cont
 
-    let sTruncateQuotient envs pos cont =
+    let sTruncateQuotient context pos cont =
         function
         | [ SRational(n1, d1), _; SRational(n2, d2), _ ] when d1 = 1I && d2 = 1I ->
             let quotient, _ = truncateDiv n1 n2
             Ok(newInteger quotient, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid truncate-quotient parameter." |> cont
 
-    let sTruncateRemainder envs pos cont =
+    let sTruncateRemainder context pos cont =
         function
         | [ SRational(n1, d1), _; SRational(n2, d2), _ ] when d1 = 1I && d2 = 1I ->
             let _, remainder = truncateDiv n1 n2
             Ok(newInteger remainder, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid truncate-remainder parameter." |> cont
 
-    let sQuotient envs pos cont =
+    let sQuotient context pos cont =
         function
         | [ SRational(n1, d1), _; SRational(n2, d2), _ ] when d1 = 1I && d2 = 1I ->
             if n2 = 0I then
@@ -414,7 +414,7 @@ module Math =
                 Ok(n1 / n2 |> newInteger, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid quotient parameter." |> cont
 
-    let sRemainder envs pos cont =
+    let sRemainder context pos cont =
         function
         | [ SRational(n1, d1), _; SRational(n2, d2), _ ] when d1 = 1I && d2 = 1I ->
             if n2 = 0I then
@@ -423,7 +423,7 @@ module Math =
                 Ok(n1 % n2 |> newInteger, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid remainder parameter." |> cont
 
-    let sModulo envs pos cont =
+    let sModulo context pos cont =
         function
         | [ SRational(n1, d1), _; SRational(n2, d2), _ ] when d1 = 1I && d2 = 1I ->
             if n2 = 0I then
@@ -439,7 +439,7 @@ module Math =
 
     let gcd x y = bigint.GreatestCommonDivisor(x, y)
 
-    let sGcd envs pos cont =
+    let sGcd context pos cont =
         mapResult (function
             | SRational(n, d), _ when d = 1I -> Ok n
             | x -> x |> invalid (snd x) "'%s' is not an integer in gcd.")
@@ -449,14 +449,14 @@ module Math =
     let lcm x y =
         if x = 0I || y = 0I then 0I else abs (x * y) / gcd x y
 
-    let sLcm envs pos cont =
+    let sLcm context pos cont =
         mapResult (function
             | SRational(n, d), _ when d = 1I -> Ok n
             | x -> x |> invalid (snd x) "'%s' is not an integer in lcm.")
         >> Result.map (List.fold lcm 1I >> fun v -> newInteger v, pos)
         >> cont
 
-    let sNumerator envs pos cont =
+    let sNumerator context pos cont =
         function
         | [ SRational(n, _), _ ] -> Ok(newInteger n, pos) |> cont
         | [ SReal r, _ ] when finiteFloat r ->
@@ -465,7 +465,7 @@ module Math =
             | _ -> Ok(SReal r, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid numerator parameter." |> cont
 
-    let sDenominator envs pos cont =
+    let sDenominator context pos cont =
         function
         | [ SRational(_, d), _ ] -> Ok(newInteger d, pos) |> cont
         | [ SReal r, _ ] when finiteFloat r ->
@@ -474,7 +474,7 @@ module Math =
             | _ -> Ok(SReal 1.0, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid denominator parameter." |> cont
 
-    let sFloor envs pos cont =
+    let sFloor context pos cont =
         function
         | [ SRational(n, d), _ ] ->
             let quotient, remainder = truncateDiv n d
@@ -487,7 +487,7 @@ module Math =
         | [ SReal r, _ ] -> Ok(r |> floor |> SReal, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid floor parameter." |> cont
 
-    let sCeiling envs pos cont =
+    let sCeiling context pos cont =
         function
         | [ SRational(n, d), _ ] ->
             let quotient, remainder = truncateDiv n d
@@ -500,13 +500,13 @@ module Math =
         | [ SReal r, _ ] -> Ok(r |> ceil |> SReal, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid ceiling parameter." |> cont
 
-    let sTruncate envs pos cont =
+    let sTruncate context pos cont =
         function
         | [ SRational(n, d), _ ] -> Ok(n / d |> newInteger, pos) |> cont
         | [ SReal r, _ ] -> Ok(r |> truncate |> SReal, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid truncate parameter." |> cont
 
-    let sRound envs pos cont =
+    let sRound context pos cont =
         function
         | [ SRational(n, d), _ ] -> Ok(float n / float d |> round |> bigint |> newInteger, pos) |> cont
         | [ SReal r, _ ] -> Ok(r |> round |> SReal, pos) |> cont
@@ -542,7 +542,7 @@ module Math =
                      |> Result.mapError (fun msg -> EvalError(msg, pos)))
         | _ -> Error(EvalError("Operands not rational", pos)) |> cont
 
-    let sRationalize envs pos cont =
+    let sRationalize context pos cont =
         let toExactValue =
             function
             | SRational _, _ as x -> Ok x
@@ -553,9 +553,9 @@ module Math =
         | [ x; y ] ->
             match toExactValue x, toExactValue y with
             | Ok(SRational _, _ as xVal), Ok(SRational _, _ as yVal) ->
-                match sSubtractNumber envs pos id [ xVal; yVal ] with
+                match sSubtractNumber context pos id [ xVal; yVal ] with
                 | Ok l ->
-                    match sAddNumber envs pos id [ xVal; yVal ] with
+                    match sAddNumber context pos id [ xVal; yVal ] with
                     | Ok r ->
                         match l, r with
                         | (SRational _, _), (SRational _, _) -> simplestRational pos cont (Ok l, Ok r)
@@ -565,14 +565,14 @@ module Math =
             | _ -> Ok x |> cont
         | x -> x |> invalidParameter pos "'%s' invalid rationalize parameter." |> cont
 
-    let sExp envs pos cont =
+    let sExp context pos cont =
         function
         | [ SReal r, _ ] -> Ok(r |> exp |> SReal, pos) |> cont
         | [ SComplex c, _ ] -> Ok(c |> System.Numerics.Complex.Exp |> SComplex, pos) |> cont
         | [ SRational(n, d), _ ] -> Ok(float n / float d |> exp |> SReal, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid exp parameter." |> cont
 
-    let sLog envs pos cont =
+    let sLog context pos cont =
         function
         | [ SReal r, _ ] -> Ok(r |> log |> SReal, pos) |> cont
         | [ SComplex c, _ ] -> Ok(c |> System.Numerics.Complex.Log |> SComplex, pos) |> cont
@@ -586,28 +586,28 @@ module Math =
             | _, Error e -> Error e |> cont
         | x -> x |> invalidParameter pos "'%s' invalid log parameter." |> cont
 
-    let sSin envs pos cont =
+    let sSin context pos cont =
         function
         | [ SReal r, _ ] -> Ok(r |> sin |> SReal, pos) |> cont
         | [ SComplex c, _ ] -> Ok(c |> System.Numerics.Complex.Sin |> SComplex, pos) |> cont
         | [ SRational(n, d), _ ] -> Ok(float n / float d |> sin |> SReal, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid sin parameter." |> cont
 
-    let sCos envs pos cont =
+    let sCos context pos cont =
         function
         | [ SReal r, _ ] -> Ok(r |> cos |> SReal, pos) |> cont
         | [ SComplex c, _ ] -> Ok(c |> System.Numerics.Complex.Cos |> SComplex, pos) |> cont
         | [ SRational(n, d), _ ] -> Ok(float n / float d |> cos |> SReal, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid cos parameter." |> cont
 
-    let sTan envs pos cont =
+    let sTan context pos cont =
         function
         | [ SReal r, _ ] -> Ok(r |> tan |> SReal, pos) |> cont
         | [ SComplex c, _ ] -> Ok(c |> System.Numerics.Complex.Tan |> SComplex, pos) |> cont
         | [ SRational(n, d), _ ] -> Ok(float n / float d |> tan |> SReal, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid tan parameter." |> cont
 
-    let sAsin envs pos cont =
+    let sAsin context pos cont =
         function
         | [ SReal r, _ ] when r >= -1.0 && r <= 1.0 -> Ok(r |> asin |> SReal, pos) |> cont
         | [ SReal r, _ ] ->
@@ -624,7 +624,7 @@ module Math =
                 |> cont
         | x -> x |> invalidParameter pos "'%s' invalid asin parameter." |> cont
 
-    let sAcos envs pos cont =
+    let sAcos context pos cont =
         function
         | [ SReal r, _ ] when r >= -1.0 && r <= 1.0 -> Ok(r |> acos |> SReal, pos) |> cont
         | [ SReal r, _ ] ->
@@ -641,7 +641,7 @@ module Math =
                 |> cont
         | x -> x |> invalidParameter pos "'%s' invalid acos parameter." |> cont
 
-    let sAtan envs pos cont =
+    let sAtan context pos cont =
         function
         | [ SReal r, _ ] -> Ok(r |> atan |> SReal, pos) |> cont
         | [ SComplex c, _ ] -> Ok(c |> System.Numerics.Complex.Atan |> SComplex, pos) |> cont
@@ -659,12 +659,12 @@ module Math =
             | _, Error e -> Error e |> cont
         | x -> x |> invalidParameter pos "'%s' invalid atan parameter." |> cont
 
-    let sSquare envs pos cont =
+    let sSquare context pos cont =
         function
-        | [ x ] -> sMultiplyNumber envs pos cont [ x; x ]
+        | [ x ] -> sMultiplyNumber context pos cont [ x; x ]
         | x -> x |> invalidParameter pos "'%s' invalid square parameter." |> cont
 
-    let sSqrt envs pos cont =
+    let sSqrt context pos cont =
         function
         | [ SRational(n, d), _ ] when n >= 0I -> Ok(float n / float d |> sqrt |> SReal, pos) |> cont
         | [ SRational(n, d), _ ] ->
@@ -694,7 +694,7 @@ module Math =
             else
                 bigintSqrt low mid n
 
-    let sExactIntegerSqrt envs pos cont =
+    let sExactIntegerSqrt context pos cont =
         function
         | [ SRational(n, d), _ ] when d = 1I && n >= 0I ->
             let sqrt = if n < 2I then n else bigintSqrt 1I (n + 1I) n
@@ -702,7 +702,7 @@ module Math =
             Ok(SValues [ newInteger sqrt, pos; newInteger remainder, pos ], pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid exact-integer-sqrt parameter." |> cont
 
-    let sExpt envs pos cont =
+    let sExpt context pos cont =
         function
         | [ x; y ] ->
             match x, y with
@@ -723,7 +723,7 @@ module Math =
                 | _, Error e -> Error e |> cont
         | x -> x |> invalidParameter pos "'%s' invalid expt parameter." |> cont
 
-    let sMakeRectangular envs pos cont =
+    let sMakeRectangular context pos cont =
         function
         | [ real; image ] ->
             match toComplex real, toComplex image with
@@ -732,7 +732,7 @@ module Math =
             | _, Error e -> Error e |> cont
         | x -> x |> invalidParameter pos "'%s' invalid make-rectangular parameter." |> cont
 
-    let sMakePolar envs pos cont =
+    let sMakePolar context pos cont =
         function
         | [ magnitude; angle ] ->
             match toComplex magnitude, toComplex angle with
@@ -743,40 +743,40 @@ module Math =
             | _, Error e -> Error e |> cont
         | x -> x |> invalidParameter pos "'%s' invalid make-polar parameter." |> cont
 
-    let sRealPart envs pos cont =
+    let sRealPart context pos cont =
         function
         | [ x ] -> toComplex x |> Result.map (fun c -> c.Real |> SReal, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid real-part parameter." |> cont
 
-    let sImagPart envs pos cont =
+    let sImagPart context pos cont =
         function
         | [ x ] -> toComplex x |> Result.map (fun c -> c.Imaginary |> SReal, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid imag-part parameter." |> cont
 
-    let sMagnitude envs pos cont =
+    let sMagnitude context pos cont =
         function
         | [ x ] -> toComplex x |> Result.map (fun c -> c.Magnitude |> SReal, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid magnitude parameter." |> cont
 
-    let sAngle envs pos cont =
+    let sAngle context pos cont =
         function
         | [ x ] -> toComplex x |> Result.map (fun c -> c.Phase |> SReal, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid angle parameter." |> cont
 
-    let sInexact envs pos cont =
+    let sInexact context pos cont =
         function
         | [ SRational(n, d), _ ] -> Ok(float n / float d |> SReal, pos) |> cont
         | [ SReal _, _ ] as x -> Ok x.Head |> cont
         | [ SComplex _, _ ] as x -> Ok x.Head |> cont
         | x -> x |> invalidParameter pos "'%s' invalid inexact parameter." |> cont
 
-    let sExact envs pos cont =
+    let sExact context pos cont =
         function
         | [ SRational _, _ ] as x -> Ok x.Head |> cont
         | [ SReal r, _ ] when finiteFloat r -> Ok(realToRational r, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid exact parameter." |> cont
 
-    let sNumberToString envs pos cont =
+    let sNumberToString context pos cont =
         function
         | [ n ] -> Ok(n |> Print.print |> newSString true, pos) |> cont
         | [ n; SRational(radix, d), _ ] when d = 1I ->
@@ -791,12 +791,12 @@ module Math =
                      | x -> EvalError(sprintf "'%d' unsupported radix in number->string." x, pos) |> Error
                  else
                      Ok(sprintf "%A/%A" n' d'))
-                |> Result.map (fun s -> newSString true s, pos)
+                |> Result.map (fun s -> s |> newSString true, pos)
                 |> cont
             | _ -> Ok(n |> Print.print |> newSString true, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid number->string parameter." |> cont
 
-    let sStringToNumber envs pos cont =
+    let sStringToNumber context pos cont =
         function
         | [ SString s, _ ] ->
             s.runes

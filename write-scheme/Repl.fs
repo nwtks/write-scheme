@@ -5,26 +5,31 @@ open Type
 module Repl =
     let formatPosition =
         function
-        | Some pos -> sprintf " (at line %d, column %d)" pos.Line pos.Column
+        | Some pos -> sprintf " (at line %d, column %d)" pos.line pos.column
         | None -> ""
 
-    let rep envs =
+    let rep context =
         Read.read false
         >> Result.bind DatumLabel.resolveLabels
-        >> Result.bind (Eval.eval envs id)
+        >> Result.bind (Eval.eval context id)
         >> Result.map Print.print
         >> Result.defaultWith (fun e ->
-            Context.reset envs
+            context |> Context.reset
 
             match e with
             | ParseError(msg, pos) -> sprintf "%s%s" msg (pos |> formatPosition)
             | EvalError(msg, pos) -> sprintf "%s%s" msg (pos |> formatPosition)
-            | SchemeRaise(expr, pos) -> sprintf "%s%s" (Print.print expr) (pos |> formatPosition))
+            | SchemeRaise(expr, pos) -> sprintf "%s%s" (expr |> Print.print) (pos |> formatPosition))
 
-    let newEnvs () = Context.extendEnvs Builtin.builtin []
+    let newContext () =
+        [] |> Context.extendEnvironments Builtin.builtinContext
 
     [<TailCall>]
-    let rec repl envs output =
+    let rec repl context output =
         printf "%s\n> " output
         let line = System.Console.ReadLine()
-        if isNull line then () else line |> rep envs |> repl envs
+
+        if isNull line then
+            ()
+        else
+            line |> rep context |> repl context

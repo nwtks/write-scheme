@@ -36,7 +36,7 @@ module DatumLabel =
 
     let isBefore =
         function
-        | Some p1, Some p2 -> p1.Line < p2.Line || p1.Line = p2.Line && p1.Column < p2.Column
+        | Some p1, Some p2 -> p1.line < p2.line || p1.line = p2.line && p1.column < p2.column
         | _ -> false
 
     [<TailCall>]
@@ -62,16 +62,7 @@ module DatumLabel =
         function
         | SDatumLabel(_, d), _ -> d |> resolveDatumRef labels next
         | SDatumRef n, pos -> resolveLabel n pos labels Set.empty |> next
-        | SPair p, pos ->
-            p.car
-            |> resolveDatumRefBind labels (fun car ->
-                p.car <- car
-
-                p.cdr
-                |> resolveDatumRefBind labels (fun cdr ->
-                    p.cdr <- cdr
-                    Ok(SPair p, pos) |> next))
-
+        | SPair p, pos -> resolveDatumRefPair labels p pos next
         | SVector v, pos ->
             resolveDatumRefArray labels 0 v.Length (fun i -> v.[i]) (fun i r -> v.[i] <- r) (fun () ->
                 Ok(SVector v, pos) |> next)
@@ -89,30 +80,47 @@ module DatumLabel =
         | SValues args, pos ->
             args
             |> resolveDatumRefList labels [] (fun resolved -> Ok(SValues resolved, pos) |> next)
-        | SQuote d, pos -> d |> resolveDatumRefBind labels (fun x -> Ok(SQuote x, pos) |> next)
-        | SQuasiquote d, pos -> d |> resolveDatumRefBind labels (fun x -> Ok(SQuasiquote x, pos) |> next)
-        | SUnquote d, pos -> d |> resolveDatumRefBind labels (fun x -> Ok(SUnquote x, pos) |> next)
-        | SUnquoteSplicing d, pos -> d |> resolveDatumRefBind labels (fun x -> Ok(SUnquoteSplicing x, pos) |> next)
+        | SQuote d, pos -> d |> resolveDatumRef labels (Result.bind (fun x -> Ok(SQuote x, pos) |> next))
+        | SQuasiquote d, pos ->
+            d
+            |> resolveDatumRef labels (Result.bind (fun x -> Ok(SQuasiquote x, pos) |> next))
+        | SUnquote d, pos -> d |> resolveDatumRef labels (Result.bind (fun x -> Ok(SUnquote x, pos) |> next))
+        | SUnquoteSplicing d, pos ->
+            d
+            |> resolveDatumRef labels (Result.bind (fun x -> Ok(SUnquoteSplicing x, pos) |> next))
         | x -> Ok x |> next
 
-    and resolveDatumRefBind labels next data =
-        data |> resolveDatumRef labels (Result.bind next)
+    and [<TailCall>] resolveDatumRefPair labels pair pos next =
+        pair.car
+        |> resolveDatumRef
+            labels
+            (Result.bind (fun car ->
+                pair.car <- car
+
+                pair.cdr
+                |> resolveDatumRef
+                    labels
+                    (Result.bind (fun cdr ->
+                        pair.cdr <- cdr
+                        Ok(SPair pair, pos) |> next))))
 
     and [<TailCall>] resolveDatumRefArray labels i len get set next =
         if i = len then
             next ()
         else
             get i
-            |> resolveDatumRefBind labels (fun r ->
-                set i r
-                resolveDatumRefArray labels (i + 1) len get set next)
+            |> resolveDatumRef
+                labels
+                (Result.bind (fun r ->
+                    set i r
+                    resolveDatumRefArray labels (i + 1) len get set next))
 
     and [<TailCall>] resolveDatumRefList labels acc next =
         function
         | [] -> acc |> List.rev |> next
         | x :: xs ->
             x
-            |> resolveDatumRefBind labels (fun r -> xs |> resolveDatumRefList labels (r :: acc) next)
+            |> resolveDatumRef labels (Result.bind (fun r -> xs |> resolveDatumRefList labels (r :: acc) next))
 
     let resolveLabels expression =
         [ expression ]

@@ -32,8 +32,8 @@ module Helper =
         | x -> x |> invalid (snd x) "'%s' invalid binding."
 
     [<TailCall>]
-    let rec eqv (a, b) =
-        match a, b with
+    let rec eqv =
+        function
         | (SBool x, _), (SBool y, _) -> x = y
         | (SSymbol x, _), (SSymbol y, _) -> x = y
         | (SRational(n1, d1), _), (SRational(n2, d2), _) -> n1 = n2 && d1 = d2
@@ -64,62 +64,68 @@ module Helper =
             | [] -> failwith "unreachable."
         else
             match sList, tList with
-            | h1 :: _, h2 :: _ when h1.id = h2.id -> List.rev accS, List.rev accT
+            | h1 :: _, h2 :: _ when h1.id = h2.id -> accS |> List.rev, accT |> List.rev
             | h1 :: t1, h2 :: t2 -> loopDiffWinders t1 t2 (lenS - 1) (lenT - 1) (h1 :: accS) (h2 :: accT)
-            | _ -> List.rev accS, List.rev accT
+            | _ -> accS |> List.rev, accT |> List.rev
 
     [<TailCall>]
-    let rec runWindLeaves envs next current =
+    let rec runWindLeaves context next current =
         function
         | [] -> Ok current |> next
         | head :: rest ->
-            let nextCurrent = Context.leaveWinder envs current head.id
+            let nextCurrent = Context.leaveWinder context current head.id
 
             head.after
             |> Eval.apply
-                envs
+                context
                 (function
-                | Ok _ -> rest |> runWindLeaves envs next nextCurrent
+                | Ok _ -> rest |> runWindLeaves context next nextCurrent
                 | Error e -> Error e |> next)
                 []
 
     [<TailCall>]
-    let rec runWindEnters envs next current =
+    let rec runWindEnters context next current =
         function
         | [] -> Ok current |> next
         | head :: rest ->
             head.before
             |> Eval.apply
-                envs
+                context
                 (function
                 | Ok _ ->
-                    let nextCurrent = head |> Context.enterWinder envs current
-                    rest |> runWindEnters envs next nextCurrent
+                    let nextCurrent = head |> Context.enterWinder context current
+                    rest |> runWindEnters context next nextCurrent
                 | Error e -> Error e |> next)
                 []
 
-    let doWind envs cont savedWinders arg =
-        let currentWinders = envs.winders.Value
+    let doWind context cont savedWinders arg =
+        let currentWinders = context.winders.Value
 
         let leaves, enters =
-            loopDiffWinders currentWinders savedWinders (List.length currentWinders) (List.length savedWinders) [] []
+            loopDiffWinders
+                currentWinders
+                savedWinders
+                (currentWinders |> List.length)
+                (savedWinders |> List.length)
+                []
+                []
 
-        let entersRev = List.rev enters
+        let entersRev = enters |> List.rev
 
         leaves
         |> runWindLeaves
-            envs
+            context
             (function
-            | Ok current -> entersRev |> runWindEnters envs (fun _ -> cont arg) current
+            | Ok current -> entersRev |> runWindEnters context (fun _ -> cont arg) current
             | Error e -> Error e |> cont)
             currentWinders
 
-    let doAroundProc envs cont before thunk after =
-        let id = Context.getNextWinderId envs
+    let doAroundProc context cont before thunk after =
+        let id = Context.getNextWinderId context
 
         before
         |> Eval.apply
-            envs
+            context
             (function
             | Ok _ ->
                 let winder =
@@ -127,14 +133,14 @@ module Helper =
                       before = before
                       after = after }
 
-                winder |> Context.pushWinder envs
+                winder |> Context.pushWinder context
 
                 thunk
                 |> Eval.apply
-                    envs
+                    context
                     (fun res ->
-                        Context.popWinder envs id
-                        after |> Eval.apply envs (fun _ -> cont res) [])
+                        Context.popWinder context id
+                        after |> Eval.apply context (fun _ -> cont res) [])
                     []
             | x -> x |> cont)
             []
@@ -147,3 +153,13 @@ module Helper =
         with
         | :? System.IO.FileNotFoundException -> EvalError(sprintf "File not found: %s." path, pos) |> Error
         | ex -> EvalError(sprintf "Error reading file %s: %s." path ex.Message, pos) |> Error
+
+    let getRange (length: int) =
+        function
+        | [] -> Some(0, length)
+        | [ SRational(start, d), _ ] when d = 1I && start >= 0I && start <= bigint length -> Some(int start, length)
+        | [ SRational(start, d1), _; SRational(stop, d2), _ ] when
+            d1 = 1I && d2 = 1I && start >= 0I && stop >= start && stop <= bigint length
+            ->
+            Some(int start, int stop)
+        | _ -> None

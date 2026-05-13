@@ -1,7 +1,7 @@
 namespace WriteScheme
 
 module Type =
-    type Position = { Line: int64; Column: int64 }
+    type Position = { line: int64; column: int64 }
 
     type SStringData =
         { runes: System.Text.Rune array
@@ -60,7 +60,7 @@ module Type =
 
     and Library =
         { name: string
-          env: Environment
+          environment: Environment
           exports: Set<string> }
 
     and Winder =
@@ -77,9 +77,9 @@ module Type =
     let SFalse = SBool false
     let toSBool x = if x then STrue else SFalse
 
-    let toSPair xs =
+    let toSPair list =
         (SEmpty, None)
-        |> List.foldBack (fun x acc -> SPair { car = x; cdr = acc }, snd x) xs
+        |> List.foldBack (fun x acc -> SPair { car = x; cdr = acc }, snd x) list
 
     // Floyd's cycle-finding algorithm
     [<TailCall>]
@@ -138,11 +138,11 @@ module Type =
             else
                 SRational(n', d') |> Ok
 
-    let realToRational x =
-        if System.Double.IsInfinity x || System.Double.IsNaN x then
-            SReal x
+    let realToRational r =
+        if System.Double.IsInfinity r || System.Double.IsNaN r then
+            SReal r
         else
-            let s = sprintf "%.17g" x
+            let s = sprintf "%.17g" r
 
             let res =
                 if s.Contains '.' || s.Contains 'e' || s.Contains 'E' then
@@ -160,11 +160,11 @@ module Type =
                         let denominator = bigint.Pow(10I, scale - exp)
                         newSRational numerator denominator
                 else
-                    bigint x |> newInteger |> Ok
+                    bigint r |> newInteger |> Ok
 
             match res with
             | Ok r -> r
-            | Error _ -> SReal x
+            | Error _ -> SReal r
 
     let runesToString runes =
         let sb = System.Text.StringBuilder()

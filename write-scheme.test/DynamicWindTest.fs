@@ -3,12 +3,12 @@ module WriteScheme.Tests.DynamicWindTest
 open Xunit
 open FsUnit.Xunit
 
-let repEnvs () =
-    WriteScheme.Repl.newEnvs () |> WriteScheme.Repl.rep
+let newRep () =
+    WriteScheme.Repl.newContext () |> WriteScheme.Repl.rep
 
 [<Fact>]
 let ``dynamic-wind basic`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(define path '())" |> rep |> ignore
 
@@ -23,7 +23,7 @@ let ``dynamic-wind basic`` () =
 
 [<Fact>]
 let ``dynamic-wind with call/cc`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(define path '())" |> rep |> ignore
     "(define c #f)" |> rep |> ignore
@@ -48,7 +48,7 @@ let ``dynamic-wind with call/cc`` () =
 
 [<Fact>]
 let ``dynamic-wind with exception handler`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(define path '())" |> rep |> ignore
 
@@ -66,7 +66,7 @@ let ``dynamic-wind with exception handler`` () =
 
 [<Fact>]
 let ``dynamic-wind nested jump`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(define path '())" |> rep |> ignore
     "(define k #f)" |> rep |> ignore
@@ -95,7 +95,7 @@ let ``dynamic-wind nested jump`` () =
 
 [<Fact>]
 let ``dynamic-wind different stacks jump`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(define path '())" |> rep |> ignore
     "(define k #f)" |> rep |> ignore
@@ -118,7 +118,7 @@ let ``dynamic-wind different stacks jump`` () =
 
 [<Fact>]
 let ``dynamic-wind jump into`` () =
-    let rep = repEnvs ()
+    let rep = newRep ()
 
     "(define path '())" |> rep |> ignore
     "(define k #f)" |> rep |> ignore

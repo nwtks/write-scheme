@@ -5,19 +5,19 @@ open Type
 
 [<AutoOpen>]
 module Bool =
-    let sNot envs pos cont =
+    let sNot context pos cont =
         function
         | [ SBool false, _ ] -> Ok(STrue, pos) |> cont
         | [ _ ] -> Ok(SFalse, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid not parameter." |> cont
 
-    let isBoolean envs pos cont =
+    let isBoolean context pos cont =
         function
         | [ SBool _, _ ] -> Ok(STrue, pos) |> cont
         | [ _ ] -> Ok(SFalse, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid boolean? parameter." |> cont
 
-    let sBooleanEq envs pos cont =
+    let sBooleanEq context pos cont =
         mapResult (function
             | SBool b, _ -> Ok b
             | x -> x |> invalid (snd x) "'%s' is not a boolean in boolean=?.")

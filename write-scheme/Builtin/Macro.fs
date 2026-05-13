@@ -37,93 +37,94 @@ module Macro =
     let collectPatternVars literals ellipsis pattern =
         [ pattern ] |> loopPatternVars literals ellipsis [] |> List.distinct |> List.rev
 
-    let freeIdentifierEquals defEnvs id1 useEnvs id2 =
-        match id1, id2 with
-        | SSymbol s1, SSymbol s2 ->
-            let ref1 = Context.tryLookupEnvs defEnvs s1
-            let ref2 = Context.tryLookupEnvs useEnvs s2
+    let freeIdentifierEquals defContext defId useContext useId =
+        match defId, useId with
+        | SSymbol defSym, SSymbol useSym ->
+            let defRef = defSym |> Context.tryLookupEnvironments defContext
+            let useRef = useSym |> Context.tryLookupEnvironments useContext
 
-            match ref1, ref2 with
-            | Some r1, Some r2 -> LanguagePrimitives.PhysicalEquality r1 r2
-            | None, None -> s1 = s2
+            match defRef, useRef with
+            | Some defVal, Some useVal -> LanguagePrimitives.PhysicalEquality defVal useVal
+            | None, None -> defSym = useSym
             | _ -> false
         | _ -> false
 
     [<TailCall>]
-    let rec matchOne defEnvs useEnvs literals ellipsis inp next =
+    let rec matchOne defContext useContext literals ellipsis arg next =
         function
         | SSymbol "_", _ -> Map.empty |> Some |> next
         | SSymbol s, _ when s = ellipsis -> None |> next
         | SSymbol s as sym, _ when literals |> Set.contains s ->
-            if freeIdentifierEquals defEnvs sym useEnvs (fst inp) then
+            if freeIdentifierEquals defContext sym useContext (fst arg) then
                 Map.empty |> Some |> next
             else
                 None |> next
-        | SSymbol s, _ -> Map.ofList [ s, SingleB inp ] |> Some |> next
+        | SSymbol s, _ -> Map.ofList [ s, SingleB arg ] |> Some |> next
         | SEmpty, _ ->
-            match inp with
+            match arg with
             | SEmpty, _ -> Map.empty |> Some |> next
             | _ -> None |> next
         | SBool v, _ ->
-            match inp with
+            match arg with
             | SBool v', _ when v = v' -> Map.empty |> Some |> next
             | _ -> None |> next
         | SRational(n1, d1), _ ->
-            match inp with
+            match arg with
             | SRational(n2, d2), _ when n1 = n2 && d1 = d2 -> Map.empty |> Some |> next
             | _ -> None |> next
         | SReal v, _ ->
-            match inp with
+            match arg with
             | SReal v', _ when v = v' -> Map.empty |> Some |> next
             | _ -> None |> next
         | SString v, _ ->
-            match inp with
+            match arg with
             | SString v', _ when v = v' -> Map.empty |> Some |> next
             | _ -> None |> next
         | SChar v, _ ->
-            match inp with
+            match arg with
             | SChar v', _ when v = v' -> Map.empty |> Some |> next
             | _ -> None |> next
         | SPair { car = SSymbol ell, _
                   cdr = SPair { car = SSymbol s, _; cdr = SEmpty, _ }, _ },
           _ when ell = ellipsis && s = ellipsis ->
-            match inp with
+            match arg with
             | SSymbol s', _ when s' = ellipsis -> Map.empty |> Some |> next
             | _ -> None |> next
         | SPair _, _ as pair ->
-            let elements, tail = pair |> decodePair []
+            let patterns, tail = pair |> decodePair []
             let isProper = fst tail = SEmpty
 
-            match inp with
-            | SPair _, _ as i when isProper && isProperList i ->
-                match i |> toList with
-                | Ok ilist -> elements |> matchPatternList defEnvs useEnvs literals ellipsis ilist next
+            match arg with
+            | SPair _, _ as a when isProper && a |> isProperList ->
+                match a |> toList with
+                | Ok args -> patterns |> matchPatternList defContext useContext literals ellipsis args next
                 | Error _ -> None |> next
-            | SPair _, _ as i when not isProper -> (pair, i) |> loopMatchOnePair defEnvs useEnvs literals ellipsis next
+            | SPair _, _ as a when not isProper ->
+                (pair, a) |> loopMatchOnePair defContext useContext literals ellipsis next
             | _ -> None |> next
         | SVector patterns, _ ->
-            match inp with
-            | SVector inps, _ when patterns.Length = inps.Length ->
+            match arg with
+            | SVector args, _ when patterns.Length = args.Length ->
                 patterns
                 |> Array.toList
-                |> matchPatternList defEnvs useEnvs literals ellipsis (inps |> Array.toList) next
+                |> matchPatternList defContext useContext literals ellipsis (args |> Array.toList) next
             | _ -> None |> next
         | _ -> None |> next
 
-    and [<TailCall>] loopMatchOnePair defEnvs useEnvs literals ellipsis next =
+    and [<TailCall>] loopMatchOnePair defContext useContext literals ellipsis next =
         function
-        | (SPair pair, _), (SPair inp, _) ->
-            pair.car
-            |> matchOne defEnvs useEnvs literals ellipsis inp.car (function
+        | (SPair pattern, _), (SPair arg, _) ->
+            pattern.car
+            |> matchOne defContext useContext literals ellipsis arg.car (function
                 | Some binding1 ->
-                    (pair.cdr, inp.cdr)
-                    |> loopMatchOnePair defEnvs useEnvs literals ellipsis (function
+                    (pattern.cdr, arg.cdr)
+                    |> loopMatchOnePair defContext useContext literals ellipsis (function
                         | Some binding2 -> mergeBindings binding1 binding2 |> Some |> next
                         | None -> None |> next)
                 | None -> None |> next)
-        | pattern, inp -> pattern |> matchOne defEnvs useEnvs literals ellipsis inp next
+        | pattern, arg -> pattern |> matchOne defContext useContext literals ellipsis arg next
 
-    and [<TailCall>] matchPatternList defEnvs useEnvs literals ellipsis inps next patterns =
+    and [<TailCall>] matchPatternList defContext useContext literals ellipsis args next patterns =
         let dotIdx =
             patterns
             |> List.tryFindIndex (function
@@ -132,60 +133,68 @@ module Macro =
 
         match dotIdx with
         | Some i when i > 0 ->
-            let prefix = patterns |> List.take (i - 1)
-            let suffix = patterns |> List.skip (i + 1)
+            let prefixPatterns = patterns |> List.take (i - 1)
+            let suffixPatterns = patterns |> List.skip (i + 1)
 
-            if inps.Length < prefix.Length + suffix.Length then
+            if args.Length < prefixPatterns.Length + suffixPatterns.Length then
                 None |> next
             else
                 let ellipsisPattern = patterns.[i - 1]
-                let prefixInps = inps |> List.take prefix.Length
-                let suffixInps = inps |> List.skip (inps.Length - suffix.Length)
+                let prefixArgs = args |> List.take prefixPatterns.Length
+                let suffixArgs = args |> List.skip (args.Length - suffixPatterns.Length)
 
-                let ellipsisInps =
-                    inps
-                    |> List.skip prefix.Length
-                    |> List.take (inps.Length - prefix.Length - suffix.Length)
+                let ellipsisArgs =
+                    args
+                    |> List.skip prefixPatterns.Length
+                    |> List.take (args.Length - prefixPatterns.Length - suffixPatterns.Length)
 
-                prefix
-                |> matchPatternList defEnvs useEnvs literals ellipsis prefixInps (function
+                prefixPatterns
+                |> matchPatternList defContext useContext literals ellipsis prefixArgs (function
                     | Some matchedPrefix ->
-                        suffix
-                        |> matchPatternList defEnvs useEnvs literals ellipsis suffixInps (function
+                        suffixPatterns
+                        |> matchPatternList defContext useContext literals ellipsis suffixArgs (function
                             | Some matchedSuffix ->
                                 let vars = ellipsisPattern |> collectPatternVars literals ellipsis
 
-                                ellipsisInps
-                                |> matchEllipsis defEnvs useEnvs literals ellipsis ellipsisPattern vars [] (function
-                                    | Some matchedEllipsis ->
-                                        mergeBindings (mergeBindings matchedPrefix matchedSuffix) matchedEllipsis
-                                        |> Some
-                                        |> next
-                                    | None -> None |> next)
+                                ellipsisArgs
+                                |> matchEllipsis
+                                    defContext
+                                    useContext
+                                    literals
+                                    ellipsis
+                                    ellipsisPattern
+                                    vars
+                                    []
+                                    (function
+                                     | Some matchedEllipsis ->
+                                         mergeBindings (mergeBindings matchedPrefix matchedSuffix) matchedEllipsis
+                                         |> Some
+                                         |> next
+                                     | None -> None |> next)
                             | None -> None |> next)
                     | None -> None |> next)
         | _ ->
             match patterns with
             | pattern :: rest ->
-                match inps with
-                | inp :: restInps ->
+                match args with
+                | arg :: restArgs ->
                     pattern
-                    |> matchOne defEnvs useEnvs literals ellipsis inp (function
+                    |> matchOne defContext useContext literals ellipsis arg (function
                         | Some binding1 ->
                             rest
-                            |> matchPatternList defEnvs useEnvs literals ellipsis restInps (fun matchedRest ->
+                            |> matchPatternList defContext useContext literals ellipsis restArgs (fun matchedRest ->
                                 match matchedRest with
                                 | Some binding2 -> mergeBindings binding1 binding2 |> Some |> next
                                 | None -> None |> next)
                         | None -> None |> next)
                 | [] -> None |> next
             | [] ->
-                if List.isEmpty inps then
+                if args |> List.isEmpty then
                     Map.empty |> Some |> next
                 else
                     None |> next
 
-    and [<TailCall>] matchEllipsis defEnvs useEnvs literals ellipsis pattern vars results next =
+    and [<TailCall>] matchEllipsis defContext useContext literals ellipsis pattern vars results next =
         function
         | [] ->
             let bindings = results |> List.rev |> List.map Option.get
@@ -206,10 +215,10 @@ module Macro =
             |> next
         | inp :: restInps ->
             pattern
-            |> matchOne defEnvs useEnvs literals ellipsis inp (function
+            |> matchOne defContext useContext literals ellipsis inp (function
                 | Some binding ->
                     restInps
-                    |> matchEllipsis defEnvs useEnvs literals ellipsis pattern vars (Some binding :: results) next
+                    |> matchEllipsis defContext useContext literals ellipsis pattern vars (Some binding :: results) next
                 | None -> None |> next)
 
     [<TailCall>]
@@ -246,7 +255,7 @@ module Macro =
             elements
             |> renameTemplateList toRename (fun renamedElements ->
                 if isProper then
-                    toSPair renamedElements |> next
+                    renamedElements |> toSPair |> next
                 else
                     tail
                     |> renameTemplate
@@ -366,12 +375,12 @@ module Macro =
                 |> expandEllipsis ellipsis bindings template ellipsisVars count (i + 1) next)
 
     [<TailCall>]
-    let rec trySyntaxRules defEnvs useEnvs pos cont ellipsis literalSet args =
+    let rec trySyntaxRules defContext useContext pos cont ellipsis literalSet args =
         function
         | [] -> EvalError("No matching syntax-rules pattern.", pos) |> Error |> cont
         | (elements, template) :: rest ->
             elements
-            |> matchPatternList defEnvs useEnvs literalSet ellipsis args (function
+            |> matchPatternList defContext useContext literalSet ellipsis args (function
                 | Some bindings ->
                     let patternVars =
                         elements |> toSPair |> collectPatternVars literalSet ellipsis |> Set.ofList
@@ -383,28 +392,28 @@ module Macro =
                             not (patternVars |> Set.contains s || literalSet |> Set.contains s || s = ellipsis))
                         |> List.distinct
 
-                    let expansionId = Context.getNextExpansionId useEnvs
+                    let expansionId = Context.getNextExpansionId useContext
                     let rename s = sprintf "%s#%d" s expansionId
                     let renameMap = templateVars |> List.map (fun s -> s, rename s) |> Map.ofList
 
                     template
                     |> renameTemplate renameMap (fun renamedTemplate ->
-                        let extendedEnvs =
+                        let extendedContext =
                             templateVars
                             |> List.choose (fun s ->
-                                match Context.tryLookupEnvs defEnvs s with
+                                match s |> Context.tryLookupEnvironments defContext with
                                 | Some v -> Some(rename s, v)
                                 | None -> None)
-                            |> Context.extendEnvs useEnvs
+                            |> Context.extendEnvironments useContext
 
                         renamedTemplate
-                        |> expandTemplate ellipsis false bindings (Eval.eval extendedEnvs cont))
-                | None -> rest |> trySyntaxRules defEnvs useEnvs pos cont ellipsis literalSet args)
+                        |> expandTemplate ellipsis false bindings (Eval.eval extendedContext cont))
+                | None -> rest |> trySyntaxRules defContext useContext pos cont ellipsis literalSet args)
 
     let parseSyntaxLiterals =
         function
         | SEmpty, _ -> Ok Set.empty
-        | literals when isProperList literals ->
+        | literals when literals |> isProperList ->
             match literals |> toList with
             | Ok l ->
                 l
@@ -423,15 +432,16 @@ module Macro =
           _ -> elements |> toList |> Result.map (fun elist -> elist, template)
         | x -> x |> invalid (snd x) "'%s' invalid syntax-rules clause."
 
-    let sSyntaxRules envs pos cont =
+    let sSyntaxRules context pos cont =
         function
         | (SSymbol ellipsis, _) :: literals :: rules ->
             match parseSyntaxLiterals literals with
             | Ok literalSet ->
                 match rules |> mapResult parseSyntaxRule with
                 | Ok parsedRules ->
-                    let transformer envs' pos' cont' args =
-                        parsedRules |> trySyntaxRules envs envs' pos' cont' ellipsis literalSet args
+                    let transformer context' pos' cont' args =
+                        parsedRules
+                        |> trySyntaxRules context context' pos' cont' ellipsis literalSet args
 
                     Ok(SSyntax transformer, pos) |> cont
                 | Error e -> Error e |> cont
@@ -441,8 +451,8 @@ module Macro =
             | Ok literalSet ->
                 match rules |> mapResult parseSyntaxRule with
                 | Ok parsedRules ->
-                    let transformer envs' pos' cont' args =
-                        parsedRules |> trySyntaxRules envs envs' pos' cont' "..." literalSet args
+                    let transformer context' pos' cont' args =
+                        parsedRules |> trySyntaxRules context context' pos' cont' "..." literalSet args
 
                     Ok(SSyntax transformer, pos) |> cont
                 | Error e -> Error e |> cont
@@ -450,42 +460,44 @@ module Macro =
         | x -> x |> invalidParameter pos "'%s' invalid syntax-rules parameter." |> cont
 
     [<TailCall>]
-    let rec evalLetSyntaxTransformers envs pos cont body acc =
+    let rec evalLetSyntaxTransformers context pos cont body acc =
         function
-        | [] -> body |> Eval.eachEval (Context.extendEnvs envs acc) cont (Ok(SEmpty, pos))
+        | [] ->
+            body
+            |> Eval.eachEval (acc |> Context.extendEnvironments context) cont (Ok(SEmpty, pos))
         | (var, expr) :: rest ->
             expr
-            |> Eval.eval envs (function
+            |> Eval.eval context (function
                 | Ok transformer ->
                     rest
-                    |> evalLetSyntaxTransformers envs pos cont body ((var, ref transformer) :: acc)
+                    |> evalLetSyntaxTransformers context pos cont body ((var, ref transformer) :: acc)
                 | x -> x |> cont)
 
-    let sLetSyntax envs pos cont =
+    let sLetSyntax context pos cont =
         function
         | bindings :: body ->
             match bindings |> toList with
             | Ok blist ->
                 match blist |> mapResult eachBinding with
-                | Ok bindings' -> bindings' |> evalLetSyntaxTransformers envs pos cont body []
+                | Ok bindings' -> bindings' |> evalLetSyntaxTransformers context pos cont body []
                 | Error e -> Error e |> cont
             | Error e -> Error e |> cont
         | x -> x |> invalidParameter pos "'%s' invalid let-syntax parameter." |> cont
 
     [<TailCall>]
-    let rec evalLetRecSyntaxTransformers envs pos cont body =
+    let rec evalLetRecSyntaxTransformers context pos cont body =
         function
         | [], _
-        | _, [] -> body |> Eval.eachEval envs cont (Ok(SEmpty, pos))
+        | _, [] -> body |> Eval.eachEval context cont (Ok(SEmpty, pos))
         | (_, expr) :: rest, r: SExpression ref :: restRefs ->
             expr
-            |> Eval.eval envs (function
+            |> Eval.eval context (function
                 | Ok transformer ->
                     r.Value <- transformer
-                    (rest, restRefs) |> evalLetRecSyntaxTransformers envs pos cont body
+                    (rest, restRefs) |> evalLetRecSyntaxTransformers context pos cont body
                 | x -> x |> cont)
 
-    let sLetRecSyntax envs pos cont =
+    let sLetRecSyntax context pos cont =
         function
         | bindings :: body ->
             match bindings |> toList with
@@ -493,27 +505,27 @@ module Macro =
                 match blist |> mapResult eachBinding with
                 | Ok bindings' ->
                     let vars = bindings' |> List.map (fun (v, _) -> v, ref (SEmpty, pos))
-                    let envs' = vars |> Context.extendEnvs envs
+                    let context' = vars |> Context.extendEnvironments context
 
                     (bindings', vars |> List.map snd)
-                    |> evalLetRecSyntaxTransformers envs' pos cont body
+                    |> evalLetRecSyntaxTransformers context' pos cont body
                 | Error e -> Error e |> cont
             | Error e -> Error e |> cont
         | x -> x |> invalidParameter pos "'%s' invalid letrec-syntax parameter." |> cont
 
-    let sDefineSyntax envs pos cont =
+    let sDefineSyntax context pos cont =
         function
         | [ SSymbol keyword, _ as sym; transformer ] ->
             transformer
             |> Eval.eval
-                envs
+                context
                 (Result.map (fun x ->
-                    Context.defineEnvVar envs keyword x
+                    Context.defineEnvironmentVariable context keyword x
                     sym)
                  >> cont)
         | x -> x |> invalidParameter pos "'%s' invalid define-syntax parameter." |> cont
 
-    let sSyntaxError envs pos cont =
+    let sSyntaxError context pos cont =
         function
         | (SString message, _) :: irritants -> Error(SchemeRaise((SError(message, irritants), pos), pos)) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid syntax-error parameter." |> cont

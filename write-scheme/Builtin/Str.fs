@@ -5,13 +5,13 @@ open Type
 
 [<AutoOpen>]
 module Str =
-    let isString envs pos cont =
+    let isString context pos cont =
         function
         | [ SString _, _ ] -> Ok(STrue, pos) |> cont
         | [ _ ] -> Ok(SFalse, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid string? parameter." |> cont
 
-    let sMakeString envs pos cont =
+    let sMakeString context pos cont =
         function
         | [ SRational(n, d), _ ] when d = 1I && n >= 0I ->
             Ok(
@@ -31,7 +31,7 @@ module Str =
             |> cont
         | x -> x |> invalidParameter pos "'%s' invalid make-string parameter." |> cont
 
-    let sString envs pos cont =
+    let sString context pos cont =
         mapResult (function
             | SChar c, _ -> Ok c
             | x -> x |> invalid (snd x) "'%s' is not a char in string.")
@@ -42,18 +42,18 @@ module Str =
             pos)
         >> cont
 
-    let sStringLength envs pos cont =
+    let sStringLength context pos cont =
         function
-        | [ SString s, _ ] -> Ok(newInteger (bigint s.runes.Length), pos) |> cont
+        | [ SString s, _ ] -> Ok(bigint s.runes.Length |> newInteger, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid string-length parameter." |> cont
 
-    let sStringRef envs pos cont =
+    let sStringRef context pos cont =
         function
         | [ SString s, _; SRational(n, d), _ ] when d = 1I && n >= 0I && n < bigint s.runes.Length ->
             Ok(s.runes.[int n] |> SChar, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid string-ref parameter." |> cont
 
-    let sStringSetBang envs pos cont =
+    let sStringSetBang context pos cont =
         function
         | [ SString s, _; SRational(n, d), _; SChar c, _ ] when d = 1I && n >= 0I && n < bigint s.runes.Length ->
             if s.isImmutable then
@@ -80,32 +80,32 @@ module Str =
     let compareStringsCi pred =
         compareStringsBase (fun s -> s.ToLowerInvariant()) pred
 
-    let sStringEq envs = compareStrings (=) "string=?"
-    let sStringLt envs = compareStrings (<) "string<?"
-    let sStringGt envs = compareStrings (>) "string>?"
-    let sStringLe envs = compareStrings (<=) "string<=?"
-    let sStringGe envs = compareStrings (>=) "string>=?"
-    let sStringCiEq envs = compareStringsCi (=) "string-ci=?"
-    let sStringCiLt envs = compareStringsCi (<) "string-ci<?"
-    let sStringCiGt envs = compareStringsCi (>) "string-ci>?"
-    let sStringCiLe envs = compareStringsCi (<=) "string-ci<=?"
-    let sStringCiGe envs = compareStringsCi (>=) "string-ci>=?"
+    let sStringEq context = compareStrings (=) "string=?"
+    let sStringLt context = compareStrings (<) "string<?"
+    let sStringGt context = compareStrings (>) "string>?"
+    let sStringLe context = compareStrings (<=) "string<=?"
+    let sStringGe context = compareStrings (>=) "string>=?"
+    let sStringCiEq context = compareStringsCi (=) "string-ci=?"
+    let sStringCiLt context = compareStringsCi (<) "string-ci<?"
+    let sStringCiGt context = compareStringsCi (>) "string-ci>?"
+    let sStringCiLe context = compareStringsCi (<=) "string-ci<=?"
+    let sStringCiGe context = compareStringsCi (>=) "string-ci>=?"
 
-    let sStringUpcase envs pos cont =
+    let sStringUpcase context pos cont =
         function
         | [ SString s, _ ] ->
             Ok((s.runes |> runesToString).ToUpperInvariant() |> newSString false, pos)
             |> cont
         | x -> x |> invalidParameter pos "'%s' invalid string-upcase parameter." |> cont
 
-    let sStringDowncase envs pos cont =
+    let sStringDowncase context pos cont =
         function
         | [ SString s, _ ] ->
             Ok((s.runes |> runesToString).ToLowerInvariant() |> newSString false, pos)
             |> cont
         | x -> x |> invalidParameter pos "'%s' invalid string-downcase parameter." |> cont
 
-    let sStringFoldcase envs pos cont =
+    let sStringFoldcase context pos cont =
         function
         | [ SString s, _ ] ->
             Ok((s.runes |> runesToString).ToLowerInvariant() |> newSString false, pos)
@@ -131,12 +131,12 @@ module Str =
         getRunesRange
         >> Option.map (fun (runes, start, count) -> Array.sub runes start count)
 
-    let sSubstring envs pos cont args =
+    let sSubstring context pos cont args =
         match getRunesSlice args with
         | Some runes -> Ok({ runes = runes; isImmutable = false } |> SString, pos) |> cont
         | None -> args |> invalidParameter pos "'%s' invalid substring parameter." |> cont
 
-    let sStringAppend envs pos cont =
+    let sStringAppend context pos cont =
         mapResult (function
             | SString s, _ -> Ok(s.runes |> Array.toList)
             | x -> x |> invalid (snd x) "'%s' is not a string in string-append.")
@@ -147,7 +147,7 @@ module Str =
             pos)
         >> cont
 
-    let sStringToList envs pos cont args =
+    let sStringToList context pos cont args =
         match getRunesRange args with
         | Some(runes, start, count) ->
             Ok(
@@ -159,9 +159,9 @@ module Str =
             |> cont
         | None -> args |> invalidParameter pos "'%s' invalid string->list parameter." |> cont
 
-    let sListToString envs pos cont =
+    let sListToString context pos cont =
         function
-        | [ list ] when isProperList list ->
+        | [ list ] when list |> isProperList ->
             list
             |> toList
             |> Result.bind (
@@ -178,12 +178,12 @@ module Str =
         | [ SEmpty, _ ] -> Ok({ runes = [||]; isImmutable = false } |> SString, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid list->string parameter." |> cont
 
-    let sStringCopy envs pos cont args =
+    let sStringCopy context pos cont args =
         match getRunesSlice args with
         | Some runes -> Ok({ runes = runes; isImmutable = false } |> SString, pos) |> cont
         | None -> args |> invalidParameter pos "'%s' invalid string-copy parameter." |> cont
 
-    let sStringCopyBang envs pos cont =
+    let sStringCopyBang context pos cont =
         function
         | (SString dest, _) :: (SRational(at, dAt), _) :: src as args when dAt = 1I && at >= 0I ->
             if dest.isImmutable then
@@ -199,7 +199,7 @@ module Str =
                 | None -> args |> invalidParameter pos "'%s' invalid string-copy! parameter." |> cont
         | x -> x |> invalidParameter pos "'%s' invalid string-copy! parameter." |> cont
 
-    let sStringFillBang envs pos cont =
+    let sStringFillBang context pos cont =
         function
         | SString s, _ as str :: (SChar fill, _) :: range as args ->
             if s.isImmutable then

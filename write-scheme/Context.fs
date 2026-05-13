@@ -6,7 +6,7 @@ module Context =
     let initialHandlers =
         [ SProcedure(fun _ pos cont ->
               function
-              | [ obj ] -> Error(SchemeRaise(obj, pos)) |> cont
+              | [ obj ] -> SchemeRaise(obj, pos) |> Error |> cont
               | _ -> failwith "unreachable."),
           None ]
 
@@ -19,92 +19,93 @@ module Context =
           nextWinderId = ref 0
           handlers = ref initialHandlers }
 
-    let reset envs =
-        envs.winders.Value <- []
-        envs.handlers.Value <- initialHandlers
+    let reset context =
+        context.winders.Value <- []
+        context.handlers.Value <- initialHandlers
 
-    let extendEnvs envs bindings =
-        { envs with
-            environments = (Map.ofList bindings |> ref) :: envs.environments }
+    let extendEnvironments context bindings =
+        { context with
+            environments = (Map.ofList bindings |> ref) :: context.environments }
 
-    let mergeEnvs envs captureEnvs =
-        { envs with
-            environments = envs.environments @ captureEnvs.environments }
+    let mergeEnvironments context captureContext =
+        { context with
+            environments = context.environments @ captureContext.environments }
 
-    let tryLookupEnv (env: Environment) symbol = env.Value |> Map.tryFind symbol
+    let tryLookupEnvironment (environment: Environment) symbol = environment.Value |> Map.tryFind symbol
 
-    let defineEnvVar envs symbol value =
-        let env = envs.environments.Head
+    let defineEnvironmentVariable context symbol value =
+        let env = context.environments.Head
 
         symbol
-        |> tryLookupEnv env
+        |> tryLookupEnvironment env
         |> function
             | Some r -> r.Value <- value
             | None -> env.Value <- env.Value |> Map.add symbol (ref value)
 
-    let tryLookupEnvs envs symbol =
-        envs.environments |> List.tryPick (fun env -> tryLookupEnv env symbol)
+    let tryLookupEnvironments context symbol =
+        context.environments
+        |> List.tryPick (fun env -> symbol |> tryLookupEnvironment env)
 
-    let lookupEnvs envs pos symbol =
+    let lookupEnvironments context pos symbol =
         symbol
-        |> tryLookupEnvs envs
+        |> tryLookupEnvironments context
         |> function
             | Some x -> Ok x
             | None -> EvalError(sprintf "No binding for '%s'." symbol, pos) |> Error
 
-    let registerLibrary envs name env exports =
-        let libName = Print.print name
+    let registerLibrary context name libEnvironment exports =
+        let libName = name |> Print.print
 
         let lib =
             { name = libName
-              env = env
+              environment = libEnvironment
               exports = exports }
 
-        envs.libraries.Value <- envs.libraries.Value |> Map.add libName lib
+        context.libraries.Value <- context.libraries.Value |> Map.add libName lib
 
-    let lookupLibrary envs pos name =
-        let libName = Print.print name
+    let lookupLibrary context pos name =
+        let libName = name |> Print.print
 
-        match envs.libraries.Value |> Map.tryFind libName with
+        match context.libraries.Value |> Map.tryFind libName with
         | Some lib -> Ok lib
         | None -> EvalError(sprintf "Library '%s' not found." libName, pos) |> Error
 
-    let getNextExpansionId envs =
-        envs.nextExpansionId <- envs.nextExpansionId + 1
-        envs.nextExpansionId
+    let getNextExpansionId context =
+        context.nextExpansionId <- context.nextExpansionId + 1
+        context.nextExpansionId
 
-    let getNextRecordTypeId envs =
-        envs.nextRecordTypeId <- envs.nextRecordTypeId + 1
-        envs.nextRecordTypeId
+    let getNextRecordTypeId context =
+        context.nextRecordTypeId <- context.nextRecordTypeId + 1
+        context.nextRecordTypeId
 
-    let enterWinder envs current winder =
+    let enterWinder context current winder =
         let next = winder :: current
-        envs.winders.Value <- next
+        context.winders.Value <- next
         next
 
-    let leaveWinder envs current id =
+    let leaveWinder context current id =
         let next =
             match current with
             | h :: t when h.id = id -> t
             | x -> x
 
-        envs.winders.Value <- next
+        context.winders.Value <- next
         next
 
-    let pushWinder envs winder =
-        winder |> enterWinder envs envs.winders.Value |> ignore
+    let pushWinder context winder =
+        winder |> enterWinder context context.winders.Value |> ignore
 
-    let popWinder envs id =
-        leaveWinder envs envs.winders.Value id |> ignore
+    let popWinder context id =
+        leaveWinder context context.winders.Value id |> ignore
 
-    let getNextWinderId envs =
-        envs.nextWinderId.Value <- envs.nextWinderId.Value + 1
-        envs.nextWinderId.Value
+    let getNextWinderId context =
+        context.nextWinderId.Value <- context.nextWinderId.Value + 1
+        context.nextWinderId.Value
 
-    let pushHandler envs handler =
-        envs.handlers.Value <- handler :: envs.handlers.Value
+    let pushHandler context handler =
+        context.handlers.Value <- handler :: context.handlers.Value
 
-    let popHandler envs =
-        let handler = envs.handlers.Value.Head
-        envs.handlers.Value <- envs.handlers.Value.Tail
+    let popHandler context =
+        let handler = context.handlers.Value.Head
+        context.handlers.Value <- context.handlers.Value.Tail
         handler

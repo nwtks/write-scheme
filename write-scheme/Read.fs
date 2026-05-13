@@ -21,7 +21,7 @@ module Read =
     let hex2int x = (int x &&& 15) + (int x >>> 6) * 9
 
     let parseWithPos p =
-        pipe2 getPosition p (fun pos expr -> expr, Some { Line = pos.Line; Column = pos.Column })
+        pipe2 getPosition p (fun pos expr -> expr, Some { line = pos.Line; column = pos.Column })
 
     let pHexScalarValue =
         pHexDigit |> many1Chars
@@ -397,8 +397,8 @@ module Read =
             ParseError(
                 msg,
                 Some
-                    { Line = int64 error.Position.Line
-                      Column = int64 error.Position.Column }
+                    { line = int64 error.Position.Line
+                      column = int64 error.Position.Column }
             )
             |> Result.Error
 
@@ -412,7 +412,7 @@ module Read =
             ParseError(
                 msg,
                 Some
-                    { Line = int64 error.Position.Line
-                      Column = int64 error.Position.Column }
+                    { line = int64 error.Position.Line
+                      column = int64 error.Position.Column }
             )
             |> Result.Error
