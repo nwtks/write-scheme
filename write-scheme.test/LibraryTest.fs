@@ -170,3 +170,17 @@ module LibraryTest =
         |> function
             | Error(EvalError(msg, _)) -> msg |> should startWith "rename: identifier 'b' not exported."
             | _ -> failwith "Expected error"
+
+    [<Fact>]
+    let ``export: rename`` () =
+        let input =
+            """
+        (define-library (lib)
+            (export (rename a x) (rename b y))
+            (import (scheme base))
+            (begin (define a 1) (define b 2)))
+        (import (lib))
+        (list x y)
+        """
+
+        check input "(1 2)"

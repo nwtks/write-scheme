@@ -84,9 +84,9 @@ module Math =
         | [ SReal r, _ ] -> Ok(System.Double.IsInfinity r |> toSBool, pos) |> cont
         | [ SComplex c, _ ] ->
             Ok(
-                ((System.Double.IsInfinity c.Real || System.Double.IsInfinity c.Imaginary)
-                 |> toSBool,
-                 pos)
+                (System.Double.IsInfinity c.Real || System.Double.IsInfinity c.Imaginary)
+                |> toSBool,
+                pos
             )
             |> cont
         | [ _ ] -> Ok(SFalse, pos) |> cont
@@ -784,13 +784,13 @@ module Math =
             | SRational(n', d'), _ ->
                 (if d' = 1I then
                      match int radix with
-                     | 2 -> Ok(System.Convert.ToString(int64 n', 2))
-                     | 8 -> Ok(System.Convert.ToString(int64 n', 8))
-                     | 10 -> Ok(string n')
-                     | 16 -> Ok(System.Convert.ToString(int64 n', 16))
+                     | 2 -> System.Convert.ToString(int64 n', 2) |> Ok
+                     | 8 -> System.Convert.ToString(int64 n', 8) |> Ok
+                     | 10 -> string n' |> Ok
+                     | 16 -> System.Convert.ToString(int64 n', 16) |> Ok
                      | x -> EvalError(sprintf "'%d' unsupported radix in number->string." x, pos) |> Error
                  else
-                     Ok(sprintf "%A/%A" n' d'))
+                     sprintf "%A/%A" n' d' |> Ok)
                 |> Result.map (fun s -> s |> newSString true, pos)
                 |> cont
             | _ -> Ok(n |> Print.print |> newSString true, pos) |> cont

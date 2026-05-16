@@ -116,9 +116,7 @@ module Vector =
         | (SVector vector, _) :: fill :: range as args ->
             match getRange vector.Length range with
             | Some(start, stop) ->
-                for i in start .. stop - 1 do
-                    vector.[i] <- fill
-
+                Array.fill vector start (stop - start) fill
                 Ok(SUnspecified, pos) |> cont
             | None -> args |> invalidParameter pos "'%s' invalid vector-fill! parameter." |> cont
         | x -> x |> invalidParameter pos "'%s' invalid vector-fill! parameter." |> cont

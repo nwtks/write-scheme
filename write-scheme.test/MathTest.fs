@@ -462,7 +462,7 @@ let exactIntegerSqrt () =
 [<Fact>]
 let expt () =
     "(expt 2 3)" |> rep |> should equal "8"
-    "(expt 4 0.5)" |> rep |> should equal "2+0i" // result of complex pow
+    "(expt 4 0.5)" |> rep |> should equal "2+0i"
     "(expt 2 10)" |> rep |> should equal "1024"
     "(expt 5 -1)" |> rep |> should equal "1/5"
     "(expt -2 -3)" |> rep |> should equal "-1/8"

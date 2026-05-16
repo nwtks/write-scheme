@@ -61,7 +61,7 @@ module Type =
     and Library =
         { name: string
           environment: Environment
-          exports: Set<string> }
+          exports: Map<string, string> }
 
     and Winder =
         { id: int

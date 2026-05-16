@@ -94,9 +94,7 @@ module ByteVector =
             match getRange s.runes.Length range with
             | Some(start, stop) ->
                 let sb = System.Text.StringBuilder stop
-
-                for i in start .. stop - 1 do
-                    s.runes.[i] |> string |> sb.Append |> ignore
+                s.runes.[start .. stop - 1] |> Seq.iter (string >> sb.Append >> ignore)
 
                 Ok(sb |> string |> System.Text.Encoding.UTF8.GetBytes |> SByteVector, pos)
                 |> cont

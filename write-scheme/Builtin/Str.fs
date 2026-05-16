@@ -150,12 +150,11 @@ module Str =
     let sStringToList context pos cont args =
         match getRunesRange args with
         | Some(runes, start, count) ->
-            Ok(
-                runes.[start .. start + count - 1]
-                |> Seq.map (fun c -> SChar c, pos)
-                |> Seq.toList
-                |> toSPair
-            )
+            runes.[start .. start + count - 1]
+            |> Seq.map (fun c -> SChar c, pos)
+            |> Seq.toList
+            |> toSPair
+            |> Ok
             |> cont
         | None -> args |> invalidParameter pos "'%s' invalid string->list parameter." |> cont
 

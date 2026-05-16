@@ -261,7 +261,8 @@ module Builtin =
         let builtinCtx = builtinBindings |> Context.extendEnvironments Context.empty
 
         builtinCtx.environments.Head.Value.Keys
-        |> Set.ofSeq
+        |> Seq.map (fun k -> k, k)
+        |> Map.ofSeq
         |> Context.registerLibrary builtinCtx schemeBaseName builtinCtx.environments.Head
 
         builtinCtx
