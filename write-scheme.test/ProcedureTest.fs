@@ -17,6 +17,8 @@ let ``procedure?`` () =
     "(procedure? (lambda (x) (* x x)))" |> rep |> should equal "#t"
     "(procedure? '(lambda (x) (* x x)))" |> rep |> should equal "#f"
 
+    "(procedure? (case-lambda ((x) x) ((x y) (+ x y))))" |> rep |> should equal "#t"
+
     "(call-with-current-continuation procedure?)" |> rep |> should equal "#t"
     "(procedure? if)" |> rep |> should equal "#f"
 
@@ -33,6 +35,16 @@ let ``apply`` () =
     "(apply list 1 '() '(2))" |> rep |> should equal "(1 () 2)"
     "(apply + 1 2 3 '(4 5))" |> rep |> should equal "15"
     "(apply list 1 2 '())" |> rep |> should equal "(1 2)"
+    "(apply (case-lambda ((x) 1) ((x y) 2)) '(a))" |> rep |> should equal "1"
+    "(apply (case-lambda ((x) 1) ((x y) 2)) '(a b))" |> rep |> should equal "2"
+    "(apply (lambda x x) 1 2 '(3 4))" |> rep |> should equal "(1 2 3 4)"
+    "(apply apply (list + (list 1 2)))" |> rep |> should equal "3"
+
+    "(apply (lambda (x . y) (list x y)) 1 2 '(3 4))"
+    |> rep
+    |> should equal "(1 (2 3 4))"
+
+    "(apply + 1 2 3)" |> rep |> should startWith "'(1 2 3)' invalid apply parameter"
 
 [<Fact>]
 let ``map`` () =
@@ -40,12 +52,35 @@ let ``map`` () =
     "(map + '(1 2 3) '(4 5 6 7))" |> rep |> should equal "(5 7 9)"
     "(map car '())" |> rep |> should equal "()"
     "(map (lambda (x) (* x x)) '(1 2 3))" |> rep |> should equal "(1 4 9)"
+    "(map + '(1 2) '(3 4 5) '(6))" |> rep |> should equal "(10)"
+
+    "(let ((cont #f))
+       (let ((r (map (lambda (x) (if (= x 2) (call/cc (lambda (k) (set! cont k) x)) x)) '(1 2 3))))
+         (if cont
+             (let ((k cont))
+               (set! cont #f)
+               (k 20))
+             r)))"
+    |> rep
+    |> should equal "(1 20 3)"
+
+    "(let ((cont #f) (v '()))
+       (map (lambda (x) (if (= x 2) (call/cc (lambda (k) (set! cont k)))) (set! v (cons x v))) '(1 2 3))
+       (if cont
+           (let ((k cont)) (set! cont #f) (k #f)))
+       v)"
+    |> rep
+    |> should equal "(3 2 3 2 1)"
 
 [<Fact>]
 let ``string-map`` () =
     "(string-map (lambda (x) (integer->char (+ 1 (char->integer x)))) \"HAL\")"
     |> rep
     |> should equal "\"IBM\""
+
+    "(string-map (lambda (x y) (if (char<? x y) x y)) \"abc\" \"bca\")"
+    |> rep
+    |> should equal "\"aba\""
 
     "(string-map (lambda (x) x) \"🍎\")" |> rep |> should equal "\"🍎\""
     "(string-map (lambda (x y) x) \"🍎a\" \"bc\")" |> rep |> should equal "\"🍎a\""
@@ -56,6 +91,10 @@ let ``vector-map`` () =
     "(vector-map + '#(1 2 3) '#(4 5 6))" |> rep |> should equal "#(5 7 9)"
     "(vector-map (lambda (x) (* x x)) '#(1 2 3))" |> rep |> should equal "#(1 4 9)"
     "(vector-map + '#(1 2) '#(10 20 30))" |> rep |> should equal "#(11 22)"
+
+    "(vector-map (lambda (x y) (+ x y)) '#(1 2 3) '#(10 20 30))"
+    |> rep
+    |> should equal "#(11 22 33)"
 
 [<Fact>]
 let ``for-each`` () =
@@ -71,6 +110,10 @@ let ``for-each`` () =
     "(let ((v '())) (for-each (lambda (x) (set! v (cons x v))) '()) v)"
     |> rep
     |> should equal "()"
+
+    "(let ((v '())) (for-each (lambda (x y) (set! v (cons (+ x y) v))) '(1 2 3) '(10 20 30 40)) v)"
+    |> rep
+    |> should equal "(33 22 11)"
 
 [<Fact>]
 let ``string-for-each`` () =

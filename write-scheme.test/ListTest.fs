@@ -87,6 +87,11 @@ let ``make-list`` () =
     "(make-list 2 3)" |> rep |> should equal "(3 3)"
     "(make-list 3 'a)" |> rep |> should equal "(a a a)"
     "(make-list 1)" |> rep |> should equal "(#<unspecified>)"
+    "(make-list -1)" |> rep |> should startWith "'(-1)' invalid make-list parameter"
+
+    "(make-list 2.5)"
+    |> rep
+    |> should startWith "'(2.5)' invalid make-list parameter"
 
 [<Fact>]
 let list () =
@@ -139,11 +144,20 @@ let ``list-tail`` () =
     "(list-tail '(1 2 . 3) 2)" |> rep |> should equal "3"
     "(list-tail '(a b . c) 1)" |> rep |> should equal "(b . c)"
 
+    "(list-tail '(a b c) 5)"
+    |> rep
+    |> should startWith "'()' invalid list-tail parameter"
+
 [<Fact>]
 let ``list-ref`` () =
     "(list-ref '(a b c d) 2)" |> rep |> should equal "c"
     "(list-ref '(a b c d) 0)" |> rep |> should equal "a"
     "(list-ref '(a b . c) 1)" |> rep |> should equal "b"
+    "(list-ref '(a b c) 3)" |> rep |> should startWith "'()'"
+
+    "(list-ref '(a b c) -1)"
+    |> rep
+    |> should startWith "'((a b c) -1)' invalid list-ref parameter"
 
 [<Fact>]
 let ``list-set!`` () =
@@ -167,6 +181,9 @@ let ``memq`` () =
     "(memq 'a '(b c d))" |> rep |> should equal "#f"
     "(memq 'b '(a . b))" |> rep |> should equal "#f"
     "(memq (list 'a) '(b (a) c))" |> rep |> should equal "#f"
+    "(memq 'a 'b)" |> rep |> should equal "#f"
+    "(memq 'a '(a b . c))" |> rep |> should equal "(a b . c)"
+    "(memq 'c '(a b . c))" |> rep |> should equal "#f"
 
 [<Fact>]
 let ``memv`` () =
@@ -191,6 +208,9 @@ let ``assq`` () =
     "(assq 'c '((a 1) (b 2)))" |> rep |> should equal "#f"
     "(assq 'b '((a 1) . b))" |> rep |> should equal "#f"
     "(assq (list 'a) '(((a)) ((b)) ((c))))" |> rep |> should equal "#f"
+    "(assq 'a 'b)" |> rep |> should equal "#f"
+    "(assq 'a '((a 1) (b 2) . c))" |> rep |> should equal "(a 1)"
+    "(assq 'c '((a 1) (b 2) . c))" |> rep |> should equal "#f"
 
 [<Fact>]
 let ``assv`` () =

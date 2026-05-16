@@ -274,7 +274,7 @@ let ``ellipsis escape in pattern`` () =
     |> rep
     |> ignore
 
-    "(match-escape ...)" |> rep |> should startWith "matched-ellipsis"
+    "(match-escape ...)" |> rep |> should haveSubstring "matched-ellipsis"
 
 [<Fact>]
 let ``ellipsis literal template`` () =

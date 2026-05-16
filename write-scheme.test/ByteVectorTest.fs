@@ -21,10 +21,15 @@ let ``make-bytevector`` () =
     "(make-bytevector 0)" |> rep |> should equal "#u8()"
     "(make-bytevector 3 255)" |> rep |> should equal "#u8(255 255 255)"
 
+    "(make-bytevector -1)"
+    |> rep
+    |> should startWith "'(-1)' invalid make-bytevector parameter"
+
 [<Fact>]
 let ``bytevector`` () =
     "(bytevector 1 2 3)" |> rep |> should equal "#u8(1 2 3)"
     "(bytevector)" |> rep |> should equal "#u8()"
+    "(bytevector 256)" |> rep |> should startWith "'256' invalid bytevector element"
 
 [<Fact>]
 let ``bytevector-length`` () =
@@ -36,6 +41,14 @@ let ``bytevector-u8-ref`` () =
     "(bytevector-u8-ref #u8(10 20 30) 0)" |> rep |> should equal "10"
     "(bytevector-u8-ref #u8(10 20 30) 2)" |> rep |> should equal "30"
 
+    "(bytevector-u8-ref #u8(1 2 3) 3)"
+    |> rep
+    |> should startWith "'(#u8(1 2 3) 3)' invalid bytevector-u8-ref parameter"
+
+    "(bytevector-u8-ref #u8(1 2 3) -1)"
+    |> rep
+    |> should startWith "'(#u8(1 2 3) -1)' invalid bytevector-u8-ref parameter"
+
 [<Fact>]
 let ``bytevector-u8-set!`` () =
     "(let ((v (bytevector 1 2 3))) (bytevector-u8-set! v 0 10) v)"
@@ -45,6 +58,14 @@ let ``bytevector-u8-set!`` () =
     "(let ((v (bytevector 1 2 3))) (bytevector-u8-set! v 2 255) v)"
     |> rep
     |> should equal "#u8(1 2 255)"
+
+    "(bytevector-u8-set! #u8(1 2 3) 3 10)"
+    |> rep
+    |> should startWith "'(#u8(1 2 3) 3 10)' invalid bytevector-u8-set! parameter"
+
+    "(bytevector-u8-set! #u8(1 2 3) 0 256)"
+    |> rep
+    |> should startWith "'(#u8(1 2 3) 0 256)' invalid bytevector-u8-set! parameter"
 
 [<Fact>]
 let ``bytevector-copy`` () =
@@ -69,6 +90,14 @@ let ``bytevector-copy!`` () =
     |> rep
     |> should equal "#u8(1 10 20 4 5)"
 
+    "(let ((v (bytevector 1 2 3 4 5))) (bytevector-copy! v 1 v 0 3) v)"
+    |> rep
+    |> should equal "#u8(1 1 2 3 5)"
+
+    "(let ((v (bytevector 1 2 3 4 5))) (bytevector-copy! v 0 v 1 5) v)"
+    |> rep
+    |> should equal "#u8(2 3 4 5 5)"
+
 [<Fact>]
 let ``bytevector-append`` () =
     "(bytevector-append #u8(1 2) #u8(3 4 5) #u8(6))"
@@ -83,6 +112,7 @@ let ``utf8->string`` () =
     "(utf8->string #u8(#x41 #x42 #x43))" |> rep |> should equal "\"ABC\""
     "(utf8->string #u8(#x41 #x42 #x43) 1)" |> rep |> should equal "\"BC\""
     "(utf8->string #u8(#x41 #x42 #x43) 1 2)" |> rep |> should equal "\"B\""
+    "(utf8->string #u8(240 159 141 142))" |> rep |> should equal "\"🍎\""
 
 [<Fact>]
 let ``string->utf8`` () =

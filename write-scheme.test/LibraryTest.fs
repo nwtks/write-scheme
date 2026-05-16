@@ -184,3 +184,73 @@ module LibraryTest =
         """
 
         check input "(1 2)"
+
+    [<Fact>]
+    let ``transitive imports`` () =
+        let input =
+            """
+        (define-library (l1)
+            (export a)
+            (import (scheme base))
+            (begin (define a 10)))
+        (define-library (l2)
+            (export b)
+            (import (scheme base) (l1))
+            (begin (define b (+ a 5))))
+        (import (l2))
+        b
+        """
+
+        check input "15"
+
+    [<Fact>]
+    let ``multiple imports in define-library`` () =
+        let input =
+            """
+        (define-library (l1) (export a) (import (scheme base)) (begin (define a 1)))
+        (define-library (lib)
+            (export val)
+            (import (scheme base) (l1))
+            (begin (define val (+ a 10))))
+        (import (lib))
+        val
+        """
+
+        check input "11"
+
+    [<Fact>]
+    let ``top-level cond-expand with import`` () =
+        let input =
+            """
+        (cond-expand
+            (r7rs (import (scheme base))))
+        (list 1 2)
+        """
+
+        check input "(1 2)"
+
+    [<Fact>]
+    let ``empty export list`` () =
+        let input =
+            """
+        (define-library (lib)
+            (export)
+            (import (scheme base))
+            (begin (define a 1)))
+        (import (lib))
+        (list 1)
+        """
+
+        check input "(1)"
+
+    [<Fact>]
+    let ``redefining library`` () =
+        let input =
+            """
+        (define-library (lib) (export a) (import (scheme base)) (begin (define a 1)))
+        (define-library (lib) (export a) (import (scheme base)) (begin (define a 2)))
+        (import (lib))
+        a
+        """
+
+        check input "2"

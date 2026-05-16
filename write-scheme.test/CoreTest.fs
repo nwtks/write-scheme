@@ -9,7 +9,6 @@ let rep = WriteScheme.Repl.rep WriteScheme.Builtin.builtinContext
 let ``eqv?`` () =
     "(eqv? 'a 'a)" |> rep |> should equal "#t"
     "(eqv? 'a 'b)" |> rep |> should equal "#f"
-    "(eqv? 'a)" |> rep |> should equal "#f"
     "(eqv? ''a ''a)" |> rep |> should equal "#t"
     "(eqv? ''a ''b)" |> rep |> should equal "#f"
     "(eqv? ',1 ',1)" |> rep |> should equal "#t"
@@ -41,22 +40,31 @@ let ``eqv?`` () =
     "(eqv? 1 \"1\")" |> rep |> should equal "#f"
     "(eqv? '#(1 2 3) '#(1 2 3))" |> rep |> should equal "#f"
     "(eqv? #u8(1 2 3) #u8(1 2 3))" |> rep |> should equal "#f"
-
-    "(eqv? (values 1 2) (values 1 2))"
-    |> rep
-    |> should startWith "Multiple values in single value context."
-
     "(let ((p \"a\")) (eqv? p p))" |> rep |> should equal "#t"
     "(eqv? '() '())" |> rep |> should equal "#t"
     "(eqv? (cons 1 2) (cons 1 2))" |> rep |> should equal "#f"
     "(eqv? (lambda () 1) (lambda () 1))" |> rep |> should equal "#f"
     "(let ((p (lambda (x) x))) (eqv? p p))" |> rep |> should equal "#t"
+    "(eqv? 'a)" |> rep |> should startWith "'(a)' invalid eqv? parameter"
+
+    "(eqv? (values 1 2) (values 1 2))"
+    |> rep
+    |> should startWith "Multiple values in single value context."
+
+[<Fact>]
+let ``eq?`` () =
+    "(eq? 'a 'a)" |> rep |> should equal "#t"
+    "(eq? 'a 'b)" |> rep |> should equal "#f"
+    "(eq? '(a) '(a))" |> rep |> should equal "#f"
+    "(let ((p \"a\")) (eq? p p))" |> rep |> should equal "#t"
+    "(eq? '() '())" |> rep |> should equal "#t"
+    "(eq? (lambda () 1) (lambda () 1))" |> rep |> should equal "#f"
+    "(let ((p (lambda (x) x))) (eq? p p))" |> rep |> should equal "#t"
 
 [<Fact>]
 let ``equal?`` () =
     "(equal? 'a 'a)" |> rep |> should equal "#t"
     "(equal? 'a 'b)" |> rep |> should equal "#f"
-    "(equal? 'a)" |> rep |> should equal "#f"
     "(equal? ''a ''a)" |> rep |> should equal "#t"
     "(equal? ''a ''b)" |> rep |> should equal "#f"
     "(equal? ',1 ',2)" |> rep |> should equal "#f"
@@ -103,13 +111,23 @@ let ``equal?`` () =
     "(equal? #u8(1) #u8(1 2))" |> rep |> should equal "#f"
     "(equal? #u8(1 2) #u8(1 2 3))" |> rep |> should equal "#f"
     "(equal? #u8(1 2) #u8(1 3))" |> rep |> should equal "#f"
-
-    "(equal? (values 1 2) (values 1 2))"
-    |> rep
-    |> should startWith "Multiple values in single value context."
-
     "(let ((p \"a\")) (equal? p p))" |> rep |> should equal "#t"
     "(equal? '() '())" |> rep |> should equal "#t"
     "(equal? (cons 1 2) (cons 1 2))" |> rep |> should equal "#t"
     "(equal? (lambda () 1) (lambda () 1))" |> rep |> should equal "#f"
     "(let ((p (lambda (x) x))) (equal? p p))" |> rep |> should equal "#t"
+    "(let ((x (list 'a))) (set-cdr! x x) (equal? x x))" |> rep |> should equal "#t"
+
+    "(let ((x (list 'a)) (y (list 'a))) (set-cdr! x x) (set-cdr! y y) (equal? x y))"
+    |> rep
+    |> should equal "#t"
+
+    "(let ((x (vector 'a)) (y (vector 'a))) (vector-set! x 0 x) (vector-set! y 0 y) (equal? x y))"
+    |> rep
+    |> should equal "#t"
+
+    "(equal? 'a)" |> rep |> should startWith "'(a)' invalid equal? parameter"
+
+    "(equal? (values 1 2) (values 1 2))"
+    |> rep
+    |> should startWith "Multiple values in single value context."

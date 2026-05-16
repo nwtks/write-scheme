@@ -22,7 +22,13 @@ module Repl =
             | SchemeRaise(expr, pos) -> sprintf "%s%s" (expr |> Print.print) (pos |> formatPosition))
 
     let newContext () =
-        [] |> Context.extendEnvironments Builtin.builtinContext
+        let context = Builtin.builtinContext
+
+        { context with
+            environments = (Map.empty |> ref) :: context.environments
+            winders = ref []
+            handlers = ref Context.initialHandlers
+            nextWinderId = ref 0 }
 
     [<TailCall>]
     let rec repl context output =

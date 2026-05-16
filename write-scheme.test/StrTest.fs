@@ -41,6 +41,14 @@ let ``string-ref`` () =
     "(string-ref \"🍎\" 0)" |> rep |> should equal "#\\🍎"
     "(string-ref \"a🍎b\" 1)" |> rep |> should equal "#\\🍎"
 
+    "(string-ref \"abc\" 3)"
+    |> rep
+    |> should startWith "'(\"abc\" 3)' invalid string-ref parameter"
+
+    "(string-ref \"abc\" -1)"
+    |> rep
+    |> should startWith "'(\"abc\" -1)' invalid string-ref parameter"
+
 [<Fact>]
 let ``string-set!`` () =
     " (define s (make-string 3 #\\a))" |> rep |> ignore
@@ -62,6 +70,18 @@ let ``string-set!`` () =
     "s3" |> rep |> should equal "\"axb\""
     "(string-set! s3 1 #\\🍌)" |> rep |> ignore
     "s3" |> rep |> should equal "\"a🍌b\""
+
+    "(let ((s \"abc\")) (string-set! s 0 #\\d))"
+    |> rep
+    |> should startWith "Immutable string in string-set!"
+
+    "(string-set! \"abc\" 0 #\\d)"
+    |> rep
+    |> should startWith "Immutable string in string-set!"
+
+    "(let ((s (make-string 3 #\\a))) (string-set! s 3 #\\b))"
+    |> rep
+    |> should startWith "'(\"aaa\" 3 #\\b)' invalid string-set! parameter"
 
 [<Fact>]
 let ``string=?`` () =
@@ -166,6 +186,14 @@ let ``substring`` () =
     "(string-set! s 0 #\\b)" |> rep |> ignore
     "s" |> rep |> should equal "\"baa\""
     "sub" |> rep |> should equal "\"aaa\""
+
+    "(substring \"abc\" 2 1)"
+    |> rep
+    |> should startWith "'(\"abc\" 2 1)' invalid substring parameter"
+
+    "(substring \"abc\" 0 4)"
+    |> rep
+    |> should startWith "'(\"abc\" 0 4)' invalid substring parameter"
 
 [<Fact>]
 let ``string-append`` () =

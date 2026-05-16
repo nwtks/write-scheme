@@ -12,6 +12,10 @@ let ``char?`` () =
     "(char? 1)" |> rep |> should equal "#f"
     "(char? \"a\")" |> rep |> should equal "#f"
 
+    "(char? #\\a #\\b)"
+    |> rep
+    |> should startWith "'(#\\a #\\b)' invalid char? parameter"
+
 [<Fact>]
 let ``char=?`` () =
     "(char=? #\\a #\\a)" |> rep |> should equal "#t"
@@ -20,6 +24,7 @@ let ``char=?`` () =
     "(char=? #\\a #\\a #\\b)" |> rep |> should equal "#f"
     "(char=? #\\a)" |> rep |> should equal "#t"
     "(char=? #\\🍎 #\\🍎)" |> rep |> should equal "#t"
+    "(char=? #\\a 1)" |> rep |> should startWith "'1' is not a char in char=?"
 
 [<Fact>]
 let ``char<?`` () =
@@ -49,6 +54,12 @@ let ``char>=?`` () =
 let ``char-ci=?`` () =
     "(char-ci=? #\\A #\\a)" |> rep |> should equal "#t"
     "(char-ci=? #\\A #\\b)" |> rep |> should equal "#f"
+    "(char-ci=? #\\a #\\A #\\a)" |> rep |> should equal "#t"
+    "(char-ci=? #\\a #\\A #\\b)" |> rep |> should equal "#f"
+
+    "(char-ci=? #\\a \"a\")"
+    |> rep
+    |> should startWith "'\"a\"' is not a char in char-ci=?"
 
 [<Fact>]
 let ``char-ci<?`` () =
@@ -127,6 +138,14 @@ let ``integer->char`` () =
     "(integer->char 97)" |> rep |> should equal "#\\a"
     "(integer->char 65)" |> rep |> should equal "#\\A"
     "(integer->char 127822)" |> rep |> should equal "#\\🍎"
+
+    "(integer->char -1)"
+    |> rep
+    |> should startWith "'(-1)' invalid integer->char parameter"
+
+    "(integer->char #x110000)"
+    |> rep
+    |> should startWith "'(1114112)' invalid integer->char parameter"
 
 [<Fact>]
 let ``char-upcase`` () =

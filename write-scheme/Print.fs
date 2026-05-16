@@ -57,6 +57,31 @@ module Print =
         | x when System.Text.Rune.IsControl c -> x |> sprintf "#\\x%x"
         | _ -> c |> string |> sprintf "#\\%s"
 
+
+    let formatSymbol s =
+        let isInitial c =
+            System.Char.IsLetter c || "!$%&*/:<=>?^_~".Contains c
+
+        let isSubsequent c =
+            isInitial c || System.Char.IsDigit c || "+-.@".Contains c
+
+        if s = "" then
+            "||"
+        elif s = "+" || s = "-" || s = "..." then
+            s
+        else
+            let needsPipe =
+                not (isInitial s.[0])
+                && not (s.[0] = '+' || s.[0] = '-')
+                && not (s.Length > 1 && s.[0] = '.' && (isInitial s.[1] || "+-.@".Contains(s.[1])))
+                && not (s.StartsWith "...")
+                || s |> Seq.exists (fun c -> not (isSubsequent c))
+
+            if needsPipe then
+                "|" + s.Replace("\\", "\\\\").Replace("|", "\\|") + "|"
+            else
+                s
+
     let isVisited visited x =
         visited |> List.exists (fun v -> obj.ReferenceEquals(v, x))
 
@@ -108,7 +133,7 @@ module Print =
         | SComplex x, _ -> formatComplex x |> next
         | SString data, _ -> formatString data |> next
         | SChar x, _ -> formatChar x |> next
-        | SSymbol x, _ -> x |> next
+        | SSymbol x, _ -> formatSymbol x |> next
         | SPair p, _ -> p |> formatPair visited next []
         | SVector xs, _ when isVisited visited xs -> "..." |> next
         | SVector xs, _ ->

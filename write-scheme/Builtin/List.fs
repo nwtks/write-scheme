@@ -223,7 +223,7 @@ module List =
 
     let sMember context pos cont =
         function
-        | [ obj; list ] -> list |> findMember pos (fun a b -> loopEqual [ a, b ]) obj |> cont
+        | [ obj; list ] -> list |> findMember pos (fun a b -> [ a, b ] |> loopEqual []) obj |> cont
         | [ obj; list; compare ] -> list |> loopMember context pos cont compare obj
         | x -> x |> invalidParameter pos "'%s' invalid member parameter." |> cont
 
@@ -271,7 +271,7 @@ module List =
 
     let sAssoc context pos cont =
         function
-        | [ obj; list ] -> list |> findAssoc pos (fun a b -> loopEqual [ a, b ]) obj |> cont
+        | [ obj; list ] -> list |> findAssoc pos (fun a b -> [ a, b ] |> loopEqual []) obj |> cont
         | [ obj; list; compare ] -> list |> loopAssoc context pos cont compare obj
         | x -> x |> invalidParameter pos "'%s' invalid assoc parameter." |> cont
 

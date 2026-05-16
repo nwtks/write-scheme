@@ -19,6 +19,10 @@ let ``make-vector`` () =
     "(make-vector 3 'a)" |> rep |> should equal "#(a a a)"
     "(make-vector 2 #t)" |> rep |> should equal "#(#t #t)"
 
+    "(make-vector -1)"
+    |> rep
+    |> should startWith "'(-1)' invalid make-vector parameter"
+
 [<Fact>]
 let ``vector`` () =
     "(vector 1 2 3)" |> rep |> should equal "#(1 2 3)"
@@ -36,6 +40,14 @@ let ``vector-ref`` () =
     "(vector-ref #(1 2 3) 0)" |> rep |> should equal "1"
     "(vector-ref #(1 2 3) 2)" |> rep |> should equal "3"
 
+    "(vector-ref #(1 2 3) 3)"
+    |> rep
+    |> should startWith "'(#(1 2 3) 3)' invalid vector-ref parameter"
+
+    "(vector-ref #(1 2 3) -1)"
+    |> rep
+    |> should startWith "'(#(1 2 3) -1)' invalid vector-ref parameter"
+
 [<Fact>]
 let ``vector-set!`` () =
     "(let ((v (vector 1 2 3))) (vector-set! v 0 10) v)"
@@ -49,6 +61,10 @@ let ``vector-set!`` () =
     "(let ((v (vector 1 2 3))) (vector-set! v 1 v) v)"
     |> rep
     |> should equal "#(1 ... 3)"
+
+    "(vector-set! #(1 2 3) 3 10)"
+    |> rep
+    |> should startWith "'(#(1 2 3) 3 10)' invalid vector-set! parameter"
 
 [<Fact>]
 let ``vector->list`` () =
@@ -101,6 +117,10 @@ let ``vector-copy`` () =
     "(vector-copy '#(a b c d) 1)" |> rep |> should equal "#(b c d)"
     "(vector-copy '#(a b c d) 1 3)" |> rep |> should equal "#(b c)"
 
+    "(vector-copy #(1 2 3) 1 4)"
+    |> rep
+    |> should startWith "'(#(1 2 3) 1 4)' invalid vector-copy parameter"
+
 [<Fact>]
 let ``vector-copy!`` () =
     "(let ((a (vector 1 2 3 4 5)) (b (vector 10 20 30))) (vector-copy! a 1 b) a)"
@@ -114,6 +134,14 @@ let ``vector-copy!`` () =
     "(let ((a (vector 1 2 3 4 5)) (b (vector 10 20 30))) (vector-copy! a 1 b 0 2) a)"
     |> rep
     |> should equal "#(1 10 20 4 5)"
+
+    "(let ((v (vector 1 2 3 4 5))) (vector-copy! v 1 v 0 3) v)"
+    |> rep
+    |> should equal "#(1 1 2 3 5)"
+
+    "(let ((v (vector 1 2 3 4 5))) (vector-copy! v 0 v 1 5) v)"
+    |> rep
+    |> should equal "#(2 3 4 5 5)"
 
 [<Fact>]
 let ``vector-append`` () =
