@@ -34,7 +34,7 @@ module Macro =
             | SVector pats, _ -> loopPatternVars literals ellipsis acc (Array.toList pats @ xs)
             | _ -> loopPatternVars literals ellipsis acc xs
 
-    let collectPatternVars literals ellipsis pattern =
+    let collectPatternVariables literals ellipsis pattern =
         [ pattern ] |> loopPatternVars literals ellipsis [] |> List.distinct |> List.rev
 
     let freeIdentifierEquals defContext defId useContext useId =
@@ -48,6 +48,20 @@ module Macro =
             | None, None -> defSym = useSym
             | _ -> false
         | _ -> false
+
+    let buildEllipsisBindings variables bindings =
+        variables
+        |> List.fold
+            (fun acc variable ->
+                let values =
+                    bindings
+                    |> List.map (fun binding ->
+                        match binding |> Map.tryFind variable with
+                        | Some b -> b
+                        | None -> SingleB(SEmpty, None))
+
+                acc |> Map.add variable (EllipsisB values))
+            Map.empty
 
     [<TailCall>]
     let rec matchOne defContext useContext literals ellipsis arg next =
@@ -90,18 +104,7 @@ module Macro =
             match arg with
             | SSymbol s', _ when s' = ellipsis -> Map.empty |> Some |> next
             | _ -> None |> next
-        | SPair _, _ as pair ->
-            let patterns, tail = pair |> decodePair []
-            let isProper = fst tail = SEmpty
-
-            match arg with
-            | SPair _, _ as a when isProper && a |> isProperList ->
-                match a |> toList with
-                | Ok args -> patterns |> matchPatternList defContext useContext literals ellipsis args next
-                | Error _ -> None |> next
-            | SPair _, _ as a when not isProper ->
-                (pair, a) |> loopMatchOnePair defContext useContext literals ellipsis next
-            | _ -> None |> next
+        | SPair _, _ as pair -> pair |> matchOnePair defContext useContext literals ellipsis arg next
         | SVector patterns, _ ->
             match arg with
             | SVector args, _ when patterns.Length = args.Length ->
@@ -109,6 +112,19 @@ module Macro =
                 |> Array.toList
                 |> matchPatternList defContext useContext literals ellipsis (args |> Array.toList) next
             | _ -> None |> next
+        | _ -> None |> next
+
+    and [<TailCall>] matchOnePair defContext useContext literals ellipsis arg next pair =
+        let patterns, tail = pair |> decodePair []
+        let isProper = fst tail = SEmpty
+
+        match arg with
+        | SPair _, _ as a when isProper && a |> isProperList ->
+            match a |> toList with
+            | Ok args -> patterns |> matchPatternList defContext useContext literals ellipsis args next
+            | Error _ -> None |> next
+        | SPair _, _ as a when not isProper ->
+            (pair, a) |> loopMatchOnePair defContext useContext literals ellipsis next
         | _ -> None |> next
 
     and [<TailCall>] loopMatchOnePair defContext useContext literals ellipsis next =
@@ -135,82 +151,86 @@ module Macro =
         | Some i when i > 0 ->
             let prefixPatterns = patterns |> List.take (i - 1)
             let suffixPatterns = patterns |> List.skip (i + 1)
+            let ellipsisPattern = patterns.[i - 1]
 
             if args.Length < prefixPatterns.Length + suffixPatterns.Length then
                 None |> next
             else
-                let ellipsisPattern = patterns.[i - 1]
-                let prefixArgs = args |> List.take prefixPatterns.Length
-                let suffixArgs = args |> List.skip (args.Length - suffixPatterns.Length)
-
-                let ellipsisArgs =
+                matchPatternListWithEllipsisParts
+                    defContext
+                    useContext
+                    literals
+                    ellipsis
                     args
-                    |> List.skip prefixPatterns.Length
-                    |> List.take (args.Length - prefixPatterns.Length - suffixPatterns.Length)
-
-                prefixPatterns
-                |> matchPatternList defContext useContext literals ellipsis prefixArgs (function
-                    | Some matchedPrefix ->
-                        suffixPatterns
-                        |> matchPatternList defContext useContext literals ellipsis suffixArgs (function
-                            | Some matchedSuffix ->
-                                let vars = ellipsisPattern |> collectPatternVars literals ellipsis
-
-                                ellipsisArgs
-                                |> matchEllipsis
-                                    defContext
-                                    useContext
-                                    literals
-                                    ellipsis
-                                    ellipsisPattern
-                                    vars
-                                    []
-                                    (function
-                                     | Some matchedEllipsis ->
-                                         mergeBindings (mergeBindings matchedPrefix matchedSuffix) matchedEllipsis
-                                         |> Some
-                                         |> next
-                                     | None -> None |> next)
-                            | None -> None |> next)
-                    | None -> None |> next)
+                    next
+                    prefixPatterns
+                    suffixPatterns
+                    ellipsisPattern
         | _ ->
             match patterns with
-            | pattern :: rest ->
-                match args with
-                | arg :: restArgs ->
-                    pattern
-                    |> matchOne defContext useContext literals ellipsis arg (function
-                        | Some binding1 ->
-                            rest
-                            |> matchPatternList defContext useContext literals ellipsis restArgs (fun matchedRest ->
-                                match matchedRest with
-                                | Some binding2 -> mergeBindings binding1 binding2 |> Some |> next
-                                | None -> None |> next)
-                        | None -> None |> next)
-                | [] -> None |> next
+            | pattern :: rest -> matchPatternListCons defContext useContext literals ellipsis args next pattern rest
             | [] ->
-                if args |> List.isEmpty then
-                    Map.empty |> Some |> next
-                else
-                    None |> next
+                if args |> List.isEmpty then Map.empty |> Some else None
+                |> next
 
-    and [<TailCall>] matchEllipsis defContext useContext literals ellipsis pattern vars results next =
+    and [<TailCall>] matchPatternListWithEllipsisParts
+        defContext
+        useContext
+        literals
+        ellipsis
+        args
+        next
+        prefixPatterns
+        suffixPatterns
+        ellipsisPattern
+        =
+        let prefixArgs = args |> List.take prefixPatterns.Length
+        let suffixArgs = args |> List.skip (args.Length - suffixPatterns.Length)
+
+        let ellipsisArgs =
+            args
+            |> List.skip prefixPatterns.Length
+            |> List.take (args.Length - prefixPatterns.Length - suffixPatterns.Length)
+
+        prefixPatterns
+        |> matchPatternList defContext useContext literals ellipsis prefixArgs (function
+            | Some matchedPrefix ->
+                suffixPatterns
+                |> matchPatternList defContext useContext literals ellipsis suffixArgs (function
+                    | Some matchedSuffix ->
+                        let variables = ellipsisPattern |> collectPatternVariables literals ellipsis
+
+                        ellipsisArgs
+                        |> matchEllipsis defContext useContext literals ellipsis ellipsisPattern variables [] (function
+                            | Some matchedEllipsis ->
+                                mergeBindings (mergeBindings matchedPrefix matchedSuffix) matchedEllipsis
+                                |> Some
+                                |> next
+                            | None -> None |> next)
+                    | None -> None |> next)
+            | None -> None |> next)
+
+    and [<TailCall>] matchPatternListCons defContext useContext literals ellipsis args next pattern rest =
+        match args with
+        | arg :: restArgs ->
+            pattern
+            |> matchOne defContext useContext literals ellipsis arg (function
+                | Some binding1 ->
+                    rest
+                    |> matchPatternList defContext useContext literals ellipsis restArgs (fun matchedRest ->
+                        match matchedRest with
+                        | Some binding2 -> mergeBindings binding1 binding2 |> Some |> next
+                        | None -> None |> next)
+                | None -> None |> next)
+        | [] -> None |> next
+
+    and [<TailCall>] matchEllipsis defContext useContext literals ellipsis pattern variables results next =
         function
         | [] ->
-            let bindings = results |> List.rev |> List.map Option.get
-
-            vars
-            |> List.fold
-                (fun acc var ->
-                    let values =
-                        bindings
-                        |> List.map (fun binding ->
-                            match binding |> Map.tryFind var with
-                            | Some b -> b
-                            | None -> SingleB(SEmpty, None))
-
-                    acc |> Map.add var (EllipsisB values))
-                Map.empty
+            results
+            |> List.rev
+            |> List.map Option.get
+            |> buildEllipsisBindings variables
             |> Some
             |> next
         | inp :: restInps ->
@@ -218,7 +238,15 @@ module Macro =
             |> matchOne defContext useContext literals ellipsis inp (function
                 | Some binding ->
                     restInps
-                    |> matchEllipsis defContext useContext literals ellipsis pattern vars (Some binding :: results) next
+                    |> matchEllipsis
+                        defContext
+                        useContext
+                        literals
+                        ellipsis
+                        pattern
+                        variables
+                        (Some binding :: results)
+                        next
                 | None -> None |> next)
 
     [<TailCall>]
@@ -248,20 +276,7 @@ module Macro =
             match toRename |> Map.tryFind var with
             | Some s -> (SSymbol s, pos) |> next
             | None -> sym |> next
-        | SPair _, _ as pair ->
-            let elements, tail = pair |> decodePair []
-            let isProper = fst tail = SEmpty
-
-            elements
-            |> renameTemplateList toRename (fun renamedElements ->
-                if isProper then
-                    renamedElements |> toSPair |> next
-                else
-                    tail
-                    |> renameTemplate
-                        toRename
-                        (List.foldBack (fun x acc -> SPair { car = x; cdr = acc }, snd x) renamedElements
-                         >> next))
+        | SPair _, _ as pair -> pair |> renameTemplatePair toRename next
         | SVector x, pos ->
             x
             |> Array.toList
@@ -281,6 +296,21 @@ module Macro =
                 xs
                 |> renameTemplateList toRename (fun renamedXs -> renamedX :: renamedXs |> next))
 
+    and [<TailCall>] renameTemplatePair toRename next pair =
+        let elements, tail = pair |> decodePair []
+        let isProper = fst tail = SEmpty
+
+        elements
+        |> renameTemplateList toRename (fun renamedElements ->
+            if isProper then
+                renamedElements |> toSPair |> next
+            else
+                tail
+                |> renameTemplate
+                    toRename
+                    (List.foldBack (fun x acc -> SPair { car = x; cdr = acc }, snd x) renamedElements
+                     >> next))
+
     [<TailCall>]
     let rec expandTemplate ellipsis isRaw bindings next =
         function
@@ -291,22 +321,7 @@ module Macro =
         | SPair { car = SSymbol ell, _
                   cdr = SPair { car = template; cdr = SEmpty, _ }, _ },
           _ when not isRaw && ell = ellipsis -> template |> expandTemplate ellipsis true bindings next
-        | SPair _, _ as pair ->
-            let elements, tail = pair |> decodePair []
-            let isProper = fst tail = SEmpty
-
-            elements
-            |> expandTemplateList ellipsis isRaw bindings (fun expandedElements ->
-                if isProper then
-                    expandedElements |> toSPair |> next
-                else
-                    tail
-                    |> expandTemplate
-                        ellipsis
-                        isRaw
-                        bindings
-                        (List.foldBack (fun x acc -> SPair { car = x; cdr = acc }, snd x) expandedElements
-                         >> next))
+        | SPair _, _ as pair -> pair |> expandTemplatePair ellipsis isRaw bindings next
         | SQuote x, pos ->
             x
             |> expandTemplate ellipsis isRaw bindings (SQuote >> (fun x -> x, pos) >> next)
@@ -329,37 +344,37 @@ module Macro =
         function
         | [] -> [] |> next
         | template :: (SSymbol ell, _) :: rest when not isRaw && ell = ellipsis ->
-            let ellipsisVars =
-                template
-                |> collectTemplateVars ellipsis
-                |> List.choose (fun v ->
-                    match bindings |> Map.tryFind v with
-                    | Some(EllipsisB values) -> Some(v, values)
-                    | _ -> None)
-
-            match ellipsisVars with
-            | [] -> rest |> expandTemplateList ellipsis isRaw bindings next
-            | (_, firstValues) :: _ ->
-                let count = firstValues.Length
-
-                expandEllipsis
-                    ellipsis
-                    bindings
-                    template
-                    ellipsisVars
-                    count
-                    0
-                    (fun expanded ->
-                        rest
-                        |> expandTemplateList ellipsis isRaw bindings (fun expandedRest ->
-                            expanded @ expandedRest |> next))
-                    []
+            expandTemplateListWithEllipsis ellipsis isRaw bindings next template rest
         | template :: rest ->
             template
             |> expandTemplate ellipsis isRaw bindings (fun expandedTemplate ->
                 rest
                 |> expandTemplateList ellipsis isRaw bindings (fun expandedRest ->
                     expandedTemplate :: expandedRest |> next))
+
+    and [<TailCall>] expandTemplateListWithEllipsis ellipsis isRaw bindings next template rest =
+        let ellipsisVars =
+            template
+            |> collectTemplateVars ellipsis
+            |> List.choose (fun v ->
+                match bindings |> Map.tryFind v with
+                | Some(EllipsisB values) -> Some(v, values)
+                | _ -> None)
+
+        match ellipsisVars with
+        | [] -> rest |> expandTemplateList ellipsis isRaw bindings next
+        | (_, firstValues) :: _ ->
+            expandEllipsis
+                ellipsis
+                bindings
+                template
+                ellipsisVars
+                firstValues.Length
+                0
+                (fun expanded ->
+                    rest
+                    |> expandTemplateList ellipsis isRaw bindings (fun expandedRest -> expanded @ expandedRest |> next))
+                []
 
     and [<TailCall>] expandEllipsis ellipsis bindings template ellipsisVars count i next acc =
         if i >= count then
@@ -374,6 +389,51 @@ module Macro =
                 expandedTemplate :: acc
                 |> expandEllipsis ellipsis bindings template ellipsisVars count (i + 1) next)
 
+    and [<TailCall>] expandTemplatePair ellipsis isRaw bindings next pair =
+        let elements, tail = pair |> decodePair []
+        let isProper = fst tail = SEmpty
+
+        elements
+        |> expandTemplateList ellipsis isRaw bindings (fun expandedElements ->
+            if isProper then
+                expandedElements |> toSPair |> next
+            else
+                tail
+                |> expandTemplate
+                    ellipsis
+                    isRaw
+                    bindings
+                    (List.foldBack (fun x acc -> SPair { car = x; cdr = acc }, snd x) expandedElements
+                     >> next))
+
+    let expandSyntaxRule defContext useContext literalSet ellipsis cont elements template bindings =
+        let patternVars =
+            elements |> toSPair |> collectPatternVariables literalSet ellipsis |> Set.ofList
+
+        let templateVars =
+            template
+            |> collectTemplateVars ellipsis
+            |> List.filter (fun s ->
+                not (patternVars |> Set.contains s || literalSet |> Set.contains s || s = ellipsis))
+            |> List.distinct
+
+        let expansionId = Context.getNextExpansionId useContext
+        let rename s = sprintf "%s#%d" s expansionId
+        let renameMap = templateVars |> List.map (fun s -> s, rename s) |> Map.ofList
+
+        template
+        |> renameTemplate renameMap (fun renamedTemplate ->
+            let extendedContext =
+                templateVars
+                |> List.choose (fun s ->
+                    match s |> Context.tryLookupEnvironments defContext with
+                    | Some v -> Some(rename s, v)
+                    | None -> None)
+                |> Context.extendEnvironments useContext
+
+            renamedTemplate
+            |> expandTemplate ellipsis false bindings (Eval.eval extendedContext cont))
+
     [<TailCall>]
     let rec trySyntaxRules defContext useContext pos cont ellipsis literalSet args =
         function
@@ -382,32 +442,7 @@ module Macro =
             elements
             |> matchPatternList defContext useContext literalSet ellipsis args (function
                 | Some bindings ->
-                    let patternVars =
-                        elements |> toSPair |> collectPatternVars literalSet ellipsis |> Set.ofList
-
-                    let templateVars =
-                        template
-                        |> collectTemplateVars ellipsis
-                        |> List.filter (fun s ->
-                            not (patternVars |> Set.contains s || literalSet |> Set.contains s || s = ellipsis))
-                        |> List.distinct
-
-                    let expansionId = Context.getNextExpansionId useContext
-                    let rename s = sprintf "%s#%d" s expansionId
-                    let renameMap = templateVars |> List.map (fun s -> s, rename s) |> Map.ofList
-
-                    template
-                    |> renameTemplate renameMap (fun renamedTemplate ->
-                        let extendedContext =
-                            templateVars
-                            |> List.choose (fun s ->
-                                match s |> Context.tryLookupEnvironments defContext with
-                                | Some v -> Some(rename s, v)
-                                | None -> None)
-                            |> Context.extendEnvironments useContext
-
-                        renamedTemplate
-                        |> expandTemplate ellipsis false bindings (Eval.eval extendedContext cont))
+                    expandSyntaxRule defContext useContext literalSet ellipsis cont elements template bindings
                 | None -> rest |> trySyntaxRules defContext useContext pos cont ellipsis literalSet args)
 
     let parseSyntaxLiterals =
