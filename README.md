@@ -324,12 +324,88 @@ Current limitations and pending features include:
 
 ## Architecture
 
+### Project Layout
+
 ```
-Read.fs    — Parser built with FParsec (tokenizing and parsing S-expressions)
-Type.fs    — S-expression type definitions (SExpression discriminated union)
-Eval.fs    — CPS-based evaluator (eval / apply)
-Print.fs   — S-expression serialization
-Builtin.fs — Built-in procedures registration
-Builtin/   - Implementation of built-in procedures and special forms
-Repl.fs    — Read-Eval-Print loop
+write-scheme/           # Interpreter core (F# executable)
+  Type.fs               # SExpression type definitions and common utilities
+  Read.fs               # FParsec-based parser
+  Print.fs              # S-expression serializer
+  DatumLabel.fs         # #N= / #N# datum label resolution
+  Context.fs            # Execution context (environments, libraries, winders, handlers)
+  Eval.fs               # CPS evaluator (eval / apply / eachEval)
+  Builtin/              # Built-in procedures and special forms
+    Helper.fs           # Shared helpers (invalid, mapResult, doWind, getRange, …)
+    SpecialForm.fs      # lambda, define, let, if, cond, … special forms
+    Macro.fs            # syntax-rules hygienic macro engine
+    Math.fs             # Numeric operations (Numeric Tower: integer/rational/real/complex)
+    List.fs, Str.fs, Char.fs, Vector.fs, ByteVector.fs
+    Bool.fs, Symbol.fs, Core.fs
+    Procedure.fs        # apply, map, for-each, call/cc, dynamic-wind, …
+    Promise.fs          # delay / force
+    SavedParameter.fs   # make-parameter / parameterize
+    Exception.fs        # with-exception-handler, raise, guard
+  Builtin.fs            # builtinBindings list and builtinContext construction
+  Repl.fs               # rep function (string → evaluated result string)
+  Program.fs            # Entry point (REPL loop)
+write-scheme.test/      # xUnit test project
+  *Test.fs              # Per-feature test modules
 ```
+
+### Core Types
+
+#### SExpression
+
+Every value is represented as `SExpressionKind * Position option`. `Position option` carries source location for error messages.
+
+| Case | Description |
+|---|---|
+| `SBool of bool` | `#t` / `#f` |
+| `SRational of bigint * bigint` | Integer or rational (integers have denominator `1I`) |
+| `SReal of float` | Floating-point (includes +inf.0, -inf.0, +nan.0) |
+| `SComplex of Complex` | Complex number |
+| `SString of SStringData` | Unicode string (array of `Rune`) |
+| `SChar of Rune` | Character |
+| `SSymbol of string` | Symbol |
+| `SPair of SPairData` | Pair (mutable car/cdr) |
+| `SVector of SExpression array` | Vector |
+| `SByteVector of byte array` | Bytevector |
+| `SEmpty` | `()` |
+| `SUnspecified` | Unspecified return value |
+| `SValues of SExpression list` | Multiple values |
+| `SRecord` | Created by `define-record-type` |
+| `SPromise` | `delay` / `force` |
+| `SParameter` | `make-parameter` |
+| `SProcedure of SProcedureKind` | Procedure |
+| `SSyntax of SProcedureKind` | Special form (arguments passed unevaluated) |
+| `SContinuation of SContinuation` | First-class continuation from `call/cc` |
+| `SError` | Error object |
+
+#### Procedure Signature
+
+All built-in procedures and special forms share the `SProcedureKind` type:
+
+```fsharp
+type SProcedureKind =
+    Context -> Position option -> SContinuation -> SExpression list -> Result<SExpression, SkipResult>
+```
+
+The evaluator is implemented in **Continuation-Passing Style (CPS)**. Every procedure receives a `SContinuation` and must pass its result to it rather than returning directly, which guarantees stack safety for arbitrarily deep recursion.
+
+#### Error Variants
+
+```fsharp
+type SkipResult =
+    | EvalError of string * Position option   // evaluation error (type errors, etc.)
+    | ParseError of string * Position option  // parse error
+    | SchemeRaise of SExpression * Position option // Scheme-level raise
+```
+
+## Dependencies
+
+| Package | Version | Purpose |
+|---|---|---|
+| FParsec | 1.* | S-expression parser (`Read.fs`) |
+| xUnit | (test project) | Test framework |
+| FsUnit.Xunit | (test project) | `should equal` / `should startWith` assertion DSL |
+| coverlet | (test project) | Code coverage measurement |
