@@ -258,35 +258,51 @@ module SpecialForm =
               "ratios" ]
 
     [<TailCall>]
-    let rec checkFeatureRequirement context pos negate =
+    let rec checkFeatureReqPositive context pos =
         function
-        | SSymbol feature, _ -> negate <> (supportedFeatures |> Set.contains feature)
+        | SSymbol feature, _ -> supportedFeatures |> Set.contains feature
         | SPair { car = SSymbol("and" | "or" as kind), _
                   cdr = args },
           _ ->
             match args |> toList with
-            | Ok reqs -> reqs |> checkFeatureReqList context pos negate (kind = "and" <> negate)
+            | Ok reqs ->
+                match kind with
+                | "and" -> reqs |> List.forall (checkFeatureReqPositive context pos)
+                | _ -> reqs |> List.exists (checkFeatureReqPositive context pos)
             | Error _ -> false
         | SPair { car = SSymbol "not", _
                   cdr = SPair { car = inner; cdr = SEmpty, _ }, _ },
-          _ -> inner |> checkFeatureRequirement context pos (not negate)
+          _ -> inner |> checkFeatureReqNegative context pos
         | SPair { car = SSymbol "library", _
                   cdr = SPair { car = libName; cdr = SEmpty, _ }, _ },
           _ ->
-            negate
-            <> match libName |> Context.lookupLibrary context pos with
-               | Ok _ -> true
-               | Error _ -> false
-        | _ -> negate
+            match libName |> Context.lookupLibrary context pos with
+            | Ok _ -> true
+            | Error _ -> false
+        | _ -> false
 
-    and [<TailCall>] checkFeatureReqList context pos negate mode =
+    and [<TailCall>] checkFeatureReqNegative context pos =
         function
-        | [] -> mode
-        | r :: rest ->
-            match r |> checkFeatureRequirement context pos negate with
-            | true when not mode -> true
-            | false when mode -> false
-            | _ -> rest |> checkFeatureReqList context pos negate mode
+        | SSymbol feature, _ -> not (supportedFeatures |> Set.contains feature)
+        | SPair { car = SSymbol("and" | "or" as kind), _
+                  cdr = args },
+          _ ->
+            match args |> toList with
+            | Ok reqs ->
+                match kind with
+                | "and" -> reqs |> List.exists (checkFeatureReqNegative context pos)
+                | _ -> reqs |> List.forall (checkFeatureReqNegative context pos)
+            | Error _ -> true
+        | SPair { car = SSymbol "not", _
+                  cdr = SPair { car = inner; cdr = SEmpty, _ }, _ },
+          _ -> inner |> checkFeatureReqPositive context pos
+        | SPair { car = SSymbol "library", _
+                  cdr = SPair { car = libName; cdr = SEmpty, _ }, _ },
+          _ ->
+            match libName |> Context.lookupLibrary context pos with
+            | Ok _ -> false
+            | Error _ -> true
+        | _ -> true
 
     [<TailCall>]
     let rec sCondExpand context pos cont =
@@ -299,7 +315,7 @@ module SpecialForm =
                 | Ok exprs -> exprs |> Eval.eachEval context cont (Ok(SUnspecified, pos))
                 | Error e -> Error e |> cont
             | SPair { car = req; cdr = body }, _ ->
-                if checkFeatureRequirement context pos false req then
+                if checkFeatureReqPositive context pos req then
                     match body |> toList with
                     | Ok exprs -> exprs |> Eval.eachEval context cont (Ok(SUnspecified, pos))
                     | Error e -> Error e |> cont
@@ -694,6 +710,16 @@ module SpecialForm =
         | QqQuasiquote of SExpression
         | QqQuote of SExpression
 
+    let isQqKeyword (s: string) =
+        s = "unquote" || s = "unquote-splicing" || s = "quasiquote" || s = "quote"
+
+    let keywordToQq s t =
+        match s with
+        | "unquote" -> Some(QqUnquote t)
+        | "unquote-splicing" -> Some(QqUnquoteSplicing t)
+        | "quasiquote" -> Some(QqQuasiquote t)
+        | _ -> Some(QqQuote t)
+
     let normalizeQqKeyword =
         function
         | SUnquote t, _ -> Some(QqUnquote t)
@@ -702,12 +728,7 @@ module SpecialForm =
         | SQuote t, _ -> Some(QqQuote t)
         | SPair { car = SSymbol s, _
                   cdr = SPair { car = t; cdr = SEmpty, _ }, _ },
-          _ when s = "unquote" || s = "unquote-splicing" || s = "quasiquote" || s = "quote" ->
-            match s with
-            | "unquote" -> Some(QqUnquote t)
-            | "unquote-splicing" -> Some(QqUnquoteSplicing t)
-            | "quasiquote" -> Some(QqQuasiquote t)
-            | _ -> Some(QqQuote t)
+          _ when isQqKeyword s -> keywordToQq s t
         | _ -> None
 
     let consQq x b =
@@ -1386,7 +1407,7 @@ module SpecialForm =
                     |> processLibraryDeclaration pos cont foldCase libContext exports
                 | Error e -> Error e |> cont
             | SPair { car = requirement; cdr = body }, _ ->
-                if checkFeatureRequirement libContext pos false requirement then
+                if checkFeatureReqPositive libContext pos requirement then
                     match body |> toList with
                     | Ok expressions ->
                         expressions @ declarations

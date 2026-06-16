@@ -140,11 +140,15 @@ module SNumber =
 
     let noFractionFloat (d: float) = d = System.Math.Truncate d
 
+    let isWholeReal (d: float) = finiteFloat d && noFractionFloat d
+
+    let isRealInteger (c: System.Numerics.Complex) = c.Imaginary = 0.0 && isWholeReal c.Real
+
     let tryGetExactIntegerValue (x: SExpression) =
         match fst x with
         | SRational(n, d) when d = 1I -> Some n
-        | SReal r when finiteFloat r && noFractionFloat r -> Some(bigint r)
-        | SComplex c when c.Imaginary = 0.0 && finiteFloat c.Real && noFractionFloat c.Real -> Some(bigint c.Real)
+        | SReal r when isWholeReal r -> Some(bigint r)
+        | SComplex c when isRealInteger c -> Some(bigint c.Real)
         | _ -> None
 
     let tryGetFiniteRealValue (x: SExpression) =

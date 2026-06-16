@@ -32,28 +32,45 @@ module Core =
                 rest |> loopEqual visited
             else
                 match x, y with
-                | (SPair a, _), (SPair b, _) ->
-                    if isVisited visited a b then
-                        rest |> loopEqual visited
-                    else
-                        (a.car, b.car) :: (a.cdr, b.cdr) :: rest |> loopEqual ((a, b) :: visited)
-                | (SVector a, _), (SVector b, _) ->
-                    if isVisited visited a b then
-                        rest |> loopEqual visited
-                    else if a.Length <> b.Length then
-                        false
-                    else
-                        zipVectorEqual a b (a.Length - 1) rest |> loopEqual ((a, b) :: visited)
-                | (SByteVector a, _), (SByteVector b, _) -> a = b && rest |> loopEqual visited
-                | (SValues a, _), (SValues b, _) ->
-                    if a.Length <> b.Length then
-                        false
-                    else
-                        List.zip a b @ rest |> loopEqual visited
-                | (SQuote a, _), (SQuote b, _) -> (a, b) :: rest |> loopEqual visited
-                | (SUnquote a, _), (SUnquote b, _) -> (a, b) :: rest |> loopEqual visited
-                | (SString a, _), (SString b, _) -> a.runes = b.runes && rest |> loopEqual visited
+                | (SPair a, _), (SPair b, _) -> equalPair visited rest a b
+                | (SVector a, _), (SVector b, _) -> equalVector visited rest a b
+                | (SByteVector a, _), (SByteVector b, _) -> equalByteVector visited rest a b
+                | (SValues a, _), (SValues b, _) -> equalValues visited rest a b
+                | (SQuote a, _), (SQuote b, _) -> equalQuoteLike visited rest a b
+                | (SUnquote a, _), (SUnquote b, _) -> equalQuoteLike visited rest a b
+                | (SString a, _), (SString b, _) -> equalString visited rest a b
                 | _ -> false
+
+    and equalPair visited rest (a: SPairData) (b: SPairData) =
+        if isVisited visited a b then
+            rest |> loopEqual visited
+        else
+            (a.car, b.car) :: (a.cdr, b.cdr) :: rest |> loopEqual ((a, b) :: visited)
+
+    and equalVector visited rest (a: SExpression array) (b: SExpression array) =
+        if isVisited visited a b then
+            rest |> loopEqual visited
+        elif a.Length <> b.Length then
+            false
+        else
+            zipVectorEqual a b (a.Length - 1) rest |> loopEqual ((a, b) :: visited)
+
+    and equalByteVector visited rest (a: byte array) (b: byte array) =
+        if a = b then rest |> loopEqual visited else false
+
+    and equalValues visited rest (a: SExpression list) (b: SExpression list) =
+        if a.Length <> b.Length then
+            false
+        else
+            List.zip a b @ rest |> loopEqual visited
+
+    and equalQuoteLike visited rest (a: SExpression) (b: SExpression) = (a, b) :: rest |> loopEqual visited
+
+    and equalString visited rest (a: SStringData) (b: SStringData) =
+        if a.runes = b.runes then
+            rest |> loopEqual visited
+        else
+            false
 
     let isEqual context pos cont =
         function

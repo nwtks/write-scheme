@@ -5,6 +5,12 @@ open Type
 
 [<AutoOpen>]
 module Math =
+    let bothOk (a: Result<'a, _>) (b: Result<'b, _>) =
+        match a, b with
+        | Ok a, Ok b -> Ok(a, b)
+        | Error e, _ -> Error e
+        | _, Error e -> Error e
+
     let isNumber context pos cont =
         function
         | [ SRational _, _ ]
@@ -526,12 +532,11 @@ module Math =
         | [ _ ] as args ->
             SNumber.unaryMath "log" (log >> SReal) (System.Numerics.Complex.Log >> SComplex) context pos cont args
         | [ x; y ] ->
-            match toComplex x, toComplex y with
-            | Ok c1, Ok c2 ->
+            match bothOk (toComplex x) (toComplex y) with
+            | Ok(c1, c2) ->
                 let res = System.Numerics.Complex.Log c1 / System.Numerics.Complex.Log c2
                 Ok((if res.Imaginary = 0.0 then SReal res.Real else SComplex res), pos) |> cont
-            | Error e, _ -> Error e |> cont
-            | _, Error e -> Error e |> cont
+            | Error e -> Error e |> cont
         | x -> x |> invalidParameter pos "'%s' invalid log parameter." |> cont
 
     let sSin context pos cont =
@@ -574,10 +579,9 @@ module Math =
                 | SRational(n, d), _ -> float n / float d |> Ok
                 | _, pos -> EvalError("atan expected real", pos) |> Error
 
-            match toFloat y, toFloat x with
-            | Ok yVal, Ok xVal -> Ok(System.Math.Atan2(yVal, xVal) |> SReal, pos) |> cont
-            | Error e, _ -> Error e |> cont
-            | _, Error e -> Error e |> cont
+            match bothOk (toFloat y) (toFloat x) with
+            | Ok(yVal, xVal) -> Ok(System.Math.Atan2(yVal, xVal) |> SReal, pos) |> cont
+            | Error e -> Error e |> cont
         | x -> x |> invalidParameter pos "'%s' invalid atan parameter." |> cont
 
     let sSquare context pos cont =
@@ -630,30 +634,27 @@ module Math =
                     |> Result.mapError (fun msg -> EvalError(msg, pos))
                     |> cont
             | _ ->
-                match toComplex x, toComplex y with
-                | Ok c1, Ok c2 -> Ok(System.Numerics.Complex.Pow(c1, c2) |> SComplex, pos) |> cont
-                | Error e, _ -> Error e |> cont
-                | _, Error e -> Error e |> cont
+                match bothOk (toComplex x) (toComplex y) with
+                | Ok(c1, c2) -> Ok(System.Numerics.Complex.Pow(c1, c2) |> SComplex, pos) |> cont
+                | Error e -> Error e |> cont
         | x -> x |> invalidParameter pos "'%s' invalid expt parameter." |> cont
 
     let sMakeRectangular context pos cont =
         function
         | [ real; image ] ->
-            match toComplex real, toComplex image with
-            | Ok cr, Ok ci -> Ok(System.Numerics.Complex(cr.Real, ci.Real) |> SComplex, pos) |> cont
-            | Error e, _ -> Error e |> cont
-            | _, Error e -> Error e |> cont
+            match bothOk (toComplex real) (toComplex image) with
+            | Ok(cr, ci) -> Ok(System.Numerics.Complex(cr.Real, ci.Real) |> SComplex, pos) |> cont
+            | Error e -> Error e |> cont
         | x -> x |> invalidParameter pos "'%s' invalid make-rectangular parameter." |> cont
 
     let sMakePolar context pos cont =
         function
         | [ magnitude; angle ] ->
-            match toComplex magnitude, toComplex angle with
-            | Ok cm, Ok ca ->
+            match bothOk (toComplex magnitude) (toComplex angle) with
+            | Ok(cm, ca) ->
                 Ok(System.Numerics.Complex.FromPolarCoordinates(cm.Real, ca.Real) |> SComplex, pos)
                 |> cont
-            | Error e, _ -> Error e |> cont
-            | _, Error e -> Error e |> cont
+            | Error e -> Error e |> cont
         | x -> x |> invalidParameter pos "'%s' invalid make-polar parameter." |> cont
 
     let sRealPart context pos cont =

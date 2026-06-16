@@ -115,15 +115,17 @@ module Eval =
         | SPair { car = SSymbol var, _; cdr = rest }, _ -> rest |> getVariablesFromFormals (var :: acc)
         | _ -> acc |> List.rev
 
+    let getDefineVar body =
+        match body with
+        | SSymbol var, _ -> [ var ]
+        | SPair { car = SSymbol var, _; cdr = _ }, _ -> [ var ]
+        | _ -> []
+
     let getDefinedVariables =
         function
         | SPair { car = SSymbol "define", _
                   cdr = SPair { car = body; cdr = _ }, _ },
-          _ ->
-            match body with
-            | SSymbol var, _ -> [ var ]
-            | SPair { car = SSymbol var, _; cdr = _ }, _ -> [ var ]
-            | _ -> []
+          _ -> body |> getDefineVar
         | SPair { car = SSymbol "define-values", _
                   cdr = SPair { car = formals; cdr = _ }, _ },
           _ -> formals |> getVariablesFromFormals []

@@ -215,7 +215,7 @@ If `toList` fails (the `begin` body is an improper list), the collector falls ba
 
 ### Pitfall
 
-Many list operations (`map`, `append`, `reverse`, `member`, etc.) call `toList` internally. Passing an improper list to these procedures raises an error. In contrast, Scheme's `list?` correctly returns `#f` for improper lists (using the same `loopListInfo` with `None` accumulator).
+Many list operations (`map`, `append`, `reverse`, `member`, etc.) call `toList` internally. Passing an improper list to these procedures raises an error. In contrast, Scheme's `list?` correctly returns `#f` for improper lists (using the same `loopListInfo` without accumulation).
 
 ---
 
@@ -223,20 +223,33 @@ Many list operations (`map`, `append`, `reverse`, `member`, etc.) call `toList` 
 
 ### Symptom
 
-In Floyd's cycle detection (`Type.fs` line 87–103), the tortoise advances by one and the hare advances by two, but the code processes two elements of the hare before advancing the tortoise:
+Floyd's cycle detection is split across two mutually recursive functions (`Type.fs` lines 86–101): `loopListInfo` advances the hare and terminates on empty/improper lists, while `checkAndAdvance` advances the tortoise and detects cycles:
 
 ```fsharp
-| SPair pHareNext, _ ->
-    ...
-    accList |> Option.map (fun l -> pHareNext.car :: pHare.car :: l)
-    |> loopListInfo pTortoise.cdr pHareNext.cdr ...
+[<TailCall>]
+let rec loopListInfo tortoise hare accLength accList =
+    match hare with
+    | SEmpty, _ -> Ok(List.rev accList, accLength)
+    | SPair pHare, _ ->
+        match pHare.cdr with
+        | SEmpty, _ -> Ok(List.rev (pHare.car :: accList), accLength + 1I)
+        | SPair pHareNext, _ -> checkAndAdvance tortoise pHareNext accLength accList pHare.car
+        | _ -> Error "not a proper list."
+    | _ -> Error "not a proper list."
+
+and checkAndAdvance tortoise pHareNext accLength accList pCar =
+    match tortoise with
+    | SPair pTortoise, _ when obj.ReferenceEquals(pTortoise, pHareNext) -> Error "circular list."
+    | SPair pTortoise, _ ->
+        loopListInfo pTortoise.cdr pHareNext.cdr (accLength + 2I) (pHareNext.car :: pCar :: accList)
+    | _ -> Error "invalid list structure."
 ```
 
-This is correct Floyd's algorithm, but note that the accumulator collects elements in **reverse order** and must be `List.rev`-ed at the end. When the list is odd-length, the first `SPair pHare` handles the first element and `pHareNext` the second.
+The tortoise advances by one while the hare advances by two (via `pHareNext.cdr`). The accumulator collects elements in **reverse order** and must be `List.rev`-ed at the end.
 
 ### Pitfall
 
-When extending `loopListInfo` or using it for purposes other than `toList`/`isProperList`, be careful with the accumulator reversal and the invariant that the tortoise pointer checks `pHare.cdr` for proper list termination.
+When extending these functions, be careful with the accumulator reversal and the invariant that the tortoise pointer checks `pHareNext` (hare's second step) for cycle detection, not `pHare.cdr` (hare's first step). The `checkAndAdvance` helper is tightly coupled to `loopListInfo` — any change to the calling convention must update both functions.
 
 ---
 
@@ -415,7 +428,7 @@ Several places in the codebase use `failwith "unreachable."` to mark branches th
 |----------|---------|
 | `Read.fs:140` | Parser character class fallback |
 | `Context.fs:10` | Initial exception handler with wrong number of arguments |
-| `Builtin/Helper.fs:60,64` | `loopDiffWinders` with mismatched lengths |
+| `Builtin/Helper.fs:68,71` | `loopDiffWinders` with mismatched lengths |
 
 ### Pitfall
 
@@ -677,17 +690,22 @@ When working in CPS code, always pass accumulated state forward through continua
 
 ### Symptom
 
-After significant structural refactoring (extracting helpers, unifying match cases with or-patterns), the cyclomatic complexity reported by Coverlet may remain unchanged.
+After significant structural refactoring (extracting helpers, unifying match cases with or-patterns), the cyclomatic complexity reported by Coverlet may remain unchanged or even increase.
 
 ### Root Cause
 
 Coverlet measures cyclomatic complexity at the **IL level**, counting individual IL branches. Structural improvements like:
-- Merging 17 match cases into 14 via or-patterns
+- Merging match cases via or-patterns
 - Simplifying destructuring in pattern matches
 - Moving code to helper functions
 
-do not always reduce the IL branch count if the underlying decision points remain. Code like `| (SPair x, _), (SPair y, _) -> match x with ...` — even when destructuring is simplified — still produces the same number of IL branches.
+do not always reduce the IL branch count if the underlying decision points remain. Helper extraction can increase total IL branches because the helper itself introduces new branches (e.g., match statements), even as it reduces the complexity of the original function.
 
 ### Prevention
 
-Use Coverlet complexity as a **guide** rather than an absolute quality metric. The true measure is code maintainability (readability, testability, ease of modification). Structural improvements that don't change the IL branch count may still be worthwhile for readability. Focus on functions above 70 complexity for meaningful reductions, and accept that moderate improvements (e.g., from 65 to 55) are still progress.
+Use Coverlet complexity as a **guide** rather than an absolute quality metric. The true measure is code maintainability (readability, testability, ease of modification). The project thresholds are:
+- **Error threshold**: complexity > 15 — must be refactored
+- **Warning threshold**: complexity > 10 — should be addressed where practical
+- **Target**: ≤ 10 for most functions
+
+Focus on functions above the error threshold (15) for meaningful reductions. Improvements that bring a function from 61 to 50 are still progress — break down large match expressions incrementally, one helper at a time.

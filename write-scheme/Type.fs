@@ -89,14 +89,16 @@ module Type =
         | SPair pHare, _ ->
             match pHare.cdr with
             | SEmpty, _ -> Ok(List.rev (pHare.car :: accList), accLength + 1I)
-            | SPair pHareNext, _ ->
-                match tortoise with
-                | SPair pTortoise, _ when obj.ReferenceEquals(pTortoise, pHareNext) -> Error "circular list."
-                | SPair pTortoise, _ ->
-                    loopListInfo pTortoise.cdr pHareNext.cdr (accLength + 2I) (pHareNext.car :: pHare.car :: accList)
-                | _ -> Error "invalid list structure."
+            | SPair pHareNext, _ -> checkAndAdvance tortoise pHareNext accLength accList pHare.car
             | _ -> Error "not a proper list."
         | _ -> Error "not a proper list."
+
+    and checkAndAdvance tortoise pHareNext accLength accList pCar =
+        match tortoise with
+        | SPair pTortoise, _ when obj.ReferenceEquals(pTortoise, pHareNext) -> Error "circular list."
+        | SPair pTortoise, _ ->
+            loopListInfo pTortoise.cdr pHareNext.cdr (accLength + 2I) (pHareNext.car :: pCar :: accList)
+        | _ -> Error "invalid list structure."
 
     let isProperList =
         function
