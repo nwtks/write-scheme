@@ -35,11 +35,12 @@ write-scheme/                     # Interpreter core (F# executable)
 ├── Eval.fs                       # CPS evaluator: eval / apply / eachEval (191 lines)
 ├── Builtin/
 │   ├── Helper.fs                 # Shared helpers: invalid, mapResult, doWind, getRange, eqv (165 lines)
-│   ├── SpecialForm.fs            # All special forms: lambda, if, cond, let, define, ... (1400 lines)
-│   ├── Macro.fs                  # syntax-rules hygienic macro engine (566 lines)
+│   ├── SpecialForm.fs            # All special forms: lambda, if, cond, let, define, ... (1416 lines)
+│   ├── Macro.fs                  # syntax-rules hygienic macro engine (562 lines)
 │   ├── Procedure.fs              # apply, map, for-each, call/cc, dynamic-wind (221 lines)
-│   ├── Core.fs                   # eqv?, equal? (111 lines)
-│   ├── Math.fs                   # Numeric tower operations (834 lines)
+│   ├── Core.fs                   # eqv?, equal? (88 lines)
+│   ├── Number.fs                 # SNumber type (NRational|NReal|NComplex) and unified arithmetic (90 lines)
+│   ├── Math.fs                   # Numeric tower operations (772 lines)
 │   ├── List.fs                   # Pair/list operations (290 lines)
 │   ├── Str.fs                    # String operations (212 lines)
 │   ├── Char.fs                   # Character operations (97 lines)
@@ -65,8 +66,9 @@ Compilation order is declared in `write-scheme.fsproj`:
 Type.fs → Print.fs → Read.fs → DatumLabel.fs → Context.fs → Eval.fs
 → Builtin/Helper.fs → Builtin/Promise.fs → Builtin/SavedParameter.fs
 → Builtin/SpecialForm.fs → Builtin/Procedure.fs → Builtin/Macro.fs
-→ Builtin/Core.fs → Builtin/Math.fs → Builtin/Bool.fs → Builtin/List.fs
-→ Builtin/Symbol.fs → Builtin/Char.fs → Builtin/Str.fs → Builtin/Vector.fs
+→ Builtin/Core.fs → Builtin/Number.fs → Builtin/Math.fs
+→ Builtin/Bool.fs → Builtin/List.fs → Builtin/Symbol.fs
+→ Builtin/Char.fs → Builtin/Str.fs → Builtin/Vector.fs
 → Builtin/ByteVector.fs → Builtin/Exception.fs → Builtin.fs → Repl.fs → Program.fs
 ```
 
@@ -209,11 +211,12 @@ type SkipResult =
 | `toSPair list` | Build a proper list from `SExpression list` |
 | `toList expr` | Convert a proper list to `SExpression list` (with cycle detection) |
 | `isProperList expr` | Check if expression is a proper list (Floyd's algorithm) |
-| `loopListInfo tortoise hare` | Floyd's cycle-finding algorithm for list operations |
+| `loopListInfo tortoise hare accLength accList` | Floyd's cycle-finding algorithm; returns `Ok(list, length)` |
 | `newInteger n` | Create `SRational(n, 1I)` (GCD-normalized) |
 | `newSRational n d` | Create normalized rational (GCD-reduced) |
 | `SZero` | Cached singleton `SRational(0I, 1I)` |
 | `runesToString runes` | Convert `Rune[]` to `string` |
+| `normalizeRational n d` | Reduce rational to lowest terms |
 
 ---
 
@@ -449,7 +452,7 @@ The second element of the tuple is an optional `SExpression option` that can hol
 
 ### 9.2 Special Forms (`Builtin/SpecialForm.fs`)
 
-This is the largest file (1400 lines) containing the implementation of all special forms:
+This is the largest file (1416 lines) containing the implementation of all special forms:
 
 | Special Form | Implementation | Key Behavior |
 |---|---|---|
@@ -458,7 +461,7 @@ This is the largest file (1400 lines) containing the implementation of all speci
 | `if` | `sIf` | Conditional with optional alternate |
 | `set!` | `sSetBang` | Mutates variable reference |
 | `cond` | `sCond` | Multi-way conditional with `=>` support |
-| `case` | `sCase` | Pattern matching with keys |
+| `case` | `sCase` | Pattern matching with keys (`normalizeCaseClause`/`isElseClause` helpers) |
 | `and`, `or` | `sAnd`, `sOr` | Short-circuit evaluation |
 | `when`, `unless` | `sWhen`, `sUnless` | Conditional execution |
 | `begin` | `sBegin` | Sequential evaluation |
@@ -470,7 +473,7 @@ This is the largest file (1400 lines) containing the implementation of all speci
 | `delay-force` | `sDelayForce` | Lazy promise (thunk returns promise) |
 | `parameterize` | `sParameterize` | Dynamic binding (delegates to SavedParameter.fs) |
 | `guard` | `sGuard` | Exception with condition matching |
-| `quasiquote` | `sQuasiquote` | Template with unquote/unquote-splicing (supports nested quasiquotation) |
+| `quasiquote` | `sQuasiquote` | Template with unquote/unquote-splicing; uses `QqKeyword` DU, `normalizeQqKeyword`, `consQq`, `joinQq` (supports nested quasiquotation) |
 | `case-lambda` | `sCaseLambda` | Arity-based dispatch |
 | `let-syntax`, `letrec-syntax` | `sLetSyntax`, `sLetRecSyntax` | Local macro bindings |
 | `syntax-rules` | `sSyntaxRules` | Macro pattern definition |
@@ -487,8 +490,8 @@ This is the largest file (1400 lines) containing the implementation of all speci
 
 | Category | File | Examples |
 |---|---|---|
-| Equivalence | `Core.fs` | `eqv?`, `equal?` |
-| Numeric | `Math.fs` | `+`, `-`, `*`, `/`, `sin`, `cos`, `gcd`, `quotient` |
+| Equivalence | `Core.fs`, `Helper.fs` | `equal?` (Core), `eqv?` (Helper) |
+| Numeric | `Number.fs`, `Math.fs` | `SNumber` type and unified arithmetic in `Number.fs`; `+`, `-`, `*`, `/`, `sin`, `cos`, `gcd`, `quotient` in `Math.fs` |
 | Boolean | `Bool.fs` | `not`, `boolean?`, `boolean=?` |
 | List/Pair | `List.fs` | `cons`, `car`, `cdr`, `map`, `append`, `assoc` |
 | Symbol | `Symbol.fs` | `symbol?`, `symbol->string` |
@@ -533,7 +536,9 @@ The macro system implements R7RS `syntax-rules` with full hygiene via automatic 
 | `loopPatternVars` | Recursive pattern variable collection |
 | `freeIdentifierEquals` | Hygiene check — compares identifiers by their binding references |
 | `buildEllipsisBindings` | Groups repeated pattern matches for `...` |
-| Pattern matching engine | Compares input against patterns, produces bindings |
+| `matchOne` | Core matcher (pattern value → `SBinding option`, uses `matchAtom` for atomic types) |
+| `decodePair` | Converts pair tree into prefix + optional tail |
+| `matchPatternListWithEllipsisParts` | Recursive list matching with `...` (CPS) |
 | Template instantiation | Substitutes pattern variables in the template |
 
 ### 10.3 Hygiene
@@ -542,7 +547,9 @@ Hygiene is achieved by tracking the lexical environment where the macro was defi
 
 ### 10.4 Pattern Matching
 
-The pattern matcher supports:
+The pattern matcher (`matchOne`) supports matching against all atomic and compound types. `matchAtom` handles the 6 atomic cases (`SEmpty`, `SBool`, `SRational`, `SReal`, `SString`, `SChar`), while pairs, vectors, and symbols (`_`, ellipsis, literals) are matched directly by `matchOne`.
+
+Supported features:
 
 - Literal symbols (must match exactly, not as pattern variables)
 - `_` wildcard (matches anything)
@@ -691,6 +698,13 @@ Displayed to user
 
 ## 14. Cyclomatic Complexity Guidelines
 
-All functions must keep Coverlet complexity ≤ 15 (hard limit), preferably ≤ 10. The `dotnet test` output includes a Cyclomatic Complexity Report from coverage data — check after every change.
+Cyclomatic complexity is measured by Coverlet. The current project-wide thresholds:
+- **Error threshold**: complexity > 15 — must be refactored.
+- **Warning threshold**: complexity > 10 — should be addressed where practical.
+- **Target**: ≤ 10 for most functions.
 
-The SpecialForm.fs file (1400 lines, 30+ special forms) is the most complexity-sensitive area. New special forms should be added as separate functions rather than extending existing ones.
+The `dotnet test` output includes coverage data — check after every change.
+
+Functions exceeding 15 complexity are typically those with large `match` expressions on `SExpressionKind` (e.g., `eqv`, `loopEqual`). These are refactored incrementally by extracting helpers, using or-patterns, or introducing intermediate types.
+
+`SpecialForm.fs` (1400+ lines, 30+ special forms) is the most complexity-sensitive area. New special forms should be added as separate functions rather than extending existing ones.

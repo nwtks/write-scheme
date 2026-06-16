@@ -63,6 +63,16 @@ module Macro =
                 acc |> Map.add variable (EllipsisB values))
             Map.empty
 
+    let matchAtom patternKind argKind =
+        match patternKind, argKind with
+        | SEmpty, SEmpty -> true
+        | SBool v, SBool v' -> v = v'
+        | SRational(n1, d1), SRational(n2, d2) -> n1 = n2 && d1 = d2
+        | SReal v, SReal v' -> v = v'
+        | SString v, SString v' -> v = v'
+        | SChar v, SChar v' -> v = v'
+        | _ -> false
+
     [<TailCall>]
     let rec matchOne defContext useContext literals ellipsis arg next =
         function
@@ -74,30 +84,16 @@ module Macro =
             else
                 None |> next
         | SSymbol s, _ -> Map.ofList [ s, SingleB arg ] |> Some |> next
-        | SEmpty, _ ->
-            match arg with
-            | SEmpty, _ -> Map.empty |> Some |> next
-            | _ -> None |> next
-        | SBool v, _ ->
-            match arg with
-            | SBool v', _ when v = v' -> Map.empty |> Some |> next
-            | _ -> None |> next
-        | SRational(n1, d1), _ ->
-            match arg with
-            | SRational(n2, d2), _ when n1 = n2 && d1 = d2 -> Map.empty |> Some |> next
-            | _ -> None |> next
-        | SReal v, _ ->
-            match arg with
-            | SReal v', _ when v = v' -> Map.empty |> Some |> next
-            | _ -> None |> next
-        | SString v, _ ->
-            match arg with
-            | SString v', _ when v = v' -> Map.empty |> Some |> next
-            | _ -> None |> next
-        | SChar v, _ ->
-            match arg with
-            | SChar v', _ when v = v' -> Map.empty |> Some |> next
-            | _ -> None |> next
+        | SEmpty, _
+        | SBool _, _
+        | SRational _, _
+        | SReal _, _
+        | SString _, _
+        | SChar _, _ as pat ->
+            if matchAtom (fst pat) (fst arg) then
+                Map.empty |> Some |> next
+            else
+                None |> next
         | SPair { car = SSymbol ell, _
                   cdr = SPair { car = SSymbol s, _; cdr = SEmpty, _ }, _ },
           _ when ell = ellipsis && s = ellipsis ->

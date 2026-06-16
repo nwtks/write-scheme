@@ -101,11 +101,9 @@ module Math =
         | [ _ ] -> Ok(SFalse, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid nan? parameter." |> cont
 
-    let toFloat x y = float x / float y
-
     let toComplex =
         function
-        | SRational(n, d), _ -> System.Numerics.Complex(toFloat n d, 0.0) |> Ok
+        | SRational(n, d), _ -> System.Numerics.Complex(SNumber.toFloat n d, 0.0) |> Ok
         | SReal r, _ -> System.Numerics.Complex(r, 0.0) |> Ok
         | SComplex c, _ -> Ok c
         | x -> x |> invalid (snd x) "'%s' is not a number."
@@ -113,16 +111,11 @@ module Math =
     let comparePred pred1 pred2 pred3 =
         function
         | (SRational(n1, d1), _), (SRational(n2, d2), _) -> pred1 (n1 * d2) (n2 * d1) |> Ok
-        | (SRational(n1, d1), _), (SReal r2, _) -> pred2 (toFloat n1 d1) r2 |> Ok
-        | (SReal r1, _), (SRational(n2, d2), _) -> pred2 r1 (toFloat n2 d2) |> Ok
         | (SReal r1, _), (SReal r2, _) -> pred2 r1 r2 |> Ok
-        | (SComplex _, _), _
-        | _, (SComplex _, _) as pair ->
-            match toComplex (fst pair), toComplex (snd pair) with
+        | (x, p1), (y, p2) ->
+            match toComplex (x, p1), toComplex (y, p2) with
             | Ok c1, Ok c2 -> pred3 c1 c2
-            | Error e, _ -> Error e
-            | _, Error e -> Error e
-        | _ -> Ok false
+            | _ -> Ok false
 
     [<TailCall>]
     let rec compare pos pred1 pred2 pred3 n =
@@ -252,89 +245,45 @@ module Math =
             | [] -> args |> invalidParameter pos "'%s' invalid min parameter." |> cont
 
     [<TailCall>]
-    let rec loopCalc op1 op2 op3 pos cont acc =
+    let rec loopCalc op pos cont acc =
         function
-        | [] -> acc |> cont
-        | (x, pos') :: xs ->
-            let wrap res =
-                res
-                |> Result.map (fun n -> n, pos)
-                |> Result.mapError (fun msg -> EvalError(msg, pos))
+        | [] ->
+            match acc with
+            | Ok a -> a |> SNumber.toSExpr pos |> cont
+            | Error e -> Error e |> cont
+        | (x, elPos) :: xs ->
+            match acc with
+            | Error e -> Error e |> cont
+            | Ok a ->
+                match SNumber.ofExpr (x, elPos) with
+                | Error _ ->
+                    let msg = sprintf "'%s' is not a number." ((x, elPos) |> Print.print)
+                    EvalError(msg, pos) |> Error |> cont
+                | Ok b ->
+                    match op a b with
+                    | Error msg -> EvalError(msg, pos) |> Error |> cont
+                    | Ok res -> xs |> loopCalc op pos cont (Ok res)
 
-            match acc, x with
-            | Ok(SRational(n1, d1), _), SRational(n2, d2) ->
-                xs |> loopCalc op1 op2 op3 pos cont (op1 n1 d1 n2 d2 |> wrap)
-            | Ok(SRational(n1, d1), _), SReal r2 -> xs |> loopCalc op1 op2 op3 pos cont (op2 (toFloat n1 d1) r2 |> wrap)
-            | Ok(SReal r1, _), SRational(n2, d2) -> xs |> loopCalc op1 op2 op3 pos cont (op2 r1 (toFloat n2 d2) |> wrap)
-            | Ok(SReal r1, _), SReal r2 -> xs |> loopCalc op1 op2 op3 pos cont (op2 r1 r2 |> wrap)
-            | Ok(SComplex _, _), _
-            | Ok _, SComplex _ ->
-                match acc |> Result.bind toComplex, toComplex (x, pos') with
-                | Ok c1, Ok c2 -> xs |> loopCalc op1 op2 op3 pos cont (op3 c1 c2 |> wrap)
-                | Error e, _ -> Error e |> cont
-                | _, Error e -> Error e |> cont
-            | Ok a, b ->
-                EvalError(sprintf "'%s', '%s' not number." (a |> Print.print) ((b, pos') |> Print.print), pos)
-                |> Error
-                |> cont
-            | x, _ -> x |> cont
+    let calc op identity pos cont args =
+        match args with
+        | [] -> identity |> SNumber.toSExpr pos |> cont
+        | (x, elPos) :: xs ->
+            match SNumber.ofExpr (x, elPos) with
+            | Error _ ->
+                let msg = sprintf "'%s' is not a number." ((x, elPos) |> Print.print)
+                EvalError(msg, pos) |> Error |> cont
+            | Ok a ->
+                match xs with
+                | [] ->
+                    match op identity a with
+                    | Error msg -> EvalError(msg, pos) |> Error |> cont
+                    | Ok res -> SNumber.toSExpr pos res |> cont
+                | _ -> xs |> loopCalc op pos cont (Ok a)
 
-    let calc op1 op2 op3 ident1 ident2 ident3 pos cont =
-        let wrap res =
-            res
-            |> Result.map (fun n -> n, pos)
-            |> Result.mapError (fun msg -> EvalError(msg, pos))
-
-        function
-        | [] -> Ok(newInteger ident1, pos) |> cont
-        | [ SRational(n, d), _ ] -> op1 ident1 1I n d |> wrap |> cont
-        | [ SReal r, _ ] -> op2 ident2 r |> wrap |> cont
-        | [ SComplex c, _ ] -> op3 ident3 c |> wrap |> cont
-        | x :: xs -> xs |> loopCalc op1 op2 op3 pos cont (Ok x)
-
-    let sAddNumber context =
-        calc
-            (fun n1 d1 n2 d2 -> newSRational (n1 * d2 + n2 * d1) (d1 * d2))
-            (fun r1 r2 -> r1 + r2 |> SReal |> Ok)
-            (fun c1 c2 -> c1 + c2 |> SComplex |> Ok)
-            0I
-            0.0
-            System.Numerics.Complex.Zero
-
-    let sMultiplyNumber context =
-        calc
-            (fun n1 d1 n2 d2 -> newSRational (n1 * n2) (d1 * d2))
-            (fun r1 r2 -> r1 * r2 |> SReal |> Ok)
-            (fun c1 c2 -> c1 * c2 |> SComplex |> Ok)
-            1I
-            1.0
-            System.Numerics.Complex.One
-
-    let sSubtractNumber context =
-        calc
-            (fun n1 d1 n2 d2 -> newSRational (n1 * d2 - n2 * d1) (d1 * d2))
-            (fun r1 r2 -> r1 - r2 |> SReal |> Ok)
-            (fun c1 c2 -> c1 - c2 |> SComplex |> Ok)
-            0I
-            0.0
-            System.Numerics.Complex.Zero
-
-    let sDivideNumber context =
-        calc
-            (fun n1 d1 n2 d2 -> newSRational (n1 * d2) (d1 * n2))
-            (fun r1 r2 ->
-                if r2 = 0.0 then
-                    Error "Division by zero."
-                else
-                    r1 / r2 |> SReal |> Ok)
-            (fun c1 c2 ->
-                if c2.Magnitude = 0.0 then
-                    Error "Division by zero."
-                else
-                    c1 / c2 |> SComplex |> Ok)
-            1I
-            1.0
-            System.Numerics.Complex.One
+    let sAddNumber context = calc SNumber.add (NRational(0I, 1I))
+    let sMultiplyNumber context = calc SNumber.mul (NRational(1I, 1I))
+    let sSubtractNumber context = calc SNumber.sub (NRational(0I, 1I))
+    let sDivideNumber context = calc SNumber.div (NRational(1I, 1I))
 
     let sAbs context pos cont =
         function
@@ -797,38 +746,27 @@ module Math =
         | x -> x |> invalidParameter pos "'%s' invalid number->string parameter." |> cont
 
     let sStringToNumber context pos cont =
+        let numberResult =
+            function
+            | Ok(SRational _, _)
+            | Ok(SReal _, _)
+            | Ok(SComplex _, _) as n -> n |> cont
+            | Ok _ -> Ok(SFalse, pos) |> cont
+            | Error _ -> Ok(SFalse, pos) |> cont
+
         function
-        | [ SString s, _ ] ->
-            s.runes
-            |> runesToString
-            |> Read.read false
-            |> Result.map (function
-                | SRational _, _
-                | SReal _, _
-                | SComplex _, _ as n -> n
-                | _ -> SFalse, pos)
-            |> function
-                | Ok res -> Ok res |> cont
-                | Error _ -> Ok(SFalse, pos) |> cont
+        | [ SString s, _ ] -> s.runes |> runesToString |> Read.read false |> numberResult
         | [ SString data, _; SRational(radix, d), _ ] when d = 1I ->
-            match int radix with
-            | 2
-            | 8
-            | 10
-            | 16 ->
-                try
-                    let s = data.runes |> runesToString
+            let prefix =
+                match int radix with
+                | 2 -> "#b"
+                | 8 -> "#o"
+                | 10 -> "#d"
+                | 16 -> "#x"
+                | _ -> ""
 
-                    let v =
-                        match int radix with
-                        | 2 -> System.Convert.ToInt64(s, 2) |> bigint
-                        | 8 -> System.Convert.ToInt64(s, 8) |> bigint
-                        | 10 -> bigint.Parse s
-                        | 16 -> System.Convert.ToInt64(s, 16) |> bigint
-                        | _ -> failwith "unreachable."
-
-                    Ok(newInteger v, pos) |> cont
-                with _ ->
-                    Ok(SFalse, pos) |> cont
-            | _ -> Ok(SFalse, pos) |> cont
+            if prefix = "" then
+                Ok(SFalse, pos) |> cont
+            else
+                prefix + (data.runes |> runesToString) |> Read.read false |> numberResult
         | x -> x |> invalidParameter pos "'%s' invalid string->number parameter." |> cont

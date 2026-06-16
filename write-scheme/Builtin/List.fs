@@ -96,7 +96,7 @@ module List =
             match list with
             | SEmpty, _ -> Ok 0I
             | SPair _, _ ->
-                match loopListInfo list list 0I None with
+                match loopListInfo list list 0I [] with
                 | Ok(_, len) -> Ok len
                 | Error msg -> EvalError(sprintf "'%s' %s" (list |> Print.print) msg, snd list) |> Error
             | _ ->

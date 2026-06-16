@@ -85,17 +85,15 @@ module Type =
     [<TailCall>]
     let rec loopListInfo tortoise hare accLength accList =
         match hare with
-        | SEmpty, _ -> Ok(accList |> Option.map List.rev, accLength)
+        | SEmpty, _ -> Ok(List.rev accList, accLength)
         | SPair pHare, _ ->
             match pHare.cdr with
-            | SEmpty, _ -> Ok(accList |> Option.map (fun l -> pHare.car :: l |> List.rev), accLength + 1I)
+            | SEmpty, _ -> Ok(List.rev (pHare.car :: accList), accLength + 1I)
             | SPair pHareNext, _ ->
                 match tortoise with
                 | SPair pTortoise, _ when obj.ReferenceEquals(pTortoise, pHareNext) -> Error "circular list."
                 | SPair pTortoise, _ ->
-                    accList
-                    |> Option.map (fun l -> pHareNext.car :: pHare.car :: l)
-                    |> loopListInfo pTortoise.cdr pHareNext.cdr (accLength + 2I)
+                    loopListInfo pTortoise.cdr pHareNext.cdr (accLength + 2I) (pHareNext.car :: pHare.car :: accList)
                 | _ -> Error "invalid list structure."
             | _ -> Error "not a proper list."
         | _ -> Error "not a proper list."
@@ -104,7 +102,7 @@ module Type =
         function
         | SEmpty, _ -> true
         | SPair _, _ as pair ->
-            match loopListInfo pair pair 0I None with
+            match loopListInfo pair pair 0I [] with
             | Ok _ -> true
             | Error _ -> false
         | _ -> false
@@ -113,9 +111,8 @@ module Type =
         function
         | SEmpty, _ -> Ok []
         | SPair _, _ as pair ->
-            match loopListInfo pair pair 0I (Some []) with
-            | Ok(Some l, _) -> Ok l
-            | Ok(None, _) -> failwith "unreachable."
+            match loopListInfo pair pair 0I [] with
+            | Ok(l, _) -> Ok l
             | Error msg -> EvalError(msg, snd pair) |> Error
         | _, pos -> EvalError("not a proper list.", pos) |> Error
 
@@ -124,19 +121,20 @@ module Type =
     let newInteger n =
         if n = 0I then SZero else SRational(n, 1I)
 
-    let newSRational n d =
+    let normalizeRational n d =
         if d = 0I then
             Error "Division by zero."
         elif n = 0I then
-            Ok SZero
+            Ok(0I, 1I)
         else
             let g = bigint.GreatestCommonDivisor(abs n, abs d)
             let n', d' = n / g, d / g
 
-            if d' < 0I then
-                SRational(-n', -d') |> Ok
-            else
-                SRational(n', d') |> Ok
+            if d' < 0I then Ok(-n', -d') else Ok(n', d')
+
+    let newSRational n d =
+        normalizeRational n d
+        |> Result.map (fun (n', d') -> if n' = 0I then SZero else SRational(n', d'))
 
     let realToRational r =
         if System.Double.IsInfinity r || System.Double.IsNaN r then

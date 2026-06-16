@@ -19,6 +19,7 @@
     <Compile Include="Builtin/Procedure.fs" />
     <Compile Include="Builtin/Macro.fs" />
     <Compile Include="Builtin/Core.fs" />
+    <Compile Include="Builtin/Number.fs" />
     <Compile Include="Builtin/Math.fs" />
     <Compile Include="Builtin/Bool.fs" />
     <Compile Include="Builtin/List.fs" />

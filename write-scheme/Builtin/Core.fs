@@ -17,11 +17,11 @@ module Core =
         else
             zipVectorEqual x y (i - 1) ((x.[i], y.[i]) :: acc)
 
-    [<TailCall>]
-    let rec byteVectorEqual (x: byte array) (y: byte array) i =
-        if i < 0 then true
-        elif x.[i] <> y.[i] then false
-        else byteVectorEqual x y (i - 1)
+    let isVisited visited a b =
+        visited
+        |> List.exists (fun (va, vb) ->
+            LanguagePrimitives.PhysicalEquality va a
+            && LanguagePrimitives.PhysicalEquality vb b)
 
     [<TailCall>]
     let rec loopEqual (visited: (obj * obj) list) =
@@ -33,32 +33,18 @@ module Core =
             else
                 match x, y with
                 | (SPair a, _), (SPair b, _) ->
-                    if
-                        visited
-                        |> List.exists (fun (va, vb) ->
-                            LanguagePrimitives.PhysicalEquality va a
-                            && LanguagePrimitives.PhysicalEquality vb b)
-                    then
+                    if isVisited visited a b then
                         rest |> loopEqual visited
                     else
                         (a.car, b.car) :: (a.cdr, b.cdr) :: rest |> loopEqual ((a, b) :: visited)
                 | (SVector a, _), (SVector b, _) ->
-                    if
-                        visited
-                        |> List.exists (fun (va, vb) ->
-                            LanguagePrimitives.PhysicalEquality va a
-                            && LanguagePrimitives.PhysicalEquality vb b)
-                    then
+                    if isVisited visited a b then
                         rest |> loopEqual visited
                     else if a.Length <> b.Length then
                         false
                     else
                         zipVectorEqual a b (a.Length - 1) rest |> loopEqual ((a, b) :: visited)
-                | (SByteVector a, _), (SByteVector b, _) ->
-                    if a.Length <> b.Length then
-                        false
-                    else
-                        byteVectorEqual a b (a.Length - 1) && rest |> loopEqual visited
+                | (SByteVector a, _), (SByteVector b, _) -> a = b && rest |> loopEqual visited
                 | (SValues a, _), (SValues b, _) ->
                     if a.Length <> b.Length then
                         false
@@ -66,17 +52,8 @@ module Core =
                         List.zip a b @ rest |> loopEqual visited
                 | (SQuote a, _), (SQuote b, _) -> (a, b) :: rest |> loopEqual visited
                 | (SUnquote a, _), (SUnquote b, _) -> (a, b) :: rest |> loopEqual visited
-                | (SBool a, _), (SBool b, _) -> a = b && rest |> loopEqual visited
-                | (SRational(n1, d1), _), (SRational(n2, d2), _) -> n1 = n2 && d1 = d2 && rest |> loopEqual visited
-                | (SReal r1, _), (SReal r2, _) -> r1 = r2 && rest |> loopEqual visited
-                | (SComplex c1, _), (SComplex c2, _) -> c1 = c2 && rest |> loopEqual visited
-                | (SString a, _), (SString b, _) ->
-                    a.runes.Length = b.runes.Length
-                    && Array.forall2 (=) a.runes b.runes
-                    && rest |> loopEqual visited
-                | (SChar a, _), (SChar b, _) -> a = b && rest |> loopEqual visited
-                | (SSymbol a, _), (SSymbol b, _) -> a = b && rest |> loopEqual visited
-                | (a, _), (b, _) -> a = b && rest |> loopEqual visited
+                | (SString a, _), (SString b, _) -> a.runes = b.runes && rest |> loopEqual visited
+                | _ -> false
 
     let isEqual context pos cont =
         function

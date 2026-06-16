@@ -105,6 +105,21 @@ module SpecialForm =
     let sIncludeCi context pos cont files =
         files |> sIncludeFiles true context pos cont []
 
+    let isElseClause datums =
+        match fst datums with
+        | SSymbol "else" -> true
+        | _ -> false
+
+    let normalizeCaseClause =
+        function
+        | SPair { car = datums
+                  cdr = SPair { car = SSymbol "=>", _
+                                cdr = SPair { car = expr; cdr = SEmpty, _ }, _ },
+                        _ },
+          _ -> Some(datums, Choice1Of2 expr)
+        | SPair { car = datums; cdr = exprs }, _ -> Some(datums, Choice2Of2 exprs)
+        | _ -> None
+
     [<TailCall>]
     let rec evalCondTest context pos cont clauses next test =
         test
@@ -154,35 +169,28 @@ module SpecialForm =
         function
         | [] -> Ok(SUnspecified, pos) |> cont
         | clause :: clauses ->
-            match clause with
-            | SPair { car = SSymbol "else", _
-                      cdr = SPair { car = SSymbol "=>", _
-                                    cdr = SPair { car = expression; cdr = SEmpty, _ }, _ },
-                            _ },
-              _ -> [ expression; SQuote key, pos ] |> toSPair |> Eval.eval context cont
-            | SPair { car = SSymbol "else", _
-                      cdr = expressions },
-              _ ->
-                match expressions |> toList with
-                | Ok elist -> elist |> Eval.eachEval context cont (Ok(SUnspecified, pos))
-                | Error e -> Error e |> cont
-            | SPair { car = datums
-                      cdr = SPair { car = SSymbol "=>", _
-                                    cdr = SPair { car = expression; cdr = SEmpty, _ }, _ },
-                            _ },
-              _ ->
-                datums
-                |> toList
-                |> evalCaseDatums context pos cont clauses key (fun () ->
-                    [ expression; SQuote key, pos ] |> toSPair |> Eval.eval context cont)
-            | SPair { car = datums; cdr = expressions }, _ ->
-                datums
-                |> toList
-                |> evalCaseDatums context pos cont clauses key (fun () ->
-                    match expressions |> toList with
+            match clause |> normalizeCaseClause with
+            | Some(datums, Choice1Of2 expr) ->
+                if isElseClause datums then
+                    [ expr; SQuote key, pos ] |> toSPair |> Eval.eval context cont
+                else
+                    datums
+                    |> toList
+                    |> evalCaseDatums context pos cont clauses key (fun () ->
+                        [ expr; SQuote key, pos ] |> toSPair |> Eval.eval context cont)
+            | Some(datums, Choice2Of2 exprs) ->
+                if isElseClause datums then
+                    match exprs |> toList with
                     | Ok elist -> elist |> Eval.eachEval context cont (Ok(SUnspecified, pos))
-                    | Error e -> Error e |> cont)
-            | x -> x |> invalid (snd x) "'%s' invalid case clause." |> cont
+                    | Error e -> Error e |> cont
+                else
+                    datums
+                    |> toList
+                    |> evalCaseDatums context pos cont clauses key (fun () ->
+                        match exprs |> toList with
+                        | Ok elist -> elist |> Eval.eachEval context cont (Ok(SUnspecified, pos))
+                        | Error e -> Error e |> cont)
+            | None -> clause |> invalid (snd clause) "'%s' invalid case clause." |> cont
 
     let sCase context pos cont =
         function
@@ -252,24 +260,12 @@ module SpecialForm =
     [<TailCall>]
     let rec checkFeatureRequirement context pos negate =
         function
-        | SSymbol feature, _ ->
-            let exists = supportedFeatures |> Set.contains feature
-            if negate then not exists else exists
-        | SPair { car = SSymbol "and", _; cdr = args }, _ ->
+        | SSymbol feature, _ -> negate <> (supportedFeatures |> Set.contains feature)
+        | SPair { car = SSymbol("and" | "or" as kind), _
+                  cdr = args },
+          _ ->
             match args |> toList with
-            | Ok reqs ->
-                if negate then
-                    reqs |> List.exists (checkFeatureRequirement context pos true)
-                else
-                    reqs |> List.forall (checkFeatureRequirement context pos false)
-            | Error _ -> false
-        | SPair { car = SSymbol "or", _; cdr = args }, _ ->
-            match args |> toList with
-            | Ok reqs ->
-                if negate then
-                    reqs |> List.forall (checkFeatureRequirement context pos true)
-                else
-                    reqs |> List.exists (checkFeatureRequirement context pos false)
+            | Ok reqs -> reqs |> checkFeatureReqList context pos negate (kind = "and" <> negate)
             | Error _ -> false
         | SPair { car = SSymbol "not", _
                   cdr = SPair { car = inner; cdr = SEmpty, _ }, _ },
@@ -277,13 +273,20 @@ module SpecialForm =
         | SPair { car = SSymbol "library", _
                   cdr = SPair { car = libName; cdr = SEmpty, _ }, _ },
           _ ->
-            let exists =
-                match libName |> Context.lookupLibrary context pos with
-                | Ok _ -> true
-                | Error _ -> false
+            negate
+            <> match libName |> Context.lookupLibrary context pos with
+               | Ok _ -> true
+               | Error _ -> false
+        | _ -> negate
 
-            if negate then not exists else exists
-        | _ -> if negate then true else false
+    and [<TailCall>] checkFeatureReqList context pos negate mode =
+        function
+        | [] -> mode
+        | r :: rest ->
+            match r |> checkFeatureRequirement context pos negate with
+            | true when not mode -> true
+            | false when mode -> false
+            | _ -> rest |> checkFeatureReqList context pos negate mode
 
     [<TailCall>]
     let rec sCondExpand context pos cont =
@@ -685,6 +688,47 @@ module SpecialForm =
                 (Ok(SEmpty, pos))
         | x -> x |> invalidParameter pos "'%s' invalid guard parameter." |> cont
 
+    type QqKeyword =
+        | QqUnquote of SExpression
+        | QqUnquoteSplicing of SExpression
+        | QqQuasiquote of SExpression
+        | QqQuote of SExpression
+
+    let normalizeQqKeyword =
+        function
+        | SUnquote t, _ -> Some(QqUnquote t)
+        | SUnquoteSplicing t, _ -> Some(QqUnquoteSplicing t)
+        | SQuasiquote t, _ -> Some(QqQuasiquote t)
+        | SQuote t, _ -> Some(QqQuote t)
+        | SPair { car = SSymbol s, _
+                  cdr = SPair { car = t; cdr = SEmpty, _ }, _ },
+          _ when s = "unquote" || s = "unquote-splicing" || s = "quasiquote" || s = "quote" ->
+            match s with
+            | "unquote" -> Some(QqUnquote t)
+            | "unquote-splicing" -> Some(QqUnquoteSplicing t)
+            | "quasiquote" -> Some(QqQuasiquote t)
+            | _ -> Some(QqQuote t)
+        | _ -> None
+
+    let consQq x b =
+        match b with
+        | SEmpty, _ -> [ x ] |> toSPair
+        | SPair _, p -> SPair { car = x; cdr = b }, p
+        | y -> SPair { car = x; cdr = y }, snd y
+
+    let joinQq a b pos =
+        match a with
+        | SEmpty, _ -> Ok b
+        | SPair _, _ ->
+            match a |> toList with
+            | Ok alist ->
+                try
+                    Ok(b |> List.foldBack (fun h acc -> SPair { car = h; cdr = acc }, snd h) alist)
+                with _ ->
+                    EvalError("unquote-splicing must return a list.", pos) |> Error
+            | Error e -> Error e
+        | x -> x |> invalid (snd x) "'%s' invalid unquote-splicing parameter."
+
     [<TailCall>]
     let rec loopReplaceQuasiquote acc =
         function
@@ -717,166 +761,138 @@ module SpecialForm =
         | x -> x |> replaceQuasiquoteDatum context pos cont n next
 
     and [<TailCall>] replaceQuasiquoteList context pos cont n next templateTail templates =
-        let cons x b =
-            match b with
-            | SEmpty, _ -> [ x ] |> toSPair
-            | SPair _, p -> SPair { car = x; cdr = b }, p
-            | y -> SPair { car = x; cdr = y }, snd y
-
-        let join a b =
-            match a with
-            | SEmpty, _ -> Ok b
-            | SPair _, _ ->
-                match a |> toList with
-                | Ok alist ->
-                    try
-                        Ok(b |> List.foldBack (fun h acc -> SPair { car = h; cdr = acc }, snd h) alist)
-                    with _ ->
-                        EvalError("unquote-splicing must return a list.", pos) |> Error
-                | Error e -> Error e
-            | x -> x |> invalid (snd x) "'%s' invalid unquote-splicing parameter."
-
         match templates with
         | [] -> templateTail |> replaceQuasiquoteDatum context pos cont n next
-        | (SUnquote template, _) :: rest
-        | (SPair { car = SSymbol "unquote", _
-                   cdr = SPair { car = template; cdr = SEmpty, _ }, _ },
-           _) :: rest ->
-            if n = 0 then
-                template
-                |> Eval.eval context (function
-                    | Ok(SValues _, p) -> EvalError("Multiple values in single value context.", p) |> Error |> next
-                    | Ok a ->
-                        rest
-                        |> replaceQuasiquoteList
-                            context
-                            pos
-                            cont
-                            n
-                            (Result.map (fun b -> cons a b) >> next)
-                            templateTail
-                    | x -> x |> next)
-            else
-                template
-                |> replaceQuasiquote context pos cont (n - 1) (function
-                    | Ok a ->
-                        rest
-                        |> replaceQuasiquoteList
-                            context
-                            pos
-                            cont
-                            n
-                            (Result.map (fun b -> cons (SUnquote a, pos) b) >> next)
-                            templateTail
-                    | x -> x |> next)
-        | (SUnquoteSplicing template, _) :: rest
-        | (SPair { car = SSymbol "unquote-splicing", _
-                   cdr = SPair { car = template; cdr = SEmpty, _ }, _ },
-           _) :: rest ->
-            if n = 0 then
-                template
-                |> Eval.eval context (function
-                    | Ok a ->
-                        rest
-                        |> replaceQuasiquoteList
-                            context
-                            pos
-                            cont
-                            n
-                            (Result.bind (fun b -> join a b) >> next)
-                            templateTail
-                    | x -> x |> next)
-            else
-                template
-                |> replaceQuasiquote context pos cont (n - 1) (function
-                    | Ok a ->
-                        rest
-                        |> replaceQuasiquoteList
-                            context
-                            pos
-                            cont
-                            n
-                            (Result.map (fun b -> cons (SUnquoteSplicing a, pos) b) >> next)
-                            templateTail
-                    | x -> x |> next)
-        | (SQuasiquote template, _) :: rest
-        | (SPair { car = SSymbol "quasiquote", _
-                   cdr = SPair { car = template; cdr = SEmpty, _ }, _ },
-           _) :: rest ->
-            template
-            |> replaceQuasiquote context pos cont (n + 1) (function
-                | Ok a ->
-                    rest
-                    |> replaceQuasiquoteList
-                        context
-                        pos
-                        cont
-                        n
-                        (Result.map (fun b -> cons (SQuasiquote a, pos) b) >> next)
-                        templateTail
-                | x -> x |> next)
-        | (SQuote template, _) :: rest
-        | (SPair { car = SSymbol "quote", _
-                   cdr = SPair { car = template; cdr = SEmpty, _ }, _ },
-           _) :: rest ->
-            template
-            |> replaceQuasiquote context pos cont n (function
-                | Ok a ->
-                    rest
-                    |> replaceQuasiquoteList
-                        context
-                        pos
-                        cont
-                        n
-                        (Result.map (fun b -> cons (SQuote a, pos) b) >> next)
-                        templateTail
-                | x -> x |> next)
         | template :: rest ->
-            template
-            |> replaceQuasiquote context pos cont n (function
-                | Ok a ->
-                    rest
-                    |> replaceQuasiquoteList context pos cont n (Result.map (fun b -> cons a b) >> next) templateTail
-                | x -> x |> next)
+            match template |> normalizeQqKeyword with
+            | Some(QqUnquote template) ->
+                if n = 0 then
+                    template
+                    |> Eval.eval context (function
+                        | Ok(SValues _, p) -> EvalError("Multiple values in single value context.", p) |> Error |> next
+                        | Ok a ->
+                            rest
+                            |> replaceQuasiquoteList
+                                context
+                                pos
+                                cont
+                                n
+                                (Result.map (fun b -> consQq a b) >> next)
+                                templateTail
+                        | x -> x |> next)
+                else
+                    template
+                    |> replaceQuasiquote context pos cont (n - 1) (function
+                        | Ok a ->
+                            rest
+                            |> replaceQuasiquoteList
+                                context
+                                pos
+                                cont
+                                n
+                                (Result.map (fun b -> consQq (SUnquote a, pos) b) >> next)
+                                templateTail
+                        | x -> x |> next)
+            | Some(QqUnquoteSplicing template) ->
+                if n = 0 then
+                    template
+                    |> Eval.eval context (function
+                        | Ok a ->
+                            rest
+                            |> replaceQuasiquoteList
+                                context
+                                pos
+                                cont
+                                n
+                                (Result.bind (fun b -> joinQq a b pos) >> next)
+                                templateTail
+                        | x -> x |> next)
+                else
+                    template
+                    |> replaceQuasiquote context pos cont (n - 1) (function
+                        | Ok a ->
+                            rest
+                            |> replaceQuasiquoteList
+                                context
+                                pos
+                                cont
+                                n
+                                (Result.map (fun b -> consQq (SUnquoteSplicing a, pos) b) >> next)
+                                templateTail
+                        | x -> x |> next)
+            | Some(QqQuasiquote template) ->
+                template
+                |> replaceQuasiquote context pos cont (n + 1) (function
+                    | Ok a ->
+                        rest
+                        |> replaceQuasiquoteList
+                            context
+                            pos
+                            cont
+                            n
+                            (Result.map (fun b -> consQq (SQuasiquote a, pos) b) >> next)
+                            templateTail
+                    | x -> x |> next)
+            | Some(QqQuote template) ->
+                template
+                |> replaceQuasiquote context pos cont n (function
+                    | Ok a ->
+                        rest
+                        |> replaceQuasiquoteList
+                            context
+                            pos
+                            cont
+                            n
+                            (Result.map (fun b -> consQq (SQuote a, pos) b) >> next)
+                            templateTail
+                    | x -> x |> next)
+            | None ->
+                template
+                |> replaceQuasiquote context pos cont n (function
+                    | Ok a ->
+                        rest
+                        |> replaceQuasiquoteList
+                            context
+                            pos
+                            cont
+                            n
+                            (Result.map (fun b -> consQq a b) >> next)
+                            templateTail
+                    | x -> x |> next)
 
     and [<TailCall>] replaceQuasiquoteDatum context pos cont n next =
         function
-        | SUnquote template, _
-        | SPair { car = SSymbol "unquote", _
-                  cdr = SPair { car = template; cdr = SEmpty, _ }, _ },
-          _ ->
-            if n = 0 then
+        | arg ->
+            match arg |> normalizeQqKeyword with
+            | Some(QqUnquote template) ->
+                if n = 0 then
+                    template
+                    |> Eval.eval context (function
+                        | Ok(SValues _, p) -> EvalError("Multiple values in single value context.", p) |> Error |> next
+                        | x -> x |> next)
+                else
+                    template
+                    |> replaceQuasiquote context pos cont (n - 1) (Result.map (fun x' -> SUnquote x', pos) >> next)
+            | Some(QqUnquoteSplicing template) ->
+                if n = 0 then
+                    EvalError("unquote-splicing must be in a list or vector context.", pos)
+                    |> Error
+                    |> next
+                else
+                    template
+                    |> replaceQuasiquote
+                        context
+                        pos
+                        cont
+                        (n - 1)
+                        (Result.map (fun x' -> SUnquoteSplicing x', pos) >> next)
+            | Some(QqQuasiquote template) ->
                 template
-                |> Eval.eval context (function
-                    | Ok(SValues _, p) -> EvalError("Multiple values in single value context.", p) |> Error |> next
-                    | x -> x |> next)
-            else
+                |> replaceQuasiquote context pos cont (n + 1) (Result.map (fun x' -> SQuasiquote x', pos) >> next)
+            | Some(QqQuote template) ->
                 template
-                |> replaceQuasiquote context pos cont (n - 1) (Result.map (fun x' -> SUnquote x', pos) >> next)
-        | SUnquoteSplicing template, _
-        | SPair { car = SSymbol "unquote-splicing", _
-                  cdr = SPair { car = template; cdr = SEmpty, _ }, _ },
-          _ ->
-            if n = 0 then
-                EvalError("unquote-splicing must be in a list or vector context.", pos)
-                |> Error
-                |> next
-            else
-                template
-                |> replaceQuasiquote context pos cont (n - 1) (Result.map (fun x' -> SUnquoteSplicing x', pos) >> next)
-        | SQuasiquote template, _
-        | SPair { car = SSymbol "quasiquote", _
-                  cdr = SPair { car = template; cdr = SEmpty, _ }, _ },
-          _ ->
-            template
-            |> replaceQuasiquote context pos cont (n + 1) (Result.map (fun x' -> SQuasiquote x', pos) >> next)
-        | SQuote template, _
-        | SPair { car = SSymbol "quote", _
-                  cdr = SPair { car = template; cdr = SEmpty, _ }, _ },
-          _ ->
-            template
-            |> replaceQuasiquote context pos cont n (Result.map (fun x' -> SQuote x', pos) >> next)
-        | x -> x |> Ok |> next
+                |> replaceQuasiquote context pos cont n (Result.map (fun x' -> SQuote x', pos) >> next)
+            | None -> arg |> Ok |> next
 
     let sQuasiquote context pos cont =
         function

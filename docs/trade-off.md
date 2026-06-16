@@ -22,6 +22,10 @@ This document records design decisions, trade-offs, and their rationale.
 - [14. AutoOpen Modules in Builtin/ vs Explicit Imports](#14-autoopen-modules-in-builtin-vs-explicit-imports)
 - [15. CPS Printer with Visited-Set vs Simple Recursive Printer](#15-cps-printer-with-visited-set-vs-simple-recursive-printer)
 - [16. Reader Macro Expansion During Parsing vs Post-Parse Transformation](#16-reader-macro-expansion-during-parsing-vs-post-parse-transformation)
+- [17. SNumber Unified Type vs Separate SExpressionKind Cases for Numeric Operations](#17-snumber-unified-type-vs-separate-sexpressionkind-cases-for-numeric-operations)
+- [18. QqKeyword DU vs Raw Symbol Matching in Quasiquote Expansion](#18-qqkeyword-du-vs-raw-symbol-matching-in-quasiquote-expansion)
+- [19. CPS Incompatibility with Ref Cells for Accumulation](#19-cps-incompatibility-with-ref-cells-for-accumulation)
+- [20. Option List Accumulator vs Plain List in `loopListInfo`](#20-option-list-accumulator-vs-plain-list-in-looplistinfo)
 
 ---
 
@@ -446,3 +450,101 @@ Reader macros (`'expr` → `(quote expr)`, `` `expr `` → `(quasiquote expr)`, 
 ### Rationale
 
 Expanding reader macros during parsing eliminates a full tree walk and produces the canonical representation immediately. The parser already handles these forms by producing `SQuote`, `SQuasiquote`, `SUnquote`, and `SUnquoteSplicing` nodes — this is the simplest approach since the parser naturally encounters these syntax constructs while processing `'`, `` ` ``, `,`, and `,@` tokens.
+
+---
+
+## 17. SNumber Unified Type vs Separate SExpressionKind Cases for Numeric Operations
+
+### Context
+
+Arithmetic operations (`+`, `-`, `*`, `/`) previously dispatched on pairs of `SExpressionKind` variants (comparing `SRational`/`SReal`/`SComplex` combinations), leading to 7+ branches per operation and very high cyclomatic complexity in `loopCalc` (93).
+
+### Trade-off
+
+`SNumber` (`Builtin/Number.fs`) is a discriminated union unifying all numeric types:
+
+```fsharp
+type SNumber = NRational of bigint * bigint | NReal of float | NComplex of Complex
+```
+
+| Aspect | SNumber Unification | Per-Type Dispatch in SExpression |
+|--------|-------------------|---------------------------------|
+| Arithmetic dispatch | ✅ 3 SNumber cases, unified | ❌ 7+ SExpressionKind pair combinations |
+| Conversion overhead | ❌ Must convert SExpression → SNumber → SExpression | ✅ Direct match on SExpressionKind |
+| Code duplication | ✅ `add`/`sub`/`mul`/`div` are single functions | ❌ Repeated type-checking in each operation |
+| Cyclomatic complexity | ✅ `loopCalc`: 93 → 10 | ❌ Very high per-operation complexity |
+| File organization | ✅ Separate `Number.fs` (90 lines) + `Math.fs` (772 lines) | ✅ Single file |
+
+### Rationale
+
+The unification was motivated by complexity — `loopCalc` at 93 cyclomatic complexity was far above the 15 threshold. Converting to `SNumber` at the entry point (via `ofExpr`/`toSExpr`) and operating on the 3-case DU reduces each arithmetic operation to a simple 3-way match. The conversion overhead is negligible since most operations are already CPU-bound by bigint arithmetic.
+
+`nRational` is the canonical `NRational` constructor that normalizes the rational (GCD-reduced, zero-denominator check, sign normalization). It replaces ad-hoc normalization previously scattered across Math.fs.
+
+---
+
+## 18. QqKeyword DU vs Raw Symbol Matching in Quasiquote Expansion
+
+### Context
+
+The quasiquote expander (`replaceQuasiquoteDatum`, `replaceQuasiquoteList`) checked for quasiquote keywords by comparing against string literals (`"quasiquote"`, `"unquote"`, `"unquote-splicing"`, `"quote"`) in multiple places, with high cyclomatic complexity (`replaceQuasiquoteDatum`: 57, `replaceQuasiquoteList`: 59).
+
+### Trade-off
+
+A `QqKeyword` discriminated union normalizes all keyword comparisons:
+
+```fsharp
+type QqKeyword = QqUnquote | QqUnquoteSplicing | QqQuasiquote | QqQuote
+```
+
+| Aspect | QqKeyword DU | Raw Symbol Comparison |
+|--------|-------------|----------------------|
+| Keyword matching | ✅ Single `normalizeQqKeyword` function | ❌ Repeated string comparison everywhere |
+| Code duplication | ✅ `consQq`/`joinQq` build keyword-tagged pairs | ❌ Ad-hoc pair construction |
+| Complexity | ✅ `replaceQuasiquoteDatum`: 57→12, `replaceQuasiquoteList`: 59→30 | ❌ Very high per-function complexity |
+| New keyword addition | ✅ Add variant + update `normalizeQqKeyword` | ❌ Find and update all comparisons |
+
+### Rationale
+
+By extracting keyword normalization into a single function and introducing `consQq`/`joinQq` as pair-tree constructors that use the normalized keyword, the quasiquote expander's main functions were dramatically simplified. The `replaceQuasiquoteDatum` function went from 57 to 12 complexity.
+
+---
+
+## 19. CPS Incompatibility with Ref Cells for Accumulation
+
+### Context
+
+During refactoring, an attempt was made to replace CPS continuation threading with a mutable `ref` cell in `matchPatternListWithEllipsisParts` (`Builtin/Macro.fs`).
+
+### Trade-off
+
+| Aspect | CPS Continuation Threading | Mutable Ref Cell |
+|--------|---------------------------|-----------------|
+| Composition | ✅ Composes naturally with caller's continuation | ❌ Ref cell captures only the final continuation value |
+| Referential transparency | ✅ Pure data flow | ❌ Hidden mutable state |
+| Correctness | ✅ Always correct | ❌ Breaks when multiple continuations share the same ref |
+| Boilerplate | ❌ Must explicitly thread state through `cont` | ✅ Simple assignment |
+
+### Rationale
+
+This was discovered empirically — replacing `cont` calls with ref cell assignments produced incorrect results because CPS relies on the continuation chain to compose partial results across recursive calls. A ref cell captures only the **last** value written, losing the chain. The lesson is that CPS and mutable state don't mix: if you're in CPS, thread everything through `cont`.
+
+---
+
+## 20. Option List Accumulator vs Plain List in `loopListInfo`
+
+### Context
+
+`loopListInfo` (`Type.fs`) previously used `Option<SExpression list>` for the accumulator parameter, where `None` meant "don't accumulate" (used by `isProperList`) and `Some list` meant "accumulate" (used by `toList`).
+
+### Trade-off
+
+| Aspect | Plain List `[]` | `Option<SExpression list>` |
+|--------|----------------|---------------------------|
+| API surface | ✅ `loopListInfo pair pair 0I []` (always accumulates) | ❌ `loopListInfo pair pair 0I None` vs `Some []` |
+| Internal complexity | ✅ 2 branches (pair continue / empty finish) | ❌ 2× branches (None vs Some for each case) |
+| Caller adaptation | ❌ `isProperList` discards the result with `|> ignore` | ✅ No extra computation |
+
+### Rationale
+
+The `Option` was eliminated because the complexity overhead (wrapping/unwrapping `Option` cases in the loop) was not justified by the micro-optimization of skipping list construction for `isProperList`. All callers now unconditionally build the list, and `isProperList` discards it with pattern matching (the compiler may optimize this away). The elimination simplified the function signature and removed the `failwith "unreachable."` branch.

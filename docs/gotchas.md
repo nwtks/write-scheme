@@ -34,6 +34,8 @@ This document records common mistakes, subtle pitfalls, and non-obvious behavior
 - [26. `SUnspecified` Is a Valid Return Value but Prints Distinctively](#26-sunspecified-is-a-valid-return-value-but-prints-distinctively)
 - [27. `eqv?` on Numbers Does Not Distinguish `+0.0`/`-0.0`](#27-eqv-on-numbers-does-not-distinguish-00-00)
 - [28. `make-parameter` with Converter Applies on Every Call](#28-make-parameter-with-converter-applies-on-every-call)
+- [29. CPS Continuations Are Incompatible with Ref Cells](#29-cps-continuations-are-incompatible-with-ref-cells)
+- [30. Cobertura Cyclomatic Complexity May Not Reflect Structural Improvements](#30-cobertura-cyclomatic-complexity-may-not-reflect-structural-improvements)
 
 ---
 
@@ -411,11 +413,9 @@ Several places in the codebase use `failwith "unreachable."` to mark branches th
 
 | Location | Context |
 |----------|---------|
-| `Type.fs:118` | `loopListInfo` when called via `toList` with `None` accumulator |
 | `Read.fs:140` | Parser character class fallback |
 | `Context.fs:10` | Initial exception handler with wrong number of arguments |
 | `Builtin/Helper.fs:60,64` | `loopDiffWinders` with mismatched lengths |
-| `Builtin/Math.fs:828` | Comparison result type |
 
 ### Pitfall
 
@@ -423,17 +423,17 @@ These are not guarded by any runtime checks — if the invariant is violated (e.
 
 ---
 
-## 18. Macro Pattern Matching Overloads `matchOne` with Many Cases
+## 18. Macro Pattern Matching in `matchOne` with Many Cases
 
 ### Symptom
 
-`matchOne` in `Builtin/Macro.fs` handles many literal types: `SSymbol "_"`, ellipsis, literal symbols, `SEmpty`, `SBool`, `SRational`, `SReal`, `SString`, `SChar`, `SPair`, `SVector`.
+`matchOne` in `Builtin/Macro.fs` handles many literal types. The 6 atomic cases (`SEmpty`, `SBool`, `SRational`, `SReal`, `SString`, `SChar`) are extracted into a `matchAtom` helper, while `SSymbol "_"`, ellipsis, literal symbols, `SPair`, and `SVector` are matched directly.
 
 ### Pitfall
 
-If a new `SExpressionKind` variant is added (e.g., `SComplex`), `matchOne` will not match it (the catch-all `| _ -> None` at the end), so macros will silently fail to match any pattern containing that literal value. This is a correctness issue: macros should be able to match complex numbers in patterns.
+If a new `SExpressionKind` variant is added (e.g., `SComplex`), `matchOne` will not match it (the catch-all `| _ -> None` at the end), so macros will silently fail to match any pattern containing that literal value. `matchAtom` also needs updating for new atomic types.
 
-Similarly, `matchPatternList` and `matchEllipsis` must be updated for any new compound types that can appear in macro patterns.
+Similarly, `matchPatternListWithEllipsisParts` must be updated for any new compound types that can appear in macro patterns.
 
 ---
 
@@ -497,6 +497,10 @@ If modifying quasiquote expansion, always test with:
 ,,x               ; double unquote
 `(,x `(,,x))      ; mixed nesting
 ```
+
+### Refactoring Note
+
+The quasiquote code was refactored to use a `QqKeyword` DU (`QqUnquote | QqUnquoteSplicing | QqQuasiquote | QqQuote`) that normalizes the various keyword forms (`unquote`, `unquote-splicing`, `quasiquote`, `quote`). The `normalizeQqKeyword` function maps any Scheme keyword form to its `QqKeyword` variant. The helpers `consQq` and `joinQq` construct pair trees with normalized quasiquote keywords, reducing duplication in the expansion logic.
 
 ---
 
@@ -637,3 +641,53 @@ let sMakeParameter context pos cont =
 ### Pitfall
 
 The converter is applied at `parameterize` time (not at read time). This means if you mutate the parameter value directly via `set!` on the underlying reference, the converter is **not** applied. This matches R7RS semantics, but it's a subtle distinction.
+
+---
+
+## 29. CPS Continuations Are Incompatible with Ref Cells
+
+### Symptom
+
+Replacing CPS continuation calls with mutable ref cells in a recursive function causes incorrect results and mysterious failures.
+
+### Root Cause
+
+CPS-style functions pass a continuation (`cont`) that is called with the result. If you try to accumulate results in a `ref` cell instead of threading them through the continuation chain, the ref cell captures only the **last** continuation's result rather than building the full chain:
+
+```fsharp
+// ❌ Wrong: ref cell captures only final continuation
+let acc = ref []
+let rec processList cont xs =
+    match xs with
+    | [] -> Ok(List.rev !acc) |> cont
+    | x :: xs' ->
+        acc := x :: !acc
+        processList cont xs'  // same 'cont' passed through
+```
+
+This fails because CPS relies on the continuation chain to compose results. Ref cells break referential transparency and don't compose with the CPS calling convention.
+
+### Prevention
+
+When working in CPS code, always pass accumulated state forward through continuation arguments, never through mutable ref cells. If a helper function needs to be extracted, thread the state as a parameter through the recursive calls.
+
+---
+
+## 30. Cobertura Cyclomatic Complexity May Not Reflect Structural Improvements
+
+### Symptom
+
+After significant structural refactoring (extracting helpers, unifying match cases with or-patterns), the cyclomatic complexity reported by Coverlet may remain unchanged.
+
+### Root Cause
+
+Coverlet measures cyclomatic complexity at the **IL level**, counting individual IL branches. Structural improvements like:
+- Merging 17 match cases into 14 via or-patterns
+- Simplifying destructuring in pattern matches
+- Moving code to helper functions
+
+do not always reduce the IL branch count if the underlying decision points remain. Code like `| (SPair x, _), (SPair y, _) -> match x with ...` — even when destructuring is simplified — still produces the same number of IL branches.
+
+### Prevention
+
+Use Coverlet complexity as a **guide** rather than an absolute quality metric. The true measure is code maintainability (readability, testability, ease of modification). Structural improvements that don't change the IL branch count may still be worthwhile for readability. Focus on functions above 70 complexity for meaningful reductions, and accept that moderate improvements (e.g., from 65 to 55) are still progress.

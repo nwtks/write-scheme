@@ -32,25 +32,25 @@ module Helper =
         | x -> x |> invalid (snd x) "'%s' invalid binding."
 
     [<TailCall>]
-    let rec eqv =
-        function
-        | (SBool x, _), (SBool y, _) -> x = y
-        | (SSymbol x, _), (SSymbol y, _) -> x = y
-        | (SRational(n1, d1), _), (SRational(n2, d2), _) -> n1 = n2 && d1 = d2
-        | (SReal x, _), (SReal y, _) -> x = y
-        | (SComplex x, _), (SComplex y, _) -> x = y
-        | (SChar x, _), (SChar y, _) -> x = y
-        | (SEmpty, _), (SEmpty, _) -> true
-        | (SPair x, _), (SPair y, _) -> LanguagePrimitives.PhysicalEquality x y
-        | (SVector x, _), (SVector y, _) -> LanguagePrimitives.PhysicalEquality x y
-        | (SByteVector x, _), (SByteVector y, _) -> LanguagePrimitives.PhysicalEquality x y
-        | (SContinuation x, _), (SContinuation y, _) -> LanguagePrimitives.PhysicalEquality x y
-        | (SProcedure x, _), (SProcedure y, _) -> LanguagePrimitives.PhysicalEquality x y
-        | (SQuote x, _), (SQuote y, _) -> eqv (x, y)
-        | (SQuasiquote x, _), (SQuasiquote y, _) -> eqv (x, y)
-        | (SUnquote x, _), (SUnquote y, _) -> eqv (x, y)
-        | (SUnquoteSplicing x, _), (SUnquoteSplicing y, _) -> eqv (x, y)
-        | (x, _), (y, _) -> LanguagePrimitives.PhysicalEquality x y
+    let rec eqv ((a, _), (b, _)) =
+        match a, b with
+        | SBool x, SBool y -> x = y
+        | SSymbol x, SSymbol y -> x = y
+        | SRational(n1, d1), SRational(n2, d2) -> n1 = n2 && d1 = d2
+        | SReal x, SReal y -> x = y
+        | SComplex x, SComplex y -> x = y
+        | SChar x, SChar y -> x = y
+        | SEmpty, SEmpty -> true
+        | SPair x, SPair y -> LanguagePrimitives.PhysicalEquality x y
+        | SVector x, SVector y -> LanguagePrimitives.PhysicalEquality x y
+        | SByteVector x, SByteVector y -> LanguagePrimitives.PhysicalEquality x y
+        | SContinuation x, SContinuation y -> LanguagePrimitives.PhysicalEquality x y
+        | SProcedure x, SProcedure y -> LanguagePrimitives.PhysicalEquality x y
+        | SQuote x, SQuote y
+        | SQuasiquote x, SQuasiquote y
+        | SUnquote x, SUnquote y
+        | SUnquoteSplicing x, SUnquoteSplicing y -> eqv (x, y)
+        | x, y -> LanguagePrimitives.PhysicalEquality x y
 
     [<TailCall>]
     let rec loopDiffWinders sList tList lenS lenT accS accT =
