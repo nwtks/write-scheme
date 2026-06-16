@@ -30,26 +30,16 @@ module Math =
         | [ _ ] -> Ok(SFalse, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid real? parameter." |> cont
 
-    let finiteFloat d =
-        not (System.Double.IsInfinity d || System.Double.IsNaN d)
-
-    let noFractionFloat (d: float) = d = System.Math.Truncate d
-
     let isRational context pos cont =
         function
-        | [ SRational _, _ ] -> Ok(STrue, pos) |> cont
-        | [ SReal r, _ ] when finiteFloat r -> Ok(STrue, pos) |> cont
-        | [ SComplex c, _ ] when c.Imaginary = 0.0 && finiteFloat c.Real -> Ok(STrue, pos) |> cont
-        | [ _ ] -> Ok(SFalse, pos) |> cont
+        | [ x ] -> Ok(x |> SNumber.tryGetFiniteRealValue |> Option.isSome |> toSBool, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid rational? parameter." |> cont
 
     let isInteger context pos cont =
         function
-        | [ SRational(_, d), _ ] when d = 1I -> Ok(STrue, pos) |> cont
-        | [ SReal r, _ ] when finiteFloat r && noFractionFloat r -> Ok(STrue, pos) |> cont
-        | [ SComplex c, _ ] when c.Imaginary = 0.0 && finiteFloat c.Real && noFractionFloat c.Real ->
-            Ok(STrue, pos) |> cont
-        | [ _ ] -> Ok(SFalse, pos) |> cont
+        | [ x ] ->
+            Ok(x |> SNumber.tryGetExactIntegerValue |> Option.isSome |> toSBool, pos)
+            |> cont
         | x -> x |> invalidParameter pos "'%s' invalid integer? parameter." |> cont
 
     let isExact context pos cont =
@@ -74,8 +64,10 @@ module Math =
     let isFinite context pos cont =
         function
         | [ SRational _, _ ] -> Ok(STrue, pos) |> cont
-        | [ SReal r, _ ] -> Ok(finiteFloat r |> toSBool, pos) |> cont
-        | [ SComplex c, _ ] -> Ok((finiteFloat c.Real && finiteFloat c.Imaginary) |> toSBool, pos) |> cont
+        | [ SReal r, _ ] -> Ok(SNumber.finiteFloat r |> toSBool, pos) |> cont
+        | [ SComplex c, _ ] ->
+            Ok((SNumber.finiteFloat c.Real && SNumber.finiteFloat c.Imaginary) |> toSBool, pos)
+            |> cont
         | [ _ ] -> Ok(SFalse, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid finite? parameter." |> cont
 
@@ -169,18 +161,30 @@ module Math =
 
     let isOdd context pos cont =
         function
-        | [ SRational(n, d), _ ] when d = 1I -> Ok(abs n % 2I = 1I |> toSBool, pos) |> cont
-        | [ SReal r, _ ] when finiteFloat r && noFractionFloat r -> Ok(abs r % 2.0 = 1.0 |> toSBool, pos) |> cont
-        | [ SComplex c, _ ] when c.Imaginary = 0.0 && finiteFloat c.Real && noFractionFloat c.Real ->
-            Ok(abs c.Real % 2.0 = 1.0 |> toSBool, pos) |> cont
+        | [ x ] ->
+            Ok(
+                x
+                |> SNumber.tryGetExactIntegerValue
+                |> Option.map (fun n -> abs n % 2I = 1I)
+                |> Option.defaultValue false
+                |> toSBool,
+                pos
+            )
+            |> cont
         | x -> x |> invalidParameter pos "'%s' invalid odd? parameter." |> cont
 
     let isEven context pos cont =
         function
-        | [ SRational(n, d), _ ] when d = 1I -> Ok(n % 2I = 0I |> toSBool, pos) |> cont
-        | [ SReal r, _ ] when finiteFloat r && noFractionFloat r -> Ok(r % 2.0 = 0.0 |> toSBool, pos) |> cont
-        | [ SComplex c, _ ] when c.Imaginary = 0.0 && finiteFloat c.Real && noFractionFloat c.Real ->
-            Ok(c.Real % 2.0 = 0.0 |> toSBool, pos) |> cont
+        | [ x ] ->
+            Ok(
+                x
+                |> SNumber.tryGetExactIntegerValue
+                |> Option.map (fun n -> n % 2I = 0I)
+                |> Option.defaultValue false
+                |> toSBool,
+                pos
+            )
+            |> cont
         | x -> x |> invalidParameter pos "'%s' invalid even? parameter." |> cont
 
     let isAnyInexact =
@@ -287,13 +291,13 @@ module Math =
 
     let sAbs context pos cont =
         function
-        | [ SRational(n, d), _ ] ->
-            newSRational (abs n) d
-            |> Result.map (fun n -> n, pos)
-            |> Result.mapError (fun msg -> EvalError(msg, pos))
-            |> cont
-        | [ SReal r, _ ] -> Ok(abs r |> SReal, pos) |> cont
-        | [ SComplex c, _ ] -> Ok(c.Magnitude |> SReal, pos) |> cont
+        | [ x ] ->
+            match SNumber.ofExpr x with
+            | Ok n ->
+                match SNumber.abs n with
+                | Ok result -> SNumber.toSExpr pos result |> cont
+                | Error msg -> EvalError(msg, pos) |> Error |> cont
+            | Error _ -> x |> invalid pos "'%s' invalid abs parameter." |> cont
         | x -> x |> invalidParameter pos "'%s' invalid abs parameter." |> cont
 
     let truncateDiv n d = n / d, n % d
@@ -408,7 +412,7 @@ module Math =
     let sNumerator context pos cont =
         function
         | [ SRational(n, _), _ ] -> Ok(newInteger n, pos) |> cont
-        | [ SReal r, _ ] when finiteFloat r ->
+        | [ SReal r, _ ] when SNumber.finiteFloat r ->
             match realToRational r with
             | SRational(n, _) -> Ok(float n |> SReal, pos) |> cont
             | _ -> Ok(SReal r, pos) |> cont
@@ -417,7 +421,7 @@ module Math =
     let sDenominator context pos cont =
         function
         | [ SRational(_, d), _ ] -> Ok(newInteger d, pos) |> cont
-        | [ SReal r, _ ] when finiteFloat r ->
+        | [ SReal r, _ ] when SNumber.finiteFloat r ->
             match realToRational r with
             | SRational(_, d) -> Ok(float d |> SReal, pos) |> cont
             | _ -> Ok(SReal 1.0, pos) |> cont
@@ -495,7 +499,7 @@ module Math =
         let toExactValue =
             function
             | SRational _, _ as x -> Ok x
-            | SReal r, _ when finiteFloat r -> Ok(realToRational r, pos)
+            | SReal r, _ when SNumber.finiteFloat r -> Ok(realToRational r, pos)
             | x -> Ok x
 
         function
@@ -515,17 +519,12 @@ module Math =
         | x -> x |> invalidParameter pos "'%s' invalid rationalize parameter." |> cont
 
     let sExp context pos cont =
-        function
-        | [ SReal r, _ ] -> Ok(r |> exp |> SReal, pos) |> cont
-        | [ SComplex c, _ ] -> Ok(c |> System.Numerics.Complex.Exp |> SComplex, pos) |> cont
-        | [ SRational(n, d), _ ] -> Ok(float n / float d |> exp |> SReal, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid exp parameter." |> cont
+        SNumber.unaryMath "exp" (exp >> SReal) (System.Numerics.Complex.Exp >> SComplex) context pos cont
 
     let sLog context pos cont =
         function
-        | [ SReal r, _ ] -> Ok(r |> log |> SReal, pos) |> cont
-        | [ SComplex c, _ ] -> Ok(c |> System.Numerics.Complex.Log |> SComplex, pos) |> cont
-        | [ SRational(n, d), _ ] -> Ok(float n / float d |> log |> SReal, pos) |> cont
+        | [ _ ] as args ->
+            SNumber.unaryMath "log" (log >> SReal) (System.Numerics.Complex.Log >> SComplex) context pos cont args
         | [ x; y ] ->
             match toComplex x, toComplex y with
             | Ok c1, Ok c2 ->
@@ -536,65 +535,38 @@ module Math =
         | x -> x |> invalidParameter pos "'%s' invalid log parameter." |> cont
 
     let sSin context pos cont =
-        function
-        | [ SReal r, _ ] -> Ok(r |> sin |> SReal, pos) |> cont
-        | [ SComplex c, _ ] -> Ok(c |> System.Numerics.Complex.Sin |> SComplex, pos) |> cont
-        | [ SRational(n, d), _ ] -> Ok(float n / float d |> sin |> SReal, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid sin parameter." |> cont
+        SNumber.unaryMath "sin" (sin >> SReal) (System.Numerics.Complex.Sin >> SComplex) context pos cont
 
     let sCos context pos cont =
-        function
-        | [ SReal r, _ ] -> Ok(r |> cos |> SReal, pos) |> cont
-        | [ SComplex c, _ ] -> Ok(c |> System.Numerics.Complex.Cos |> SComplex, pos) |> cont
-        | [ SRational(n, d), _ ] -> Ok(float n / float d |> cos |> SReal, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid cos parameter." |> cont
+        SNumber.unaryMath "cos" (cos >> SReal) (System.Numerics.Complex.Cos >> SComplex) context pos cont
 
     let sTan context pos cont =
-        function
-        | [ SReal r, _ ] -> Ok(r |> tan |> SReal, pos) |> cont
-        | [ SComplex c, _ ] -> Ok(c |> System.Numerics.Complex.Tan |> SComplex, pos) |> cont
-        | [ SRational(n, d), _ ] -> Ok(float n / float d |> tan |> SReal, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid tan parameter." |> cont
+        SNumber.unaryMath "tan" (tan >> SReal) (System.Numerics.Complex.Tan >> SComplex) context pos cont
 
     let sAsin context pos cont =
-        function
-        | [ SReal r, _ ] when r >= -1.0 && r <= 1.0 -> Ok(r |> asin |> SReal, pos) |> cont
-        | [ SReal r, _ ] ->
-            Ok(System.Numerics.Complex(r, 0.0) |> System.Numerics.Complex.Asin |> SComplex, pos)
-            |> cont
-        | [ SComplex c, _ ] -> Ok(c |> System.Numerics.Complex.Asin |> SComplex, pos) |> cont
-        | [ SRational(n, d), _ ] ->
-            let r = float n / float d
-
-            if r >= -1.0 && r <= 1.0 then
-                Ok(r |> asin |> SReal, pos) |> cont
-            else
-                Ok(System.Numerics.Complex(r, 0.0) |> System.Numerics.Complex.Asin |> SComplex, pos)
-                |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid asin parameter." |> cont
+        SNumber.unaryMathDomain
+            "asin"
+            (fun r -> r >= -1.0 && r <= 1.0)
+            (asin >> SReal)
+            (System.Numerics.Complex.Asin >> SComplex)
+            context
+            pos
+            cont
 
     let sAcos context pos cont =
-        function
-        | [ SReal r, _ ] when r >= -1.0 && r <= 1.0 -> Ok(r |> acos |> SReal, pos) |> cont
-        | [ SReal r, _ ] ->
-            Ok(System.Numerics.Complex(r, 0.0) |> System.Numerics.Complex.Acos |> SComplex, pos)
-            |> cont
-        | [ SComplex c, _ ] -> Ok(c |> System.Numerics.Complex.Acos |> SComplex, pos) |> cont
-        | [ SRational(n, d), _ ] ->
-            let r = float n / float d
-
-            if r >= -1.0 && r <= 1.0 then
-                Ok(r |> acos |> SReal, pos) |> cont
-            else
-                Ok(System.Numerics.Complex(r, 0.0) |> System.Numerics.Complex.Acos |> SComplex, pos)
-                |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid acos parameter." |> cont
+        SNumber.unaryMathDomain
+            "acos"
+            (fun r -> r >= -1.0 && r <= 1.0)
+            (acos >> SReal)
+            (System.Numerics.Complex.Acos >> SComplex)
+            context
+            pos
+            cont
 
     let sAtan context pos cont =
         function
-        | [ SReal r, _ ] -> Ok(r |> atan |> SReal, pos) |> cont
-        | [ SComplex c, _ ] -> Ok(c |> System.Numerics.Complex.Atan |> SComplex, pos) |> cont
-        | [ SRational(n, d), _ ] -> Ok(float n / float d |> atan |> SReal, pos) |> cont
+        | [ _ ] as args ->
+            SNumber.unaryMath "atan" (atan >> SReal) (System.Numerics.Complex.Atan >> SComplex) context pos cont args
         | [ y; x ] ->
             let toFloat =
                 function
@@ -614,22 +586,14 @@ module Math =
         | x -> x |> invalidParameter pos "'%s' invalid square parameter." |> cont
 
     let sSqrt context pos cont =
-        function
-        | [ SRational(n, d), _ ] when n >= 0I -> Ok(float n / float d |> sqrt |> SReal, pos) |> cont
-        | [ SRational(n, d), _ ] ->
-            Ok(
-                (System.Numerics.Complex(float n / float d, 0.0)
-                 |> System.Numerics.Complex.Sqrt
-                 |> SComplex,
-                 pos)
-            )
-            |> cont
-        | [ SReal r, _ ] when r >= 0.0 -> Ok(r |> sqrt |> SReal, pos) |> cont
-        | [ SReal r, _ ] ->
-            Ok((System.Numerics.Complex(r, 0.0) |> System.Numerics.Complex.Sqrt |> SComplex, pos))
-            |> cont
-        | [ SComplex c, _ ] -> Ok(c |> System.Numerics.Complex.Sqrt |> SComplex, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid sqrt parameter." |> cont
+        SNumber.unaryMathDomain
+            "sqrt"
+            (fun r -> r >= 0.0)
+            (sqrt >> SReal)
+            (System.Numerics.Complex.Sqrt >> SComplex)
+            context
+            pos
+            cont
 
     [<TailCall>]
     let rec bigintSqrt low high n =
@@ -722,7 +686,7 @@ module Math =
     let sExact context pos cont =
         function
         | [ SRational _, _ ] as x -> Ok x.Head |> cont
-        | [ SReal r, _ ] when finiteFloat r -> Ok(realToRational r, pos) |> cont
+        | [ SReal r, _ ] when SNumber.finiteFloat r -> Ok(realToRational r, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid exact parameter." |> cont
 
     let sNumberToString context pos cont =

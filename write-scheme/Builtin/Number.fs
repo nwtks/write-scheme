@@ -88,3 +88,68 @@ module SNumber =
                 Error "Division by zero."
             else
                 NComplex(promoteToComplex a / c2) |> Ok
+
+    let unaryMath
+        name
+        (fReal: float -> SExpressionKind)
+        (fComplex: System.Numerics.Complex -> SExpressionKind)
+        context
+        pos
+        cont
+        =
+        let fmt = sprintf "'%%s' invalid %s parameter." name
+
+        function
+        | [ SReal r, _ ] -> Ok(fReal r, pos) |> cont
+        | [ SComplex c, _ ] -> Ok(fComplex c, pos) |> cont
+        | [ SRational(n, d), _ ] -> Ok(fReal (toFloat n d), pos) |> cont
+        | x -> x |> invalidParameter pos fmt |> cont
+
+    let unaryMathDomain
+        name
+        (inDomain: float -> bool)
+        (fReal: float -> SExpressionKind)
+        (fComplex: System.Numerics.Complex -> SExpressionKind)
+        context
+        pos
+        cont
+        =
+        let fmt = sprintf "'%%s' invalid %s parameter." name
+
+        function
+        | [ SReal r, _ ] when inDomain r -> Ok(fReal r, pos) |> cont
+        | [ SReal r, _ ] -> Ok(fComplex (System.Numerics.Complex(r, 0.0)), pos) |> cont
+        | [ SComplex c, _ ] -> Ok(fComplex c, pos) |> cont
+        | [ SRational(n, d), _ ] ->
+            let r = toFloat n d
+
+            if inDomain r then
+                Ok(fReal r, pos) |> cont
+            else
+                Ok(fComplex (System.Numerics.Complex(r, 0.0)), pos) |> cont
+        | x -> x |> invalidParameter pos fmt |> cont
+
+    let abs n =
+        match n with
+        | NRational(n, d) -> nRational (bigint.Abs n) d
+        | NReal r -> NReal(System.Math.Abs r) |> Ok
+        | NComplex c -> NReal c.Magnitude |> Ok
+
+    let finiteFloat d =
+        not (System.Double.IsInfinity d || System.Double.IsNaN d)
+
+    let noFractionFloat (d: float) = d = System.Math.Truncate d
+
+    let tryGetExactIntegerValue (x: SExpression) =
+        match fst x with
+        | SRational(n, d) when d = 1I -> Some n
+        | SReal r when finiteFloat r && noFractionFloat r -> Some(bigint r)
+        | SComplex c when c.Imaginary = 0.0 && finiteFloat c.Real && noFractionFloat c.Real -> Some(bigint c.Real)
+        | _ -> None
+
+    let tryGetFiniteRealValue (x: SExpression) =
+        match fst x with
+        | SRational(n, d) -> Some(float n / float d)
+        | SReal r when finiteFloat r -> Some r
+        | SComplex c when c.Imaginary = 0.0 && finiteFloat c.Real -> Some c.Real
+        | _ -> None
