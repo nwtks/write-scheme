@@ -428,7 +428,7 @@ Several places in the codebase use `failwith "unreachable."` to mark branches th
 |----------|---------|
 | `Read.fs:140` | Parser character class fallback |
 | `Context.fs:10` | Initial exception handler with wrong number of arguments |
-| `Builtin/Helper.fs:68,71` | `loopDiffWinders` with mismatched lengths |
+| `Builtin/Helper.fs:93,97` | `loopDiffWinders` with mismatched lengths |
 
 ### Pitfall
 

@@ -19,20 +19,33 @@ module Macro =
         | x -> acc |> List.rev, x
 
     [<TailCall>]
-    let rec loopPatternVars literals ellipsis acc =
+    let rec collectSymbols recurseQuotes shouldCollect acc =
         function
         | [] -> acc
         | x :: xs ->
             match x with
-            | SSymbol "_", _ -> loopPatternVars literals ellipsis acc xs
-            | SSymbol s, _ when s = ellipsis -> loopPatternVars literals ellipsis acc xs
-            | SSymbol s, _ when literals |> Set.contains s -> loopPatternVars literals ellipsis acc xs
-            | SSymbol s, _ -> loopPatternVars literals ellipsis (s :: acc) xs
+            | SSymbol s, _ ->
+                let acc' = if shouldCollect s then s :: acc else acc
+                xs |> collectSymbols recurseQuotes shouldCollect acc'
             | SPair _, _ as pair ->
                 let elements, tail = pair |> decodePair []
-                loopPatternVars literals ellipsis acc (elements @ tail :: xs)
-            | SVector pats, _ -> loopPatternVars literals ellipsis acc (Array.toList pats @ xs)
-            | _ -> loopPatternVars literals ellipsis acc xs
+                collectSymbols recurseQuotes shouldCollect acc (elements @ tail :: xs)
+            | SQuote v, _
+            | SQuasiquote v, _
+            | SUnquote v, _
+            | SUnquoteSplicing v, _ ->
+                if recurseQuotes then
+                    v :: xs |> collectSymbols recurseQuotes shouldCollect acc
+                else
+                    xs |> collectSymbols recurseQuotes shouldCollect acc
+            | SVector v, _ -> (v |> Array.toList) @ xs |> collectSymbols recurseQuotes shouldCollect acc
+            | _ -> xs |> collectSymbols recurseQuotes shouldCollect acc
+
+    let loopPatternVars literals ellipsis acc xs =
+        collectSymbols false (fun s -> s <> "_" && s <> ellipsis && not (literals |> Set.contains s)) acc xs
+
+    let loopTemplateVars acc xs =
+        collectSymbols true (fun _ -> true) acc xs
 
     let collectPatternVariables literals ellipsis pattern =
         [ pattern ] |> loopPatternVars literals ellipsis [] |> List.distinct |> List.rev
@@ -63,27 +76,31 @@ module Macro =
                 acc |> Map.add variable (EllipsisB values))
             Map.empty
 
+    let matchSymbolPattern defContext useContext literals ellipsis arg next s =
+        if s = "_" then
+            Map.empty |> Some |> next
+        elif s = ellipsis then
+            None |> next
+        elif literals |> Set.contains s then
+            if freeIdentifierEquals defContext (SSymbol s) useContext (fst arg) then
+                Map.empty |> Some |> next
+            else
+                None |> next
+        else
+            Map.ofList [ s, SingleB arg ] |> Some |> next
+
+    let matchEllipsisPairPattern ellipsis arg next =
+        match arg with
+        | SSymbol s', _ when s' = ellipsis -> Map.empty |> Some |> next
+        | _ -> None |> next
+
     let matchAtom patternKind argKind =
-        match patternKind, argKind with
-        | SEmpty, SEmpty -> true
-        | SBool v, SBool v' -> v = v'
-        | SRational(n1, d1), SRational(n2, d2) -> n1 = n2 && d1 = d2
-        | SReal v, SReal v' -> v = v'
-        | SString v, SString v' -> v = v'
-        | SChar v, SChar v' -> v = v'
-        | _ -> false
+        eqv ((patternKind, None), (argKind, None))
 
     [<TailCall>]
     let rec matchOne defContext useContext literals ellipsis arg next =
         function
-        | SSymbol "_", _ -> Map.empty |> Some |> next
-        | SSymbol s, _ when s = ellipsis -> None |> next
-        | SSymbol s as sym, _ when literals |> Set.contains s ->
-            if freeIdentifierEquals defContext sym useContext (fst arg) then
-                Map.empty |> Some |> next
-            else
-                None |> next
-        | SSymbol s, _ -> Map.ofList [ s, SingleB arg ] |> Some |> next
+        | SSymbol s, _ -> s |> matchSymbolPattern defContext useContext literals ellipsis arg next
         | SEmpty, _
         | SBool _, _
         | SRational _, _
@@ -96,18 +113,9 @@ module Macro =
                 None |> next
         | SPair { car = SSymbol ell, _
                   cdr = SPair { car = SSymbol s, _; cdr = SEmpty, _ }, _ },
-          _ when ell = ellipsis && s = ellipsis ->
-            match arg with
-            | SSymbol s', _ when s' = ellipsis -> Map.empty |> Some |> next
-            | _ -> None |> next
+          _ when ell = ellipsis && s = ellipsis -> matchEllipsisPairPattern ellipsis arg next
         | SPair _, _ as pair -> pair |> matchOnePair defContext useContext literals ellipsis arg next
-        | SVector patterns, _ ->
-            match arg with
-            | SVector args, _ when patterns.Length = args.Length ->
-                patterns
-                |> Array.toList
-                |> matchPatternList defContext useContext literals ellipsis (args |> Array.toList) next
-            | _ -> None |> next
+        | SVector patterns, _ -> patterns |> matchVectorPattern defContext useContext literals ellipsis arg next
         | _ -> None |> next
 
     and [<TailCall>] matchOnePair defContext useContext literals ellipsis arg next pair =
@@ -245,25 +253,18 @@ module Macro =
                         next
                 | None -> None |> next)
 
-    [<TailCall>]
-    let rec loopTemplateVars ellipsis acc =
-        function
-        | [] -> acc
-        | x :: xs ->
-            match x with
-            | SSymbol v, _ -> xs |> loopTemplateVars ellipsis (v :: acc)
-            | SPair _, _ as pair ->
-                let elements, tail = pair |> decodePair []
-                elements @ tail :: xs |> loopTemplateVars ellipsis acc
-            | SQuote v, _ -> v :: xs |> loopTemplateVars ellipsis acc
-            | SQuasiquote v, _ -> v :: xs |> loopTemplateVars ellipsis acc
-            | SUnquote v, _ -> v :: xs |> loopTemplateVars ellipsis acc
-            | SUnquoteSplicing v, _ -> v :: xs |> loopTemplateVars ellipsis acc
-            | SVector v, _ -> (v |> Array.toList) @ xs |> loopTemplateVars ellipsis acc
-            | _ -> xs |> loopTemplateVars ellipsis acc
+    and [<TailCall>] matchVectorPattern defContext useContext literals ellipsis arg next patterns =
+        match arg with
+        | SVector args, _ when patterns.Length = args.Length ->
+            patterns
+            |> Array.toList
+            |> matchPatternList defContext useContext literals ellipsis (args |> Array.toList) next
+        | _ -> None |> next
+
+
 
     let collectTemplateVars ellipsis template =
-        [ template ] |> loopTemplateVars ellipsis [] |> List.distinct |> List.rev
+        [ template ] |> loopTemplateVars [] |> List.distinct |> List.rev
 
     [<TailCall>]
     let rec renameTemplate toRename next =

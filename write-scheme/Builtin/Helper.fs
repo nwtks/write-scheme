@@ -24,21 +24,36 @@ module Helper =
 
     let mapResult f = loopMapResult f []
 
+    let wrapUnaryPred name pred =
+        let fmt = sprintf "'%%s' invalid %s parameter." name
+
+        fun context pos cont ->
+            function
+            | [ x ] -> Ok(pred (fst x) |> toSBool, pos) |> cont
+            | x -> x |> invalidParameter pos fmt |> cont
+
+    let wrapUnarySExprPred name pred =
+        let fmt = sprintf "'%%s' invalid %s parameter." name
+
+        fun context pos cont ->
+            function
+            | [ x ] -> Ok(pred x |> toSBool, pos) |> cont
+            | x -> x |> invalidParameter pos fmt |> cont
+
+    let wrapUnary name fn =
+        let fmt = sprintf "'%%s' invalid %s parameter." name
+
+        fun context pos cont ->
+            function
+            | [ x ] -> fn x |> Result.map (fun v -> v, pos) |> cont
+            | x -> x |> invalidParameter pos fmt |> cont
+
     let eachBinding =
         function
         | SPair { car = SSymbol variable, _
                   cdr = SPair { car = expression; cdr = SEmpty, _ }, _ },
           _ -> Ok(variable, expression)
         | x -> x |> invalid (snd x) "'%s' invalid binding."
-
-    let physicalEqInner (a: SExpressionKind) (b: SExpressionKind) =
-        match a, b with
-        | SPair x, SPair y -> LanguagePrimitives.PhysicalEquality x y
-        | SVector x, SVector y -> LanguagePrimitives.PhysicalEquality x y
-        | SByteVector x, SByteVector y -> LanguagePrimitives.PhysicalEquality x y
-        | SContinuation x, SContinuation y -> LanguagePrimitives.PhysicalEquality x y
-        | SProcedure x, SProcedure y -> LanguagePrimitives.PhysicalEquality x y
-        | _ -> false
 
     [<TailCall>]
     let rec eqv ((a, _), (b, _)) =
@@ -50,16 +65,11 @@ module Helper =
         | SComplex x, SComplex y -> x = y
         | SChar x, SChar y -> x = y
         | SEmpty, SEmpty -> true
-        | SPair _, SPair _
-        | SVector _, SVector _
-        | SByteVector _, SByteVector _
-        | SContinuation _, SContinuation _
-        | SProcedure _, SProcedure _ -> physicalEqInner a b
         | SQuote x, SQuote y
         | SQuasiquote x, SQuasiquote y
         | SUnquote x, SUnquote y
         | SUnquoteSplicing x, SUnquoteSplicing y -> eqv (x, y)
-        | x, y -> LanguagePrimitives.PhysicalEquality x y
+        | _ -> LanguagePrimitives.PhysicalEquality a b
 
     [<TailCall>]
     let rec loopDiffWinders sList tList lenS lenT accS accT =

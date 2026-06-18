@@ -9,30 +9,29 @@ module DatumLabel =
         | SDatumLabel(_, d), _ -> unwrapDatumLabel d
         | e -> e
 
+    let collectChildren =
+        function
+        | SPair p, _ -> [ p.car; p.cdr ]
+        | SVector v, _ -> v |> Array.toList
+        | SRecord(_, _, fields), _ -> fields |> Array.toList |> List.map (fun f -> f.Value)
+        | SValues args, _
+        | SError(_, args), _ -> args
+        | SQuote d, _
+        | SQuasiquote d, _
+        | SUnquote d, _
+        | SUnquoteSplicing d, _ -> [ d ]
+        | _ -> []
+
     [<TailCall>]
     let rec collectDatum labels =
         function
         | [] -> Ok labels
-        | expression :: rest ->
-            match expression with
-            | SDatumLabel(n, _), pos when labels |> Map.containsKey n ->
-                EvalError(sprintf "Duplicate datum label definition: #%d=" n, pos) |> Error
-            | SDatumLabel(n, d), pos ->
-                let labels' = labels |> Map.add n (unwrapDatumLabel d, pos)
-                d :: rest |> collectDatum labels'
-            | SPair p, _ -> p.car :: p.cdr :: rest |> collectDatum labels
-            | SVector v, _ -> rest |> Array.foldBack (fun e s -> e :: s) v |> collectDatum labels
-            | SRecord(_, _, fields), _ ->
-                rest
-                |> Array.foldBack (fun (f: SExpression ref) s -> f.Value :: s) fields
-                |> collectDatum labels
-            | SValues args, _
-            | SError(_, args), _ -> args @ rest |> collectDatum labels
-            | SQuote d, _
-            | SQuasiquote d, _
-            | SUnquote d, _
-            | SUnquoteSplicing d, _ -> d :: rest |> collectDatum labels
-            | _ -> rest |> collectDatum labels
+        | (SDatumLabel(n, _), pos) :: _ when labels |> Map.containsKey n ->
+            EvalError(sprintf "Duplicate datum label definition: #%d=" n, pos) |> Error
+        | (SDatumLabel(n, d), pos) :: rest ->
+            let labels' = labels |> Map.add n (unwrapDatumLabel d, pos)
+            d :: rest |> collectDatum labels'
+        | expression :: rest -> (collectChildren expression) @ rest |> collectDatum labels
 
     let isBefore =
         function

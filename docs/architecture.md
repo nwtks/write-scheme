@@ -34,13 +34,13 @@ write-scheme/                     # Interpreter core (F# executable)
 ├── Context.fs                    # Execution context: environments, libraries, winders, handlers (111 lines)
 ├── Eval.fs                       # CPS evaluator: eval / apply / eachEval (193 lines)
 ├── Builtin/
-│   ├── Helper.fs                 # Shared helpers: invalid, mapResult, doWind, getRange, eqv (174 lines)
-│   ├── SpecialForm.fs            # All special forms: lambda, if, cond, let, define, ... (1437 lines)
-│   ├── Macro.fs                  # syntax-rules hygienic macro engine (562 lines)
+│   ├── Helper.fs                 # Shared helpers: invalid, mapResult, doWind, getRange, eqv (198 lines)
+│   ├── SpecialForm.fs            # All special forms: lambda, if, cond, let, define, ... (1415 lines)
+│   ├── Macro.fs                  # syntax-rules hygienic macro engine (553 lines)
 │   ├── Procedure.fs              # apply, map, for-each, call/cc, dynamic-wind (221 lines)
 │   ├── Core.fs                   # eqv?, equal? (105 lines)
 │   ├── Number.fs                 # SNumber type (NRational|NReal|NComplex) and unified arithmetic (159 lines)
-│   ├── Math.fs                   # Numeric tower operations (737 lines)
+│   ├── Math.fs                   # Numeric tower operations (790 lines)
 │   ├── List.fs                   # Pair/list operations (290 lines)
 │   ├── Str.fs                    # String operations (212 lines)
 │   ├── Char.fs                   # Character operations (97 lines)
@@ -452,7 +452,7 @@ The second element of the tuple is an optional `SExpression option` that can hol
 
 ### 9.2 Special Forms (`Builtin/SpecialForm.fs`)
 
-This is the largest file (1416 lines) containing the implementation of all special forms:
+This is the largest file (1415 lines) containing the implementation of all special forms:
 
 | Special Form | Implementation | Key Behavior |
 |---|---|---|

@@ -40,27 +40,6 @@ module Eval =
     let rec eval context cont =
         function
         | SEmpty, pos -> EvalError("() is not a valid expression.", pos) |> Error
-        | SUnspecified, _
-        | SBool _, _
-        | SRational _, _
-        | SReal _, _
-        | SComplex _, _
-        | SString _, _
-        | SChar _, _
-        | SVector _, _
-        | SByteVector _, _
-        | SValues _, _
-        | SRecord _, _
-        | SError _, _
-        | SUnquote _, _
-        | SUnquoteSplicing _, _
-        | SDatumLabel _, _
-        | SDatumRef _, _
-        | SPromise _, _
-        | SParameter _, _
-        | SSyntax _, _
-        | SProcedure _, _
-        | SContinuation _, _ as expr -> expr |> Ok |> cont
         | SSymbol x, pos ->
             x
             |> Context.lookupEnvironments context pos
@@ -69,6 +48,7 @@ module Eval =
         | SPair pair, _ -> pair |> evalPair context cont
         | SQuote x, pos -> [ SSymbol "quote", pos; x ] |> toSPair |> eval context cont
         | SQuasiquote x, pos -> [ SSymbol "quasiquote", pos; x ] |> toSPair |> eval context cont
+        | expr -> expr |> Ok |> cont
 
     and [<TailCall>] evalPair context cont pair =
         pair.car

@@ -103,6 +103,7 @@ All code — including test code — must work on **both Windows and Linux**.
 
 - After any code change, run `dotnet test` and confirm **all tests pass**.
 - The `dotnet test` output includes a **Cyclomatic Complexity Report** (from coverage data). Check that no function exceeds complexity 15 (error threshold). Warnings above 10 should be addressed where practical.
+- Use `dotnet fsi scripts/check-complexity.fsx` for cyclomatic complexity analysis (reads `coverage.cobertura.xml`, calculates keyword-based complexity, shows Coverlet reference values).
 - Maintain high unit test coverage (current: ~85%, target: ≥ 90% line coverage). If line coverage falls below 85%, add test code to restore it.
 
 ### What to Test

@@ -512,7 +512,7 @@ Local macro bindings.
 
 #### Constructors / Selectors
 
-`cons`, `car`, `cdr`, `caar`, `cadr`, `cdar`, `cddr`, `caaar` ... `cdddr`
+`cons`, `car`, `cdr`, `caar`, `cadr`, `cdar`, `cddr`
 
 #### Mutators
 

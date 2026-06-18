@@ -258,51 +258,29 @@ module SpecialForm =
               "ratios" ]
 
     [<TailCall>]
-    let rec checkFeatureReqPositive context pos =
+    let rec checkFeatureRequirement context pos negated =
         function
-        | SSymbol feature, _ -> supportedFeatures |> Set.contains feature
+        | SSymbol feature, _ -> supportedFeatures |> Set.contains feature <> negated
         | SPair { car = SSymbol("and" | "or" as kind), _
                   cdr = args },
           _ ->
             match args |> toList with
             | Ok reqs ->
-                match kind with
-                | "and" -> reqs |> List.forall (checkFeatureReqPositive context pos)
-                | _ -> reqs |> List.exists (checkFeatureReqPositive context pos)
-            | Error _ -> false
+                if kind = "and" <> negated then
+                    reqs |> List.forall (checkFeatureRequirement context pos negated)
+                else
+                    reqs |> List.exists (checkFeatureRequirement context pos negated)
+            | Error _ -> negated
         | SPair { car = SSymbol "not", _
                   cdr = SPair { car = inner; cdr = SEmpty, _ }, _ },
-          _ -> inner |> checkFeatureReqNegative context pos
+          _ -> inner |> checkFeatureRequirement context pos (not negated)
         | SPair { car = SSymbol "library", _
                   cdr = SPair { car = libName; cdr = SEmpty, _ }, _ },
           _ ->
             match libName |> Context.lookupLibrary context pos with
-            | Ok _ -> true
-            | Error _ -> false
-        | _ -> false
-
-    and [<TailCall>] checkFeatureReqNegative context pos =
-        function
-        | SSymbol feature, _ -> not (supportedFeatures |> Set.contains feature)
-        | SPair { car = SSymbol("and" | "or" as kind), _
-                  cdr = args },
-          _ ->
-            match args |> toList with
-            | Ok reqs ->
-                match kind with
-                | "and" -> reqs |> List.exists (checkFeatureReqNegative context pos)
-                | _ -> reqs |> List.forall (checkFeatureReqNegative context pos)
-            | Error _ -> true
-        | SPair { car = SSymbol "not", _
-                  cdr = SPair { car = inner; cdr = SEmpty, _ }, _ },
-          _ -> inner |> checkFeatureReqPositive context pos
-        | SPair { car = SSymbol "library", _
-                  cdr = SPair { car = libName; cdr = SEmpty, _ }, _ },
-          _ ->
-            match libName |> Context.lookupLibrary context pos with
-            | Ok _ -> false
-            | Error _ -> true
-        | _ -> true
+            | Ok _ -> not negated
+            | Error _ -> negated
+        | _ -> negated
 
     [<TailCall>]
     let rec sCondExpand context pos cont =
@@ -315,7 +293,7 @@ module SpecialForm =
                 | Ok exprs -> exprs |> Eval.eachEval context cont (Ok(SUnspecified, pos))
                 | Error e -> Error e |> cont
             | SPair { car = req; cdr = body }, _ ->
-                if checkFeatureReqPositive context pos req then
+                if checkFeatureRequirement context pos false req then
                     match body |> toList with
                     | Ok exprs -> exprs |> Eval.eachEval context cont (Ok(SUnspecified, pos))
                     | Error e -> Error e |> cont
@@ -781,6 +759,20 @@ module SpecialForm =
                 (SEmpty, pos)
         | x -> x |> replaceQuasiquoteDatum context pos cont n next
 
+    and [<TailCall>] chainExpand context pos cont n deltaN rest templateTail wrap next template =
+        template
+        |> replaceQuasiquote context pos cont (n + deltaN) (function
+            | Ok a ->
+                rest
+                |> replaceQuasiquoteList
+                    context
+                    pos
+                    cont
+                    n
+                    (Result.map (fun b -> consQq (wrap a) b) >> next)
+                    templateTail
+            | x -> x |> next)
+
     and [<TailCall>] replaceQuasiquoteList context pos cont n next templateTail templates =
         match templates with
         | [] -> templateTail |> replaceQuasiquoteDatum context pos cont n next
@@ -803,17 +795,7 @@ module SpecialForm =
                         | x -> x |> next)
                 else
                     template
-                    |> replaceQuasiquote context pos cont (n - 1) (function
-                        | Ok a ->
-                            rest
-                            |> replaceQuasiquoteList
-                                context
-                                pos
-                                cont
-                                n
-                                (Result.map (fun b -> consQq (SUnquote a, pos) b) >> next)
-                                templateTail
-                        | x -> x |> next)
+                    |> chainExpand context pos cont n -1 rest templateTail (fun a -> (SUnquote a, pos)) next
             | Some(QqUnquoteSplicing template) ->
                 if n = 0 then
                     template
@@ -830,56 +812,14 @@ module SpecialForm =
                         | x -> x |> next)
                 else
                     template
-                    |> replaceQuasiquote context pos cont (n - 1) (function
-                        | Ok a ->
-                            rest
-                            |> replaceQuasiquoteList
-                                context
-                                pos
-                                cont
-                                n
-                                (Result.map (fun b -> consQq (SUnquoteSplicing a, pos) b) >> next)
-                                templateTail
-                        | x -> x |> next)
+                    |> chainExpand context pos cont n -1 rest templateTail (fun a -> (SUnquoteSplicing a, pos)) next
             | Some(QqQuasiquote template) ->
                 template
-                |> replaceQuasiquote context pos cont (n + 1) (function
-                    | Ok a ->
-                        rest
-                        |> replaceQuasiquoteList
-                            context
-                            pos
-                            cont
-                            n
-                            (Result.map (fun b -> consQq (SQuasiquote a, pos) b) >> next)
-                            templateTail
-                    | x -> x |> next)
+                |> chainExpand context pos cont n 1 rest templateTail (fun a -> (SQuasiquote a, pos)) next
             | Some(QqQuote template) ->
                 template
-                |> replaceQuasiquote context pos cont n (function
-                    | Ok a ->
-                        rest
-                        |> replaceQuasiquoteList
-                            context
-                            pos
-                            cont
-                            n
-                            (Result.map (fun b -> consQq (SQuote a, pos) b) >> next)
-                            templateTail
-                    | x -> x |> next)
-            | None ->
-                template
-                |> replaceQuasiquote context pos cont n (function
-                    | Ok a ->
-                        rest
-                        |> replaceQuasiquoteList
-                            context
-                            pos
-                            cont
-                            n
-                            (Result.map (fun b -> consQq a b) >> next)
-                            templateTail
-                    | x -> x |> next)
+                |> chainExpand context pos cont n 0 rest templateTail (fun a -> (SQuote a, pos)) next
+            | None -> template |> chainExpand context pos cont n 0 rest templateTail id next
 
     and [<TailCall>] replaceQuasiquoteDatum context pos cont n next =
         function
@@ -1306,94 +1246,133 @@ module SpecialForm =
             EvalError(sprintf "'%s' invalid include-library-declarations parameter." (x |> Print.print), pos)
             |> Error
 
+    type LibDecl =
+        | ImportDecl of importSets: SExpression
+        | ExportDecl of exportSpecs: SExpression
+        | BeginDecl of exprs: SExpression
+        | IncludeDecl of files: SExpression * pos: Position option
+        | IncludeCiDecl of files: SExpression * pos: Position option
+        | IncludeLibDecl of files: SExpression * pos: Position option
+        | CondExpandDecl of clauses: SExpression * expandPos: Position option
+
+    let parseLibraryDeclaration =
+        function
+        | SPair { car = SSymbol "import", _
+                  cdr = importSets },
+          _ -> Ok(ImportDecl importSets)
+        | SPair { car = SSymbol "export", _
+                  cdr = exportSpecs },
+          _ -> Ok(ExportDecl exportSpecs)
+        | SPair { car = SSymbol "begin", _
+                  cdr = exprs },
+          _ -> Ok(BeginDecl exprs)
+        | SPair { car = SSymbol "include", p
+                  cdr = files },
+          _ -> Ok(IncludeDecl(files, p))
+        | SPair { car = SSymbol "include-ci", p
+                  cdr = files },
+          _ -> Ok(IncludeCiDecl(files, p))
+        | SPair { car = SSymbol "include-library-declarations", p
+                  cdr = files },
+          _ -> Ok(IncludeLibDecl(files, p))
+        | SPair { car = SSymbol "cond-expand", expandPos
+                  cdr = clauses },
+          _ -> Ok(CondExpandDecl(clauses, expandPos))
+        | x -> x |> invalid (snd x) "'%s' invalid library declaration."
+
     [<TailCall>]
     let rec processLibraryDeclaration pos cont foldCase libContext exports =
         function
         | [] -> Ok exports |> cont
         | declaration :: declarations ->
-            match declaration with
-            | SPair { car = SSymbol "import", _
-                      cdr = importSets },
-              _ ->
-                match importSets |> toList with
-                | Ok isets ->
-                    isets
-                    |> sImport libContext pos (function
-                        | Ok _ -> declarations |> processLibraryDeclaration pos cont foldCase libContext exports
-                        | Error e -> Error e |> cont)
-                | Error e -> Error e |> cont
-            | SPair { car = SSymbol "export", _
-                      cdr = exportSpecs },
-              _ ->
-                exportSpecs
-                |> processLibraryExport exports pos (function
-                    | Ok newExports ->
-                        declarations
-                        |> processLibraryDeclaration pos cont foldCase libContext newExports
-                    | Error e -> Error e |> cont)
-            | SPair { car = SSymbol "begin", _
-                      cdr = exprs },
-              _ ->
-                match exprs |> toList with
-                | Ok elist ->
-                    elist
-                    |> Eval.eachEval
-                        libContext
-                        (function
-                        | Ok _ -> declarations |> processLibraryDeclaration pos cont foldCase libContext exports
-                        | Error e -> Error e |> cont)
-                        (Ok(SUnspecified, pos))
-                | Error e -> Error e |> cont
-            | SPair { car = SSymbol "include", p
-                      cdr = files },
-              _ ->
-                match files |> toList with
-                | Ok flist ->
-                    flist
-                    |> sIncludeFiles
-                        false
-                        libContext
-                        p
-                        (function
-                        | Ok _ -> declarations |> processLibraryDeclaration pos cont foldCase libContext exports
-                        | Error e -> Error e |> cont)
-                        []
-                | Error e -> Error e |> cont
-            | SPair { car = SSymbol "include-ci", p
-                      cdr = files },
-              _ ->
-                match files |> toList with
-                | Ok flist ->
-                    flist
-                    |> sIncludeFiles
-                        true
-                        libContext
-                        p
-                        (function
-                        | Ok _ -> declarations |> processLibraryDeclaration pos cont foldCase libContext exports
-                        | Error e -> Error e |> cont)
-                        []
-                | Error e -> Error e |> cont
-            | SPair { car = SSymbol "include-library-declarations", p
-                      cdr = files },
-              _ ->
-                match files |> toList with
-                | Ok flist ->
-                    match flist |> readLibraryDeclarations p foldCase [] with
-                    | Ok decls ->
-                        decls @ declarations
-                        |> processLibraryDeclaration pos cont foldCase libContext exports
-                    | Error e -> Error e |> cont
-                | Error e -> Error e |> cont
-            | SPair { car = SSymbol "cond-expand", expandPos
-                      cdr = clauses },
-              _ ->
-                match clauses |> toList with
-                | Ok clist ->
-                    clist
-                    |> evalLibraryCondExpand pos cont foldCase libContext exports expandPos declarations
-                | Error e -> Error e |> cont
-            | x -> x |> invalid (snd x) "'%s' invalid library declaration." |> cont
+            match parseLibraryDeclaration declaration with
+            | Ok(ImportDecl importSets) ->
+                processImportDecl pos cont foldCase libContext exports importSets declarations
+            | Ok(ExportDecl exportSpecs) ->
+                processExportDecl pos cont foldCase libContext exports exportSpecs declarations
+            | Ok(BeginDecl exprs) -> processBeginDecl pos cont foldCase libContext exports exprs declarations
+            | Ok(IncludeDecl(files, p)) -> processIncludeDecl pos cont foldCase libContext exports files p declarations
+            | Ok(IncludeCiDecl(files, p)) ->
+                processIncludeCiDecl pos cont foldCase libContext exports files p declarations
+            | Ok(IncludeLibDecl(files, p)) ->
+                processIncludeLibDecl pos cont foldCase libContext exports files p declarations
+            | Ok(CondExpandDecl(clauses, expandPos)) ->
+                processCondExpandDecl pos cont foldCase libContext exports clauses expandPos declarations
+            | Error e -> Error e |> cont
+
+    and processImportDecl pos cont foldCase libContext exports importSets declarations =
+        match importSets |> toList with
+        | Ok isets ->
+            isets
+            |> sImport libContext pos (function
+                | Ok _ -> declarations |> processLibraryDeclaration pos cont foldCase libContext exports
+                | Error e -> Error e |> cont)
+        | Error e -> Error e |> cont
+
+    and processExportDecl pos cont foldCase libContext exports exportSpecs declarations =
+        exportSpecs
+        |> processLibraryExport exports pos (function
+            | Ok newExports ->
+                declarations
+                |> processLibraryDeclaration pos cont foldCase libContext newExports
+            | Error e -> Error e |> cont)
+
+    and processBeginDecl pos cont foldCase libContext exports exprs declarations =
+        match exprs |> toList with
+        | Ok elist ->
+            elist
+            |> Eval.eachEval
+                libContext
+                (function
+                | Ok _ -> declarations |> processLibraryDeclaration pos cont foldCase libContext exports
+                | Error e -> Error e |> cont)
+                (Ok(SUnspecified, pos))
+        | Error e -> Error e |> cont
+
+    and processIncludeDecl pos cont foldCase libContext exports files filePos declarations =
+        match files |> toList with
+        | Ok flist ->
+            flist
+            |> sIncludeFiles
+                false
+                libContext
+                filePos
+                (function
+                | Ok _ -> declarations |> processLibraryDeclaration pos cont foldCase libContext exports
+                | Error e -> Error e |> cont)
+                []
+        | Error e -> Error e |> cont
+
+    and processIncludeCiDecl pos cont foldCase libContext exports files filePos declarations =
+        match files |> toList with
+        | Ok flist ->
+            flist
+            |> sIncludeFiles
+                true
+                libContext
+                filePos
+                (function
+                | Ok _ -> declarations |> processLibraryDeclaration pos cont foldCase libContext exports
+                | Error e -> Error e |> cont)
+                []
+        | Error e -> Error e |> cont
+
+    and processIncludeLibDecl pos cont foldCase libContext exports files filePos declarations =
+        match files |> toList with
+        | Ok flist ->
+            match flist |> readLibraryDeclarations filePos foldCase [] with
+            | Ok decls ->
+                decls @ declarations
+                |> processLibraryDeclaration pos cont foldCase libContext exports
+            | Error e -> Error e |> cont
+        | Error e -> Error e |> cont
+
+    and processCondExpandDecl pos cont foldCase libContext exports clauses expandPos declarations =
+        match clauses |> toList with
+        | Ok clist ->
+            clist
+            |> evalLibraryCondExpand pos cont foldCase libContext exports expandPos declarations
+        | Error e -> Error e |> cont
 
     and [<TailCall>] evalLibraryCondExpand pos cont foldCase libContext exports expandPos declarations =
         function
@@ -1407,7 +1386,7 @@ module SpecialForm =
                     |> processLibraryDeclaration pos cont foldCase libContext exports
                 | Error e -> Error e |> cont
             | SPair { car = requirement; cdr = body }, _ ->
-                if checkFeatureReqPositive libContext pos requirement then
+                if checkFeatureRequirement libContext pos false requirement then
                     match body |> toList with
                     | Ok expressions ->
                         expressions @ declarations

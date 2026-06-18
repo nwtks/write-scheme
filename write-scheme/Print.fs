@@ -85,6 +85,42 @@ module Print =
     let isVisited visited x =
         visited |> List.exists (fun v -> obj.ReferenceEquals(v, x))
 
+    let printSimpleValue =
+        function
+        | SUnspecified, _ -> "#<unspecified>"
+        | SEmpty, _ -> "()"
+        | SBool true, _ -> "#t"
+        | SBool false, _ -> "#f"
+        | SRational(n, d), _ when d = 1I -> string n
+        | SRational(n, d), _ -> sprintf "%A/%A" n d
+        | SReal x, _ -> formatFloat x false
+        | SComplex x, _ -> formatComplex x
+        | SString data, _ -> formatString data
+        | SChar x, _ -> formatChar x
+        | SSymbol x, _ -> formatSymbol x
+        | SByteVector xs, _ -> xs |> Array.map string |> String.concat " " |> sprintf "#u8(%s)"
+        | x -> failwith "unreachable."
+
+    let printOpaqueDescriptor =
+        function
+        | SRecord(_, typeName, _), _ -> sprintf "#<%s>" typeName
+        | SDatumRef n, _ -> sprintf "#%d#" n
+        | SPromise _, _ -> "#<promise>"
+        | SParameter _, _ -> "#<parameter>"
+        | SSyntax _, _ -> "#<syntax>"
+        | SProcedure _, _ -> "#<procedure>"
+        | SContinuation _, _ -> "#<continuation>"
+        | x -> failwith "unreachable."
+
+    let getWrapperPrefixAndInner =
+        function
+        | SQuote x, _ -> "'", x
+        | SQuasiquote x, _ -> "`", x
+        | SUnquote x, _ -> ",", x
+        | SUnquoteSplicing x, _ -> ",@", x
+        | SDatumLabel(n, d), _ -> sprintf "#%d=" n, d
+        | x -> failwith "unreachable."
+
     [<TailCall>]
     let rec formatList next =
         function
@@ -121,44 +157,52 @@ module Print =
             |> List.map (fun e -> (irritants :> obj) :: visited, e)
             |> formatList (fun s -> prefix + " " + s + ">" |> next)
 
-    and [<TailCall>] printCPS visited next =
-        function
-        | SUnspecified, _ -> "#<unspecified>" |> next
-        | SEmpty, _ -> "()" |> next
-        | SBool true, _ -> "#t" |> next
-        | SBool false, _ -> "#f" |> next
-        | SRational(n, d), _ when d = 1I -> string n |> next
-        | SRational(n, d), _ -> sprintf "%A/%A" n d |> next
-        | SReal x, _ -> formatFloat x false |> next
-        | SComplex x, _ -> formatComplex x |> next
-        | SString data, _ -> formatString data |> next
-        | SChar x, _ -> formatChar x |> next
-        | SSymbol x, _ -> formatSymbol x |> next
-        | SPair p, _ -> p |> formatPair visited next []
-        | SVector xs, _ when isVisited visited xs -> "..." |> next
-        | SVector xs, _ ->
+    and [<TailCall>] printVector visited next (xs: SExpression array) =
+        if isVisited visited xs then
+            "..." |> next
+        else
             xs
             |> Array.toList
             |> List.map (fun e -> (xs :> obj) :: visited, e)
             |> formatList (sprintf "#(%s)" >> next)
-        | SByteVector xs, _ -> xs |> Array.map string |> String.concat " " |> sprintf "#u8(%s)" |> next
-        | SValues xs, _ when isVisited visited xs -> "..." |> next
-        | SValues xs, _ ->
+
+    and [<TailCall>] printValues visited next (xs: SExpression list) =
+        if isVisited visited xs then
+            "..." |> next
+        else
             xs
             |> List.map (fun e -> (xs :> obj) :: visited, e)
             |> formatList (fun s -> (if s = "" then "(values)" else sprintf "(values %s)" s) |> next)
-        | SRecord(_, typeName, _), _ -> typeName |> sprintf "#<%s>" |> next
+
+    and [<TailCall>] printCPS visited next =
+        function
+        | SUnspecified, _
+        | SEmpty, _
+        | SBool _, _
+        | SRational _, _
+        | SReal _, _
+        | SComplex _, _
+        | SString _, _
+        | SChar _, _
+        | SSymbol _, _
+        | SByteVector _, _ as x -> printSimpleValue x |> next
+        | SRecord _, _
+        | SDatumRef _, _
+        | SPromise _, _
+        | SParameter _, _
+        | SSyntax _, _
+        | SProcedure _, _
+        | SContinuation _, _ as x -> printOpaqueDescriptor x |> next
+        | SPair p, _ -> p |> formatPair visited next []
+        | SVector xs, _ -> xs |> printVector visited next
+        | SValues xs, _ -> xs |> printValues visited next
         | SError(msg, irritants), _ -> formatError visited next msg irritants
-        | SQuote x, _ -> x |> printCPS visited (sprintf "'%s" >> next)
-        | SQuasiquote x, _ -> x |> printCPS visited (sprintf "`%s" >> next)
-        | SUnquote x, _ -> x |> printCPS visited (sprintf ",%s" >> next)
-        | SUnquoteSplicing x, _ -> x |> printCPS visited (sprintf ",@%s" >> next)
-        | SDatumLabel(n, d), _ -> d |> printCPS visited (sprintf "#%d=%s" n >> next)
-        | SDatumRef n, _ -> sprintf "#%d#" n |> next
-        | SPromise _, _ -> "#<promise>" |> next
-        | SParameter _, _ -> "#<parameter>" |> next
-        | SSyntax _, _ -> "#<syntax>" |> next
-        | SProcedure _, _ -> "#<procedure>" |> next
-        | SContinuation _, _ -> "#<continuation>" |> next
+        | SQuote _, _
+        | SQuasiquote _, _
+        | SUnquote _, _
+        | SUnquoteSplicing _, _
+        | SDatumLabel _, _ as x ->
+            let prefix, inner = getWrapperPrefixAndInner x
+            inner |> printCPS visited (sprintf "%s%s" prefix >> next)
 
     let print x = x |> printCPS [] id

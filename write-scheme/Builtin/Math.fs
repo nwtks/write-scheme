@@ -12,92 +12,111 @@ module Math =
         | _, Error e -> Error e
 
     let isNumber context pos cont =
-        function
-        | [ SRational _, _ ]
-        | [ SReal _, _ ]
-        | [ SComplex _, _ ] -> Ok(STrue, pos) |> cont
-        | [ _ ] -> Ok(SFalse, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid number? parameter." |> cont
+        wrapUnaryPred
+            "number?"
+            (function
+            | SRational _
+            | SReal _
+            | SComplex _ -> true
+            | _ -> false)
+            context
+            pos
+            cont
 
     let isComplex context pos cont =
-        function
-        | [ SComplex _, _ ]
-        | [ SReal _, _ ]
-        | [ SRational _, _ ] -> Ok(STrue, pos) |> cont
-        | [ _ ] -> Ok(SFalse, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid complex? parameter." |> cont
+        wrapUnaryPred
+            "complex?"
+            (function
+            | SRational _
+            | SReal _
+            | SComplex _ -> true
+            | _ -> false)
+            context
+            pos
+            cont
 
     let isReal context pos cont =
-        function
-        | [ SRational _, _ ]
-        | [ SReal _, _ ] -> Ok(STrue, pos) |> cont
-        | [ SComplex c, _ ] when c.Imaginary = 0.0 -> Ok(STrue, pos) |> cont
-        | [ SComplex _, _ ] -> Ok(SFalse, pos) |> cont
-        | [ _ ] -> Ok(SFalse, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid real? parameter." |> cont
+        wrapUnaryPred
+            "real?"
+            (function
+            | SRational _
+            | SReal _ -> true
+            | SComplex c when c.Imaginary = 0.0 -> true
+            | _ -> false)
+            context
+            pos
+            cont
 
     let isRational context pos cont =
-        function
-        | [ x ] -> Ok(x |> SNumber.tryGetFiniteRealValue |> Option.isSome |> toSBool, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid rational? parameter." |> cont
+        wrapUnarySExprPred "rational?" (SNumber.tryGetFiniteRealValue >> Option.isSome) context pos cont
 
     let isInteger context pos cont =
-        function
-        | [ x ] ->
-            Ok(x |> SNumber.tryGetExactIntegerValue |> Option.isSome |> toSBool, pos)
-            |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid integer? parameter." |> cont
+        wrapUnarySExprPred "integer?" (SNumber.tryGetExactIntegerValue >> Option.isSome) context pos cont
 
     let isExact context pos cont =
-        function
-        | [ SRational _, _ ] -> Ok(STrue, pos) |> cont
-        | [ _ ] -> Ok(SFalse, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid exact? parameter." |> cont
+        wrapUnaryPred
+            "exact?"
+            (function
+            | SRational _ -> true
+            | _ -> false)
+            context
+            pos
+            cont
 
     let isInexact context pos cont =
-        function
-        | [ SReal _, _ ]
-        | [ SComplex _, _ ] -> Ok(STrue, pos) |> cont
-        | [ _ ] -> Ok(SFalse, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid inexact? parameter." |> cont
+        wrapUnaryPred
+            "inexact?"
+            (function
+            | SReal _
+            | SComplex _ -> true
+            | _ -> false)
+            context
+            pos
+            cont
 
     let isExactInteger context pos cont =
-        function
-        | [ SRational(_, d), _ ] when d = 1I -> Ok(STrue, pos) |> cont
-        | [ _ ] -> Ok(SFalse, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid exact-integer? parameter." |> cont
+        wrapUnaryPred
+            "exact-integer?"
+            (function
+            | SRational(_, d) when d = 1I -> true
+            | _ -> false)
+            context
+            pos
+            cont
 
     let isFinite context pos cont =
-        function
-        | [ SRational _, _ ] -> Ok(STrue, pos) |> cont
-        | [ SReal r, _ ] -> Ok(SNumber.finiteFloat r |> toSBool, pos) |> cont
-        | [ SComplex c, _ ] ->
-            Ok((SNumber.finiteFloat c.Real && SNumber.finiteFloat c.Imaginary) |> toSBool, pos)
-            |> cont
-        | [ _ ] -> Ok(SFalse, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid finite? parameter." |> cont
+        wrapUnaryPred
+            "finite?"
+            (function
+            | SRational _ -> true
+            | SReal r when SNumber.finiteFloat r -> true
+            | SComplex c when SNumber.finiteFloat c.Real && SNumber.finiteFloat c.Imaginary -> true
+            | _ -> false)
+            context
+            pos
+            cont
 
     let isInfinite context pos cont =
-        function
-        | [ SReal r, _ ] -> Ok(System.Double.IsInfinity r |> toSBool, pos) |> cont
-        | [ SComplex c, _ ] ->
-            Ok(
-                (System.Double.IsInfinity c.Real || System.Double.IsInfinity c.Imaginary)
-                |> toSBool,
-                pos
-            )
-            |> cont
-        | [ _ ] -> Ok(SFalse, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid infinite? parameter." |> cont
+        wrapUnaryPred
+            "infinite?"
+            (function
+            | SReal r when System.Double.IsInfinity r -> true
+            | SComplex c when System.Double.IsInfinity c.Real || System.Double.IsInfinity c.Imaginary -> true
+            | _ -> false)
+            context
+            pos
+            cont
 
     let isNaN context pos cont =
-        function
-        | [ SReal r, _ ] -> Ok(System.Double.IsNaN r |> toSBool, pos) |> cont
-        | [ SComplex c, _ ] ->
-            Ok((System.Double.IsNaN c.Real || System.Double.IsNaN c.Imaginary) |> toSBool, pos)
-            |> cont
-        | [ _ ] -> Ok(SFalse, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid nan? parameter." |> cont
+        wrapUnaryPred
+            "nan?"
+            (function
+            | SReal r when System.Double.IsNaN r -> true
+            | SComplex c when System.Double.IsNaN c.Real || System.Double.IsNaN c.Imaginary -> true
+            | _ -> false)
+            context
+            pos
+            cont
 
     let toComplex =
         function
@@ -416,112 +435,132 @@ module Math =
         >> cont
 
     let sNumerator context pos cont =
-        function
-        | [ SRational(n, _), _ ] -> Ok(newInteger n, pos) |> cont
-        | [ SReal r, _ ] when SNumber.finiteFloat r ->
-            match realToRational r with
-            | SRational(n, _) -> Ok(float n |> SReal, pos) |> cont
-            | _ -> Ok(SReal r, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid numerator parameter." |> cont
+        wrapUnary
+            "numerator"
+            (function
+            | SRational(n, _), _ -> newInteger n |> Ok
+            | SReal r, _ when SNumber.finiteFloat r ->
+                match realToRational r with
+                | SRational(n, _) -> SReal(float n)
+                | _ -> SReal r
+                |> Ok
+            | x -> x |> invalid (snd x) "'%s' invalid numerator parameter.")
+            context
+            pos
+            cont
 
     let sDenominator context pos cont =
-        function
-        | [ SRational(_, d), _ ] -> Ok(newInteger d, pos) |> cont
-        | [ SReal r, _ ] when SNumber.finiteFloat r ->
-            match realToRational r with
-            | SRational(_, d) -> Ok(float d |> SReal, pos) |> cont
-            | _ -> Ok(SReal 1.0, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid denominator parameter." |> cont
+        wrapUnary
+            "denominator"
+            (function
+            | SRational(_, d), _ -> newInteger d |> Ok
+            | SReal r, _ when SNumber.finiteFloat r ->
+                match realToRational r with
+                | SRational(_, d) -> SReal(float d)
+                | _ -> SReal 1.0
+                |> Ok
+            | x -> x |> invalid (snd x) "'%s' invalid denominator parameter.")
+            context
+            pos
+            cont
 
     let sFloor context pos cont =
-        function
-        | [ SRational(n, d), _ ] ->
-            let quotient, remainder = truncateDiv n d
+        wrapUnary
+            "floor"
+            (function
+            | SRational(n, d), _ ->
+                let quotient, remainder = truncateDiv n d
 
-            if remainder <> 0I && n.Sign <> d.Sign then
-                quotient - 1I
-            else
-                quotient
-            |> fun v -> Ok(newInteger v, pos) |> cont
-        | [ SReal r, _ ] -> Ok(r |> floor |> SReal, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid floor parameter." |> cont
+                if remainder <> 0I && n.Sign <> d.Sign then
+                    quotient - 1I
+                else
+                    quotient
+                |> newInteger
+                |> Ok
+            | SReal r, _ -> r |> floor |> SReal |> Ok
+            | x -> x |> invalid (snd x) "'%s' invalid floor parameter.")
+            context
+            pos
+            cont
 
     let sCeiling context pos cont =
-        function
-        | [ SRational(n, d), _ ] ->
-            let quotient, remainder = truncateDiv n d
+        wrapUnary
+            "ceiling"
+            (function
+            | SRational(n, d), _ ->
+                let quotient, remainder = truncateDiv n d
 
-            if remainder <> 0I && n.Sign = d.Sign then
-                quotient + 1I
-            else
-                quotient
-            |> fun v -> Ok(newInteger v, pos) |> cont
-        | [ SReal r, _ ] -> Ok(r |> ceil |> SReal, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid ceiling parameter." |> cont
+                if remainder <> 0I && n.Sign = d.Sign then
+                    quotient + 1I
+                else
+                    quotient
+                |> newInteger
+                |> Ok
+            | SReal r, _ -> r |> ceil |> SReal |> Ok
+            | x -> x |> invalid (snd x) "'%s' invalid ceiling parameter.")
+            context
+            pos
+            cont
 
     let sTruncate context pos cont =
-        function
-        | [ SRational(n, d), _ ] -> Ok(n / d |> newInteger, pos) |> cont
-        | [ SReal r, _ ] -> Ok(r |> truncate |> SReal, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid truncate parameter." |> cont
+        wrapUnary
+            "truncate"
+            (function
+            | SRational(n, d), _ -> n / d |> newInteger |> Ok
+            | SReal r, _ -> r |> truncate |> SReal |> Ok
+            | x -> x |> invalid (snd x) "'%s' invalid truncate parameter.")
+            context
+            pos
+            cont
 
     let sRound context pos cont =
-        function
-        | [ SRational(n, d), _ ] -> Ok(float n / float d |> round |> bigint |> newInteger, pos) |> cont
-        | [ SReal r, _ ] -> Ok(r |> round |> SReal, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid round parameter." |> cont
+        wrapUnary
+            "round"
+            (function
+            | SRational(n, d), _ -> float n / float d |> round |> bigint |> newInteger |> Ok
+            | SReal r, _ -> r |> round |> SReal |> Ok
+            | x -> x |> invalid (snd x) "'%s' invalid round parameter.")
+            context
+            pos
+            cont
 
     [<TailCall>]
-    let rec simplestRational pos cont =
-        function
-        | Ok(SRational(n1, d1), _), Ok(SRational(n2, d2), _) ->
-            let floorL = if n1 >= 0I then n1 / d1 else (n1 - d1 + 1I) / d1
-            let ceilL = if n1 % d1 = 0I then floorL else floorL + 1I
-            let floorR = if n2 >= 0I then n2 / d2 else (n2 - d2 + 1I) / d2
+    let rec simplestRational n1 d1 n2 d2 next =
+        let floorL = if n1 >= 0I then n1 / d1 else (n1 - d1 + 1I) / d1
+        let ceilL = if n1 % d1 = 0I then floorL else floorL + 1I
+        let floorR = if n2 >= 0I then n2 / d2 else (n2 - d2 + 1I) / d2
 
-            if ceilL <= floorR then
-                if ceilL > 0I then Ok(newInteger ceilL, pos) |> cont
-                elif floorR < 0I then Ok(newInteger floorR, pos) |> cont
-                else Ok(SZero, pos) |> cont
-            else
-                simplestRational
-                    pos
-                    (function
-                    | Ok(SRational(pn, pd), _) ->
-                        newSRational (floorL * pn + pd) pn
-                        |> Result.map (fun n -> n, pos)
-                        |> Result.mapError (fun msg -> EvalError(msg, pos))
-                        |> cont
-                    | x -> x |> cont)
-                    (newSRational d2 (n2 - floorL * d2)
-                     |> Result.map (fun n -> n, pos)
-                     |> Result.mapError (fun msg -> EvalError(msg, pos)),
-                     newSRational d1 (n1 - floorL * d1)
-                     |> Result.map (fun n -> n, pos)
-                     |> Result.mapError (fun msg -> EvalError(msg, pos)))
-        | _ -> Error(EvalError("Operands not rational", pos)) |> cont
+        if ceilL <= floorR then
+            if ceilL > 0I then ceilL, 1I
+            elif floorR < 0I then floorR, 1I
+            else 0I, 1I
+            |> Ok
+            |> next
+        else
+            simplestRational d2 (n2 - floorL * d2) d1 (n1 - floorL * d1) (fun result ->
+                match result with
+                | Ok(pn, pd) -> normalizeRational (floorL * pn + pd) pn |> next
+                | Error e -> Error e |> next)
 
     let sRationalize context pos cont =
         let toExactValue =
             function
-            | SRational _, _ as x -> Ok x
-            | SReal r, _ when SNumber.finiteFloat r -> Ok(realToRational r, pos)
+            | SReal r, _ when SNumber.finiteFloat r -> (realToRational r, pos) |> Ok
             | x -> Ok x
 
         function
         | [ x; y ] ->
-            match toExactValue x, toExactValue y with
-            | Ok(SRational _, _ as xVal), Ok(SRational _, _ as yVal) ->
-                match sSubtractNumber context pos id [ xVal; yVal ] with
-                | Ok l ->
-                    match sAddNumber context pos id [ xVal; yVal ] with
-                    | Ok r ->
-                        match l, r with
-                        | (SRational _, _), (SRational _, _) -> simplestRational pos cont (Ok l, Ok r)
-                        | _ -> Ok x |> cont
-                    | x -> x |> cont
-                | x -> x |> cont
-            | _ -> Ok x |> cont
+            bothOk (toExactValue x) (toExactValue y)
+            |> Result.bind (fun (xVal, yVal) ->
+                bothOk (sSubtractNumber context pos id [ xVal; yVal ]) (sAddNumber context pos id [ xVal; yVal ]))
+            |> Result.bind (fun (l, r) ->
+                match l, r with
+                | (SRational(l1, l2), _), (SRational(r1, r2), _) ->
+                    simplestRational l1 l2 r1 r2 id
+                    |> Result.map (fun (n, d) -> (if d = 1I then newInteger n else SRational(n, d)), pos)
+                    |> Result.mapError (fun msg -> EvalError(msg, pos))
+                | _ -> Ok x)
+            |> cont
         | x -> x |> invalidParameter pos "'%s' invalid rationalize parameter." |> cont
 
     let sExp context pos cont =
@@ -658,37 +697,39 @@ module Math =
         | x -> x |> invalidParameter pos "'%s' invalid make-polar parameter." |> cont
 
     let sRealPart context pos cont =
-        function
-        | [ x ] -> toComplex x |> Result.map (fun c -> c.Real |> SReal, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid real-part parameter." |> cont
+        wrapUnary "real-part" (toComplex >> Result.map (fun c -> SReal c.Real)) context pos cont
 
     let sImagPart context pos cont =
-        function
-        | [ x ] -> toComplex x |> Result.map (fun c -> c.Imaginary |> SReal, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid imag-part parameter." |> cont
+        wrapUnary "imag-part" (toComplex >> Result.map (fun c -> SReal c.Imaginary)) context pos cont
 
     let sMagnitude context pos cont =
-        function
-        | [ x ] -> toComplex x |> Result.map (fun c -> c.Magnitude |> SReal, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid magnitude parameter." |> cont
+        wrapUnary "magnitude" (toComplex >> Result.map (fun c -> SReal c.Magnitude)) context pos cont
 
     let sAngle context pos cont =
-        function
-        | [ x ] -> toComplex x |> Result.map (fun c -> c.Phase |> SReal, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid angle parameter." |> cont
+        wrapUnary "angle" (toComplex >> Result.map (fun c -> SReal c.Phase)) context pos cont
 
     let sInexact context pos cont =
-        function
-        | [ SRational(n, d), _ ] -> Ok(float n / float d |> SReal, pos) |> cont
-        | [ SReal _, _ ] as x -> Ok x.Head |> cont
-        | [ SComplex _, _ ] as x -> Ok x.Head |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid inexact parameter." |> cont
+        wrapUnary
+            "inexact"
+            (function
+            | SRational(n, d), _ -> SReal(float n / float d) |> Ok
+            | SReal _, _ as x -> fst x |> Ok
+            | SComplex _, _ as x -> fst x |> Ok
+            | x -> x |> invalid (snd x) "'%s' invalid inexact parameter.")
+            context
+            pos
+            cont
 
     let sExact context pos cont =
-        function
-        | [ SRational _, _ ] as x -> Ok x.Head |> cont
-        | [ SReal r, _ ] when SNumber.finiteFloat r -> Ok(realToRational r, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid exact parameter." |> cont
+        wrapUnary
+            "exact"
+            (function
+            | SRational _, _ as x -> fst x |> Ok
+            | SReal r, _ when SNumber.finiteFloat r -> realToRational r |> Ok
+            | x -> x |> invalid (snd x) "'%s' invalid exact parameter.")
+            context
+            pos
+            cont
 
     let sNumberToString context pos cont =
         function
@@ -707,31 +748,29 @@ module Math =
                      sprintf "%A/%A" n' d' |> Ok)
                 |> Result.map (fun s -> s |> newSString true, pos)
                 |> cont
-            | _ -> Ok(n |> Print.print |> newSString true, pos) |> cont
+            | _ -> (n |> Print.print |> newSString true, pos) |> Ok |> cont
         | x -> x |> invalidParameter pos "'%s' invalid number->string parameter." |> cont
 
+    let radixPrefix =
+        function
+        | 2 -> Some "#b"
+        | 8 -> Some "#o"
+        | 10 -> Some "#d"
+        | 16 -> Some "#x"
+        | _ -> None
+
     let sStringToNumber context pos cont =
-        let numberResult =
+        let handleResult =
             function
             | Ok(SRational _, _)
             | Ok(SReal _, _)
             | Ok(SComplex _, _) as n -> n |> cont
-            | Ok _ -> Ok(SFalse, pos) |> cont
-            | Error _ -> Ok(SFalse, pos) |> cont
+            | _ -> Ok(SFalse, pos) |> cont
 
         function
-        | [ SString s, _ ] -> s.runes |> runesToString |> Read.read false |> numberResult
+        | [ SString s, _ ] -> s.runes |> runesToString |> Read.read false |> handleResult
         | [ SString data, _; SRational(radix, d), _ ] when d = 1I ->
-            let prefix =
-                match int radix with
-                | 2 -> "#b"
-                | 8 -> "#o"
-                | 10 -> "#d"
-                | 16 -> "#x"
-                | _ -> ""
-
-            if prefix = "" then
-                Ok(SFalse, pos) |> cont
-            else
-                prefix + (data.runes |> runesToString) |> Read.read false |> numberResult
+            match radixPrefix (int radix) with
+            | Some prefix -> prefix + (data.runes |> runesToString) |> Read.read false |> handleResult
+            | None -> (SFalse, pos) |> Ok |> cont
         | x -> x |> invalidParameter pos "'%s' invalid string->number parameter." |> cont
