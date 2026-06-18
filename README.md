@@ -28,11 +28,8 @@ dotnet run --project write-scheme
 # Run a Scheme file
 echo '(+ 1 2)' | dotnet run --project write-scheme
 
-# Run tests (with coverage)
+# Run tests (with coverage via coverlet)
 dotnet test
-
-# Run tests with verbose coverage
-dotnet test --collect:"XPlat Code Coverage"
 ```
 
 ## REPL Examples

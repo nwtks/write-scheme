@@ -39,8 +39,8 @@ All code — including test code — must work on **both Windows and Linux**.
 
 ### Path handling
 
-- **Use `System.IO.Path`** for all file path operations — never hard-code path separators (`/` or `\`).
-- **Temporary files** — use `System.IO.Path.GetTempFileName()` and always clean up with `System.IO.File.Delete` inside a `try`/`finally` block:
+- **Scheme-level paths** (strings passed to `include`, `include-ci`, `load`, etc.) use forward slashes. They are passed directly to `System.IO.File.ReadAllText`, which handles both `/` and `\` on Windows automatically.
+- **Temporary files in tests** — use `System.IO.Path.GetTempFileName()` and always clean up with `System.IO.File.Delete` inside a `try`/`finally` block:
 
   ```fsharp
   let tmp = System.IO.Path.GetTempFileName()
@@ -50,8 +50,6 @@ All code — including test code — must work on **both Windows and Linux**.
   finally
       System.IO.File.Delete tmp
   ```
-
-- **Scheme-level paths** (strings passed to `include`, `include-ci`, etc.) use forward slashes. They are passed directly to `System.IO.File.ReadAllText`, which handles both `/` and `\` on Windows automatically.
 
 ### File system assumptions
 
@@ -92,7 +90,7 @@ All code — including test code — must work on **both Windows and Linux**.
 1. **Choose (or create) an implementation file** — pick the appropriate `Builtin/*.fs` for the feature.
 2. **Implement the function** — follow the existing patterns in other Builtin files for the function signature, `open` statements, and module declaration.
 3. **Register it** in the builtin bindings list in `Builtin.fs`.
-4. **Add the new file to `write-scheme.fsproj`** **before** `Builtin.fs` (the aggregator), following the existing alphabetical order.
+4. **Add the new file to `write-scheme.fsproj`** **before** `Builtin.fs` (the aggregator), following the existing dependency order.
 5. **Add tests** — add test cases to the appropriate test file.
 
 ---
@@ -102,8 +100,8 @@ All code — including test code — must work on **both Windows and Linux**.
 ### Running Tests
 
 - After any code change, run `dotnet test` and confirm **all tests pass**.
-- The `dotnet test` output includes a **Cyclomatic Complexity Report** (from coverage data). Check that no function exceeds complexity 15 (error threshold). Warnings above 10 should be addressed where practical.
-- Use `dotnet fsi scripts/check-complexity.fsx` for cyclomatic complexity analysis (reads `coverage.cobertura.xml`, calculates keyword-based complexity, shows Coverlet reference values).
+- The test run automatically checks cyclomatic complexity (via `Directory.Build.targets`). No function may exceed complexity 15; warnings above 10 should be addressed where practical. See [`docs/architecture.md#14-cyclomatic-complexity-guidelines`](docs/architecture.md#14-cyclomatic-complexity-guidelines).
+- For standalone complexity analysis: `dotnet fsi scripts/check-complexity.fsx`
 - Maintain high unit test coverage (current: ~85%, target: ≥ 90% line coverage). If line coverage falls below 85%, add test code to restore it.
 
 ### What to Test
@@ -118,9 +116,8 @@ All code — including test code — must work on **both Windows and Linux**.
 
 ### Evaluation Helpers
 
-- **`rep`** — for pure evaluation (predicates, arithmetic) — uses the shared global context.
-- **`newRep ()`** — for tests involving mutation, macros, libraries, or exception handlers — creates a fresh context each call.
-- Define these at module level, never inside a test.
+- **`rep`** — for pure evaluation (predicates, arithmetic) — uses the shared global context. Define at module level.
+- **`newRep ()`** — for tests involving mutation, macros, libraries, or exception handlers — creates a fresh context each call. Define at module level; call `let rep = newRep()` at the top of each test that needs a fresh context.
 - Use `|> rep |> ignore` for side-effect-only expressions.
 
 ### Assertion patterns

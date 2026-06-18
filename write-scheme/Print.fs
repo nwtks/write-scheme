@@ -85,23 +85,21 @@ module Print =
     let isVisited visited x =
         visited |> List.exists (fun v -> obj.ReferenceEquals(v, x))
 
-    let printSimpleValue =
+    let formatSimpleValue =
         function
         | SUnspecified, _ -> "#<unspecified>"
         | SEmpty, _ -> "()"
-        | SBool true, _ -> "#t"
-        | SBool false, _ -> "#f"
-        | SRational(n, d), _ when d = 1I -> string n
-        | SRational(n, d), _ -> sprintf "%A/%A" n d
+        | SBool b, _ -> if b then "#t" else "#f"
+        | SRational(n, d), _ -> if d = 1I then string n else sprintf "%A/%A" n d
         | SReal x, _ -> formatFloat x false
         | SComplex x, _ -> formatComplex x
         | SString data, _ -> formatString data
         | SChar x, _ -> formatChar x
         | SSymbol x, _ -> formatSymbol x
         | SByteVector xs, _ -> xs |> Array.map string |> String.concat " " |> sprintf "#u8(%s)"
-        | x -> failwith "unreachable."
+        | _ -> failwith "unreachable."
 
-    let printOpaqueDescriptor =
+    let formatOpaqueDescriptor =
         function
         | SRecord(_, typeName, _), _ -> sprintf "#<%s>" typeName
         | SDatumRef n, _ -> sprintf "#%d#" n
@@ -110,7 +108,7 @@ module Print =
         | SSyntax _, _ -> "#<syntax>"
         | SProcedure _, _ -> "#<procedure>"
         | SContinuation _, _ -> "#<continuation>"
-        | x -> failwith "unreachable."
+        | _ -> failwith "unreachable."
 
     let getWrapperPrefixAndInner =
         function
@@ -119,7 +117,41 @@ module Print =
         | SUnquote x, _ -> ",", x
         | SUnquoteSplicing x, _ -> ",@", x
         | SDatumLabel(n, d), _ -> sprintf "#%d=" n, d
-        | x -> failwith "unreachable."
+        | _ -> failwith "unreachable."
+
+    let isSimpleValueKind =
+        function
+        | SUnspecified
+        | SEmpty
+        | SBool _
+        | SRational _
+        | SReal _
+        | SComplex _
+        | SString _
+        | SChar _
+        | SSymbol _
+        | SByteVector _ -> true
+        | _ -> false
+
+    let isOpaqueDescriptorKind =
+        function
+        | SRecord _
+        | SDatumRef _
+        | SPromise _
+        | SParameter _
+        | SSyntax _
+        | SProcedure _
+        | SContinuation _ -> true
+        | _ -> false
+
+    let isQuoteLikeKind =
+        function
+        | SQuote _
+        | SQuasiquote _
+        | SUnquote _
+        | SUnquoteSplicing _
+        | SDatumLabel _ -> true
+        | _ -> false
 
     [<TailCall>]
     let rec formatList next =
@@ -157,7 +189,7 @@ module Print =
             |> List.map (fun e -> (irritants :> obj) :: visited, e)
             |> formatList (fun s -> prefix + " " + s + ">" |> next)
 
-    and [<TailCall>] printVector visited next (xs: SExpression array) =
+    and [<TailCall>] formatVector visited next (xs: SExpression array) =
         if isVisited visited xs then
             "..." |> next
         else
@@ -166,7 +198,7 @@ module Print =
             |> List.map (fun e -> (xs :> obj) :: visited, e)
             |> formatList (sprintf "#(%s)" >> next)
 
-    and [<TailCall>] printValues visited next (xs: SExpression list) =
+    and [<TailCall>] formatValues visited next (xs: SExpression list) =
         if isVisited visited xs then
             "..." |> next
         else
@@ -176,33 +208,19 @@ module Print =
 
     and [<TailCall>] printCPS visited next =
         function
-        | SUnspecified, _
-        | SEmpty, _
-        | SBool _, _
-        | SRational _, _
-        | SReal _, _
-        | SComplex _, _
-        | SString _, _
-        | SChar _, _
-        | SSymbol _, _
-        | SByteVector _, _ as x -> printSimpleValue x |> next
-        | SRecord _, _
-        | SDatumRef _, _
-        | SPromise _, _
-        | SParameter _, _
-        | SSyntax _, _
-        | SProcedure _, _
-        | SContinuation _, _ as x -> printOpaqueDescriptor x |> next
         | SPair p, _ -> p |> formatPair visited next []
-        | SVector xs, _ -> xs |> printVector visited next
-        | SValues xs, _ -> xs |> printValues visited next
+        | SVector xs, _ -> xs |> formatVector visited next
+        | SValues xs, _ -> xs |> formatValues visited next
         | SError(msg, irritants), _ -> formatError visited next msg irritants
-        | SQuote _, _
-        | SQuasiquote _, _
-        | SUnquote _, _
-        | SUnquoteSplicing _, _
-        | SDatumLabel _, _ as x ->
-            let prefix, inner = getWrapperPrefixAndInner x
-            inner |> printCPS visited (sprintf "%s%s" prefix >> next)
+        | x, _ as expr ->
+            if isSimpleValueKind x then
+                formatSimpleValue expr |> next
+            elif isOpaqueDescriptorKind x then
+                formatOpaqueDescriptor expr |> next
+            elif isQuoteLikeKind x then
+                let prefix, inner = getWrapperPrefixAndInner expr
+                inner |> printCPS visited (sprintf "%s%s" prefix >> next)
+            else
+                failwith "unreachable."
 
     let print x = x |> printCPS [] id

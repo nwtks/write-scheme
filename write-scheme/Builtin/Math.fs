@@ -731,24 +731,24 @@ module Math =
             pos
             cont
 
+    let radixToString pos radix n =
+        match int radix with
+        | 2 -> System.Convert.ToString(int64 n, 2) |> Ok
+        | 8 -> System.Convert.ToString(int64 n, 8) |> Ok
+        | 10 -> string n |> Ok
+        | 16 -> System.Convert.ToString(int64 n, 16) |> Ok
+        | x -> EvalError(sprintf "'%d' unsupported radix in number->string." x, pos) |> Error
+
     let sNumberToString context pos cont =
         function
         | [ n ] -> Ok(n |> Print.print |> newSString true, pos) |> cont
         | [ n; SRational(radix, d), _ ] when d = 1I ->
             match n with
-            | SRational(n', d'), _ ->
-                (if d' = 1I then
-                     match int radix with
-                     | 2 -> System.Convert.ToString(int64 n', 2) |> Ok
-                     | 8 -> System.Convert.ToString(int64 n', 8) |> Ok
-                     | 10 -> string n' |> Ok
-                     | 16 -> System.Convert.ToString(int64 n', 16) |> Ok
-                     | x -> EvalError(sprintf "'%d' unsupported radix in number->string." x, pos) |> Error
-                 else
-                     sprintf "%A/%A" n' d' |> Ok)
-                |> Result.map (fun s -> s |> newSString true, pos)
-                |> cont
-            | _ -> (n |> Print.print |> newSString true, pos) |> Ok |> cont
+            | SRational(n', d'), _ when d' = 1I -> radixToString pos radix n'
+            | SRational(n', d'), _ -> Ok(sprintf "%A/%A" n' d')
+            | _ -> Ok(n |> Print.print)
+            |> Result.map (fun s -> s |> newSString true, pos)
+            |> cont
         | x -> x |> invalidParameter pos "'%s' invalid number->string parameter." |> cont
 
     let radixPrefix =

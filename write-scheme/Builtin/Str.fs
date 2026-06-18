@@ -115,16 +115,9 @@ module Str =
     let getRunesRange =
         function
         | [ SString s, _ ] -> Some(s.runes, 0, s.runes.Length)
-        | [ SString s, _; SRational(start, d), _ ] when d = 1I && start >= 0I && start <= bigint s.runes.Length ->
-            Some(s.runes, int start, s.runes.Length - int start)
-        | [ SString s, _; SRational(start, d1), _; SRational(stop, d2), _ ] when
-            d1 = 1I
-            && d2 = 1I
-            && start >= 0I
-            && stop >= start
-            && stop <= bigint s.runes.Length
-            ->
-            Some(s.runes, int start, int stop - int start)
+        | (SString s, _) :: args ->
+            getRange s.runes.Length args
+            |> Option.map (fun (start, stop) -> s.runes, start, stop - start)
         | _ -> None
 
     let getRunesSlice =
