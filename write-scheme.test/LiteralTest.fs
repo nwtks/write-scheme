@@ -294,3 +294,5 @@ let ``datum labels`` () =
     "'(#1=#2# #2=#1# #1#)"
     |> rep
     |> should startWith "Invalid forward reference for datum label: #2#"
+
+    "'#99#" |> rep |> should startWith "Undefined datum label: #99#"

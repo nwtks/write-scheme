@@ -762,3 +762,16 @@ let ``math error paths`` () =
     "(nan? 1 2)" |> rep |> should startWith "'(1 2)' invalid nan? parameter"
 
     "(string->number \"abc\" 3)" |> rep |> should equal "#f"
+
+    "(abs \"bad\")" |> rep |> should startWith "'\"bad\"' invalid abs parameter."
+
+    "(max 3 2.0 1)" |> rep |> should equal "3"
+    "(min 3 2.0 1)" |> rep |> should equal "1"
+
+    "(/ 1 0.0)" |> rep |> should startWith "Division by zero."
+
+    "(/ 1.0 0.0)" |> rep |> should startWith "Division by zero."
+
+    "(- 1.5 2.5)" |> rep |> should equal "-1"
+    "(* 2.5 3)" |> rep |> should equal "7.5"
+    "(/ 2.0 4)" |> rep |> should equal "0.5"

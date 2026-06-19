@@ -714,3 +714,56 @@ let ``special form error paths`` () =
     "(define-values (x y) (values 1 2) 3)"
     |> rep
     |> should startWith "'((x y) (values 1 2) 3)' invalid define-values parameter"
+
+[<Fact>]
+let ``opaque descriptor printing`` () =
+    let rep = newRep ()
+
+    "(delay 42)" |> rep |> should equal "#<promise>"
+    "(make-parameter 0)" |> rep |> should equal "#<parameter>"
+    "car" |> rep |> should equal "#<procedure>"
+
+[<Fact>]
+let ``quasiquote quote keyword`` () =
+    "'(quote a)" |> rep |> should equal "(quote a)"
+
+[<Fact>]
+let ``do with step expressions`` () =
+    let rep = newRep ()
+
+    "(do ((i 0 (+ i 2)) (j 10 (- j 1))) ((= i 10) (list i j)))"
+    |> rep
+    |> should equal "(10 5)"
+
+    "(do ((i 0 (+ i 1))) ((= i 3) 'done) (if #f #f))" |> rep |> should equal "done"
+
+[<Fact>]
+let ``guard re-raise`` () =
+    let rep = newRep ()
+
+    "(guard (e ((eq? e 'error) 'caught))
+       (raise 'error))"
+    |> rep
+    |> should equal "caught"
+
+    "(guard (e ((eq? e 'not-found) 'caught))
+       (guard (e ((eq? e 'foo) 'matched))
+         (raise 'bar)))"
+    |> rep
+    |> should equal "bar"
+
+[<Fact>]
+let ``cond-expand else`` () =
+    "(cond-expand (else 'always))" |> rep |> should equal "always"
+
+[<Fact>]
+let ``syntax-error with labels`` () =
+    "(syntax-error \"msg\" #1=1 #1#)" |> rep |> should equal "#<error \"msg\" 1 1>"
+
+[<Fact>]
+let ``lambda error paths`` () =
+    "((lambda (1) 1) 2)" |> rep |> should startWith "'1' is not a symbol"
+
+    "((lambda () 1) 2)" |> rep |> should startWith "Too many arguments"
+
+    "((lambda (x) x) 1 2)" |> rep |> should startWith "Too many arguments"

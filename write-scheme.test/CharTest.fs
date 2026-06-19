@@ -163,3 +163,45 @@ let ``char-downcase`` () =
 let ``char-foldcase`` () =
     "(char-foldcase #\\A)" |> rep |> should equal "#\\a"
     "(char-foldcase #\\a)" |> rep |> should equal "#\\a"
+
+[<Fact>]
+let ``char procedures error on non-char arguments`` () =
+    "(digit-value 42)"
+    |> rep
+    |> should startWith "'(42)' invalid digit-value parameter"
+
+    "(char->integer 42)"
+    |> rep
+    |> should startWith "'(42)' invalid char->integer parameter"
+
+    "(char-upcase 42)"
+    |> rep
+    |> should startWith "'(42)' invalid char-upcase parameter"
+
+    "(char-downcase 42)"
+    |> rep
+    |> should startWith "'(42)' invalid char-downcase parameter"
+
+    "(char-foldcase 42)"
+    |> rep
+    |> should startWith "'(42)' invalid char-foldcase parameter"
+
+    "(char-alphabetic? 42)"
+    |> rep
+    |> should startWith "'(42)' invalid char-alphabetic? parameter"
+
+    "(char-numeric? 42)"
+    |> rep
+    |> should startWith "'(42)' invalid char-numeric? parameter"
+
+    "(char-whitespace? 42)"
+    |> rep
+    |> should startWith "'(42)' invalid char-whitespace? parameter"
+
+    "(char-upper-case? 42)"
+    |> rep
+    |> should startWith "'(42)' invalid char-upper-case? parameter"
+
+    "(char-lower-case? 42)"
+    |> rep
+    |> should startWith "'(42)' invalid char-lower-case? parameter"
