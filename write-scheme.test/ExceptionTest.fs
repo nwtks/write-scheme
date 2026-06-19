@@ -101,3 +101,39 @@ let ``guard re-raise`` () =
          (raise 'not-found)))"
     |> rep
     |> should equal "caught"
+
+[<Fact>]
+let ``exception handler error paths`` () =
+    let rep = newRep ()
+
+    "(with-exception-handler 1)"
+    |> rep
+    |> should startWith "'(1)' invalid with-exception-handler parameter"
+
+    "(raise)" |> rep |> should startWith "'()' invalid raise parameter"
+
+    "(raise 1 2)" |> rep |> should startWith "'(1 2)' invalid raise parameter"
+
+    "(raise-continuable)"
+    |> rep
+    |> should startWith "'()' invalid raise-continuable parameter"
+
+    "(raise-continuable 1 2)"
+    |> rep
+    |> should startWith "'(1 2)' invalid raise-continuable parameter"
+
+    "(error)" |> rep |> should startWith "'()' invalid error parameter"
+
+    "(error 1)" |> rep |> should startWith "'(1)' invalid error parameter"
+
+    "(error-object? 1 2)"
+    |> rep
+    |> should startWith "'(1 2)' invalid error-object? parameter"
+
+    "(error-object-message 1)"
+    |> rep
+    |> should startWith "'(1)' invalid error-object-message parameter"
+
+    "(error-object-irritants 1)"
+    |> rep
+    |> should startWith "'(1)' invalid error-object-irritants parameter"

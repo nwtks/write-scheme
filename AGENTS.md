@@ -102,7 +102,7 @@ All code — including test code — must work on **both Windows and Linux**.
 - After any code change, run `dotnet test` and confirm **all tests pass**.
 - The test run automatically checks cyclomatic complexity (via `Directory.Build.targets`). No function may exceed complexity 15; warnings above 10 should be addressed where practical. See [`docs/architecture.md#14-cyclomatic-complexity-guidelines`](docs/architecture.md#14-cyclomatic-complexity-guidelines).
 - For standalone complexity analysis: `dotnet fsi scripts/check-complexity.fsx`
-- Maintain high unit test coverage (current: ~85%, target: ≥ 90% line coverage). If line coverage falls below 85%, add test code to restore it.
+- Maintain high unit test coverage (target: ≥ 90% line coverage). If line coverage falls below 90%, add test code to restore it.
 
 ### What to Test
 

@@ -14,6 +14,10 @@ let ``bytevector?`` () =
     "(bytevector? '())" |> rep |> should equal "#f"
     "(bytevector? 1)" |> rep |> should equal "#f"
 
+    "(bytevector? 1 2)"
+    |> rep
+    |> should startWith "'(1 2)' invalid bytevector? parameter"
+
 [<Fact>]
 let ``make-bytevector`` () =
     "(bytevector-length (make-bytevector 5))" |> rep |> should equal "5"
@@ -25,6 +29,14 @@ let ``make-bytevector`` () =
     |> rep
     |> should startWith "'(-1)' invalid make-bytevector parameter"
 
+    "(make-bytevector 5 256)"
+    |> rep
+    |> should startWith "'(5 256)' invalid make-bytevector parameter"
+
+    "(make-bytevector 5 -1)"
+    |> rep
+    |> should startWith "'(5 -1)' invalid make-bytevector parameter"
+
 [<Fact>]
 let ``bytevector`` () =
     "(bytevector 1 2 3)" |> rep |> should equal "#u8(1 2 3)"
@@ -35,6 +47,10 @@ let ``bytevector`` () =
 let ``bytevector-length`` () =
     "(bytevector-length #u8(1 2 3))" |> rep |> should equal "3"
     "(bytevector-length #u8())" |> rep |> should equal "0"
+
+    "(bytevector-length '())"
+    |> rep
+    |> should startWith "'(())' invalid bytevector-length parameter"
 
 [<Fact>]
 let ``bytevector-u8-ref`` () =
@@ -76,6 +92,14 @@ let ``bytevector-copy`` () =
     "(bytevector-copy #u8(1 2 3 4 5) 2)" |> rep |> should equal "#u8(3 4 5)"
     "(bytevector-copy #u8(1 2 3 4 5) 2 4)" |> rep |> should equal "#u8(3 4)"
 
+    "(bytevector-copy #u8(1 2 3) 5)"
+    |> rep
+    |> should startWith "'(#u8(1 2 3) 5)' invalid bytevector-copy parameter"
+
+    "(bytevector-copy #u8(1 2 3) -1)"
+    |> rep
+    |> should startWith "'(#u8(1 2 3) -1)' invalid bytevector-copy parameter"
+
 [<Fact>]
 let ``bytevector-copy!`` () =
     "(let ((a (bytevector 1 2 3 4 5)) (b (bytevector 10 20 30))) (bytevector-copy! a 1 b) a)"
@@ -98,6 +122,14 @@ let ``bytevector-copy!`` () =
     |> rep
     |> should equal "#u8(2 3 4 5 5)"
 
+    "(bytevector-copy! #u8(1 2) 3 #u8(10 20 30))"
+    |> rep
+    |> should startWith "'(#u8(1 2) 3 #u8(10 20 30))' invalid bytevector-copy! parameter"
+
+    "(bytevector-copy! 1 0 #u8(10 20 30))"
+    |> rep
+    |> should startWith "'(1 0 #u8(10 20 30))' invalid bytevector-copy! parameter"
+
 [<Fact>]
 let ``bytevector-append`` () =
     "(bytevector-append #u8(1 2) #u8(3 4 5) #u8(6))"
@@ -105,6 +137,10 @@ let ``bytevector-append`` () =
     |> should equal "#u8(1 2 3 4 5 6)"
 
     "(bytevector-append)" |> rep |> should equal "#u8()"
+
+    "(bytevector-append #u8(1) '(2))"
+    |> rep
+    |> should startWith "'(2)' is not a bytevector in bytevector-append"
 
 [<Fact>]
 let ``utf8->string`` () =
@@ -114,6 +150,14 @@ let ``utf8->string`` () =
     "(utf8->string #u8(#x41 #x42 #x43) 1 2)" |> rep |> should equal "\"B\""
     "(utf8->string #u8(240 159 141 142))" |> rep |> should equal "\"🍎\""
 
+    "(utf8->string #u8(65 66) 5)"
+    |> rep
+    |> should startWith "'(#u8(65 66) 5)' invalid utf8->string parameter"
+
+    "(utf8->string 1)"
+    |> rep
+    |> should startWith "'(1)' invalid utf8->string parameter"
+
 [<Fact>]
 let ``string->utf8`` () =
     "(string->utf8 \"ABC\")" |> rep |> should equal "#u8(65 66 67)"
@@ -121,3 +165,11 @@ let ``string->utf8`` () =
     "(string->utf8 \"ABC\" 1 2)" |> rep |> should equal "#u8(66)"
     "(string->utf8 \"🍎\")" |> rep |> should equal "#u8(240 159 141 142)"
     "(string->utf8 \"a🍎b\" 1 2)" |> rep |> should equal "#u8(240 159 141 142)"
+
+    "(string->utf8 \"AB\" 5)"
+    |> rep
+    |> should startWith "'(\"AB\" 5)' invalid string->utf8 parameter"
+
+    "(string->utf8 1)"
+    |> rep
+    |> should startWith "'(1)' invalid string->utf8 parameter"

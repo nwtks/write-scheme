@@ -77,7 +77,7 @@ Always end a function branch with a call to `cont`, and ensure it's the last exp
 
 ### Root Cause
 
-`eqv?` (`Builtin/Helper.fs` lines 40–53):
+`eqv?` (`Builtin/Helper.fs` lines 59–72):
 
 ```fsharp
 | (SPair x, _), (SPair y, _) -> LanguagePrimitives.PhysicalEquality x y
@@ -142,7 +142,7 @@ All newly constructed strings from the library use `isImmutable = false`. But st
 
 ### Root Cause
 
-`evalArgs` (Eval.fs line 91–98) explicitly checks for `SValues`:
+`evalArgs` (Eval.fs line 76) explicitly checks for `SValues`:
 
 ```fsharp
 | Ok(SValues _, p) -> EvalError("Multiple values in single value context.", p) |> Error |> cont
@@ -184,7 +184,7 @@ Internal definitions work only if `begin` blocks are transparently flattened.
 
 ### Root Cause
 
-`collectInternalDefinitions` (Eval.fs line 132–152) recursively destructures `begin` forms found within a body:
+`collectInternalDefinitions` (Eval.fs line 115) recursively destructures `begin` forms found within a body:
 
 ```fsharp
 | SPair { car = SSymbol "begin", _; cdr = inner }, _ ->
@@ -206,7 +206,7 @@ If `toList` fails (the `begin` body is an improper list), the collector falls ba
 
 ### Root Cause
 
-`toList` (`Type.fs` line 110–119) uses `loopListInfo` which returns `Error` for improper lists:
+`toList` (`Type.fs` lines 112–120) uses `loopListInfo` which returns `Error` for improper lists:
 
 ```fsharp
 | Ok(None, _) -> failwith "unreachable."
@@ -261,7 +261,7 @@ The printer avoids infinite loops on cyclic structures using `obj.ReferenceEqual
 
 ### Root Cause
 
-`isVisited` (Print.fs line 86) compares objects by identity:
+`isVisited` (Print.fs line 85) compares objects by identity:
 
 ```fsharp
 let isVisited visited x =

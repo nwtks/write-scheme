@@ -11,6 +11,7 @@ let ``string?`` () =
     "(string? \"\")" |> rep |> should equal "#t"
     "(string? 'hello)" |> rep |> should equal "#f"
     "(string? 1)" |> rep |> should equal "#f"
+    "(string? 1 2)" |> rep |> should startWith "'(1 2)' invalid string? parameter"
 
 [<Fact>]
 let ``make-string`` () =
@@ -19,11 +20,20 @@ let ``make-string`` () =
     "(make-string 3)" |> rep |> should equal "\"\u0000\u0000\u0000\""
     "(make-string 2 #\\🍎)" |> rep |> should equal "\"🍎🍎\""
 
+    "(make-string -1)"
+    |> rep
+    |> should startWith "'(-1)' invalid make-string parameter"
+
+    "(make-string -1 #\\a)"
+    |> rep
+    |> should startWith "'(-1 #\\a)' invalid make-string parameter"
+
 [<Fact>]
 let ``string`` () =
     "(string #\\a #\\b #\\c)" |> rep |> should equal "\"abc\""
     "(string)" |> rep |> should equal "\"\""
     "(string #\\H #\\e #\\l #\\l #\\o)" |> rep |> should equal "\"Hello\""
+    "(string 1)" |> rep |> should startWith "'1' is not a char in string"
 
 [<Fact>]
 let ``string-length`` () =
@@ -32,6 +42,10 @@ let ``string-length`` () =
     "(string-length \"hello\")" |> rep |> should equal "5"
     "(string-length \"🍎\")" |> rep |> should equal "1"
     "(string-length \"a🍎b\")" |> rep |> should equal "3"
+
+    "(string-length 1)"
+    |> rep
+    |> should startWith "'(1)' invalid string-length parameter"
 
 [<Fact>]
 let ``string-ref`` () =
@@ -91,6 +105,10 @@ let ``string=?`` () =
     "(string=? \"🍎\" \"🍎\")" |> rep |> should equal "#t"
     "(string=? \"abc\" \"abc\" \"def\")" |> rep |> should equal "#f"
     "(string=? \"abc\")" |> rep |> should equal "#t"
+
+    "(string=? \"abc\" 1)"
+    |> rep
+    |> should startWith "'1' is not a string in string=?"
 
 [<Fact>]
 let ``string<?`` () =
@@ -159,6 +177,10 @@ let ``string-upcase`` () =
     "(string-upcase \"𐐨\")" |> rep |> should equal "\"𐐀\""
     "(string-upcase \"\")" |> rep |> should equal "\"\""
 
+    "(string-upcase 1)"
+    |> rep
+    |> should startWith "'(1)' invalid string-upcase parameter"
+
 [<Fact>]
 let ``string-downcase`` () =
     "(string-downcase \"HELLO\")" |> rep |> should equal "\"hello\""
@@ -167,10 +189,18 @@ let ``string-downcase`` () =
     "(string-downcase \"𐐀\")" |> rep |> should equal "\"𐐨\""
     "(string-downcase \"\")" |> rep |> should equal "\"\""
 
+    "(string-downcase 1)"
+    |> rep
+    |> should startWith "'(1)' invalid string-downcase parameter"
+
 [<Fact>]
 let ``string-foldcase`` () =
     "(string-foldcase \"HELLO\")" |> rep |> should equal "\"hello\""
     "(string-foldcase \"Hello\")" |> rep |> should equal "\"hello\""
+
+    "(string-foldcase 1)"
+    |> rep
+    |> should startWith "'(1)' invalid string-foldcase parameter"
 
 [<Fact>]
 let ``substring`` () =
@@ -195,12 +225,18 @@ let ``substring`` () =
     |> rep
     |> should startWith "'(\"abc\" 0 4)' invalid substring parameter"
 
+    "(substring 1)" |> rep |> should startWith "'(1)' invalid substring parameter"
+
 [<Fact>]
 let ``string-append`` () =
     "(string-append \"abc\" \"def\")" |> rep |> should equal "\"abcdef\""
     "(string-append \"abc\" \"\" \"def\")" |> rep |> should equal "\"abcdef\""
     "(string-append \"a\" \"🍎\" \"b\")" |> rep |> should equal "\"a🍎b\""
     "(string-append)" |> rep |> should equal "\"\""
+
+    "(string-append \"abc\" 1)"
+    |> rep
+    |> should startWith "'1' is not a string in string-append"
 
 [<Fact>]
 let ``string->list`` () =
@@ -211,10 +247,22 @@ let ``string->list`` () =
     "(string->list \"🍎\")" |> rep |> should equal "(#\\🍎)"
     "(string->list \"a🍎b\")" |> rep |> should equal "(#\\a #\\🍎 #\\b)"
 
+    "(string->list \"abc\" 5)"
+    |> rep
+    |> should startWith "'(\"abc\" 5)' invalid string->list parameter"
+
 [<Fact>]
 let ``list->string`` () =
     "(list->string '(#\\a #\\b #\\c))" |> rep |> should equal "\"abc\""
     "(list->string '())" |> rep |> should equal "\"\""
+
+    "(list->string '(#\\a 1))"
+    |> rep
+    |> should startWith "'1' is not a char in list->string"
+
+    "(list->string 1)"
+    |> rep
+    |> should startWith "'(1)' invalid list->string parameter"
 
 [<Fact>]
 let ``string-copy`` () =
@@ -228,6 +276,10 @@ let ``string-copy`` () =
     "(string-set! s1 0 #\\b)" |> rep |> ignore
     "s1" |> rep |> should equal "\"baa\""
     "s2" |> rep |> should equal "\"aaa\""
+
+    "(string-copy \"abc\" 5)"
+    |> rep
+    |> should startWith "'(\"abc\" 5)' invalid string-copy parameter"
 
 [<Fact>]
 let ``string-copy!`` () =
@@ -252,6 +304,23 @@ let ``string-copy!`` () =
     "(string-copy! dest 1 src 2 4)" |> rep |> ignore
     "dest" |> rep |> should equal "\".cd..\""
 
+    "(string-copy! \"abc\" 0 \"xyz\")"
+    |> rep
+    |> should startWith "Immutable destination string in string-copy!"
+
+    "(string-copy! (make-string 3 #\\x) 0 \"hello\" 0 5)"
+    |> rep
+    |> should startWith "Destination out of range in string-copy!"
+
+    "(string-copy! (make-string 5 #\\x) 0 \"abc\" 5)"
+    |> rep
+    |> should startWith "'(\"xxxxx\""
+    |> ignore
+
+    "(string-copy! 1 0 \"abc\")"
+    |> rep
+    |> should startWith "'(1 0 \"abc\")' invalid string-copy! parameter"
+
 [<Fact>]
 let ``string-fill!`` () =
     "(define s1 (make-string 3 #\\a))" |> rep |> ignore
@@ -263,3 +332,16 @@ let ``string-fill!`` () =
     "s2" |> rep |> should equal "\"abbba\""
     "(string-fill! s2 #\\c 3)" |> rep |> ignore
     "s2" |> rep |> should equal "\"abbcc\""
+
+    "(string-fill! \"abc\" #\\x)"
+    |> rep
+    |> should startWith "Immutable string in string-fill!"
+
+    "(string-fill! (make-string 5 #\\a) #\\b 10)"
+    |> rep
+    |> should startWith "'(\"aaaaa\" #\\b 10)'"
+    |> ignore
+
+    "(string-fill! 1 #\\x)"
+    |> rep
+    |> should startWith "'(1 #\\x)' invalid string-fill! parameter"

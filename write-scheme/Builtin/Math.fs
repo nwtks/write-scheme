@@ -132,7 +132,8 @@ module Math =
         | (x, p1), (y, p2) ->
             match toComplex (x, p1), toComplex (y, p2) with
             | Ok c1, Ok c2 -> pred3 c1 c2
-            | _ -> Ok false
+            | Error e, _
+            | _, Error e -> Error e
 
     [<TailCall>]
     let rec compare pos pred1 pred2 pred3 n =

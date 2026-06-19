@@ -139,3 +139,15 @@ let ``dynamic-wind jump into`` () =
     "path"
     |> rep
     |> should equal "(out-in in-in thunk in-out out-out out-in in-in thunk in-out out-out)"
+
+[<Fact>]
+let ``dynamic-wind error paths`` () =
+    let rep = newRep ()
+
+    "(dynamic-wind)"
+    |> rep
+    |> should startWith "'()' invalid dynamic-wind parameter"
+
+    "(dynamic-wind 1 2 3 4)"
+    |> rep
+    |> should startWith "'(1 2 3 4)' invalid dynamic-wind parameter"

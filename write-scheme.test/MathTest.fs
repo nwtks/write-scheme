@@ -528,3 +528,237 @@ let ``string->number`` () =
     "(string->number \"42\" 10)" |> rep |> should equal "42"
     "(string->number \"ff\" 16)" |> rep |> should equal "255"
     "(string->number \"not-a-number\")" |> rep |> should equal "#f"
+
+[<Fact>]
+let ``math error paths`` () =
+    "(zero? 1 2)" |> rep |> should startWith "'(1 2)' invalid zero? parameter"
+
+    "(positive? 1 2)"
+    |> rep
+    |> should startWith "'(1 2)' invalid positive? parameter"
+
+    "(negative? 1 2)"
+    |> rep
+    |> should startWith "'(1 2)' invalid negative? parameter"
+
+    "(odd? 1 2)" |> rep |> should startWith "'(1 2)' invalid odd? parameter"
+
+    "(even? 1 2)" |> rep |> should startWith "'(1 2)' invalid even? parameter"
+
+    "(max)" |> rep |> should startWith "'()' invalid max parameter"
+
+    "(min)" |> rep |> should startWith "'()' invalid min parameter"
+
+    "(+ \"a\")" |> rep |> should startWith "'\"a\"' is not a number"
+
+    "(- \"a\")" |> rep |> should startWith "'\"a\"' is not a number"
+
+    "(* \"a\")" |> rep |> should startWith "'\"a\"' is not a number"
+
+    "(/ \"a\")" |> rep |> should startWith "'\"a\"' is not a number"
+
+    "(+ 1 \"a\")" |> rep |> should startWith "'\"a\"' is not a number"
+
+    "(+ 1 \"a\" 2)" |> rep |> should startWith "'\"a\"' is not a number"
+
+    "(< 1+2i 3+4i)" |> rep |> should startWith "Ordering on complex numbers"
+
+    "(floor/ 0)" |> rep |> should startWith "'(0)' invalid floor/ parameter"
+
+    "(floor/ 1 0)" |> rep |> should startWith "Division by zero"
+
+    "(truncate/ 1 0)" |> rep |> should startWith "Division by zero"
+
+    "(quotient 1 0)" |> rep |> should startWith "Division by zero"
+
+    "(modulo 1 0)" |> rep |> should startWith "Division by zero"
+
+    "(gcd 1.5)" |> rep |> should startWith "'1.5' is not an integer in gcd"
+
+    "(lcm 1.5)" |> rep |> should startWith "'1.5' is not an integer in lcm"
+
+    "(floor \"a\")" |> rep |> should startWith "'\"a\"' invalid floor parameter"
+
+    "(ceiling \"a\")" |> rep |> should startWith "'\"a\"' invalid ceiling parameter"
+
+    "(truncate \"a\")"
+    |> rep
+    |> should startWith "'\"a\"' invalid truncate parameter"
+
+    "(round \"a\")" |> rep |> should startWith "'\"a\"' invalid round parameter"
+
+    "(abs)" |> rep |> should startWith "'()' invalid abs parameter"
+
+    "(abs \"a\")" |> rep |> should startWith "'\"a\"' invalid abs parameter"
+
+    "(expt 0 -1)" |> rep |> should startWith "Division by zero in expt"
+
+    "(exact-integer-sqrt -1)"
+    |> rep
+    |> should startWith "'(-1)' invalid exact-integer-sqrt parameter"
+
+    "(log \"a\")" |> rep |> should startWith "'(\"a\")' invalid log parameter"
+
+    "(atan)" |> rep |> should startWith "'()' invalid atan parameter"
+
+    "(atan 1 2 3)" |> rep |> should startWith "'(1 2 3)' invalid atan parameter"
+
+    "(square)" |> rep |> should startWith "'()' invalid square parameter"
+
+    "(make-rectangular)"
+    |> rep
+    |> should startWith "'()' invalid make-rectangular parameter"
+
+    "(make-polar)" |> rep |> should startWith "'()' invalid make-polar parameter"
+
+    "(numerator \"a\")"
+    |> rep
+    |> should startWith "'\"a\"' invalid numerator parameter"
+
+    "(denominator \"a\")"
+    |> rep
+    |> should startWith "'\"a\"' invalid denominator parameter"
+
+    "(inexact \"a\")" |> rep |> should startWith "'\"a\"' invalid inexact parameter"
+
+    "(exact \"a\")" |> rep |> should startWith "'\"a\"' invalid exact parameter"
+
+    "(number->string 10 3)"
+    |> rep
+    |> should startWith "'3' unsupported radix in number->string"
+
+    "(rationalize)" |> rep |> should startWith "'()' invalid rationalize parameter"
+
+    "(rationalize 1.0)"
+    |> rep
+    |> should startWith "'(1)' invalid rationalize parameter"
+
+    "(rationalize \"a\" 1/10)" |> rep |> should startWith "'\"a\"' is not a number"
+
+    "(rationalize 1/10 \"a\")" |> rep |> should startWith "'\"a\"' is not a number"
+
+    "(log)" |> rep |> should startWith "'()' invalid log parameter"
+
+    "(expt)" |> rep |> should startWith "'()' invalid expt parameter"
+
+    "(floor-quotient 1.5 2)"
+    |> rep
+    |> should startWith "'(1.5 2)' invalid floor-quotient parameter"
+
+    "(floor-remainder 1.5 2)"
+    |> rep
+    |> should startWith "'(1.5 2)' invalid floor-remainder parameter"
+
+    "(truncate/ 1.5 2)"
+    |> rep
+    |> should startWith "'(1.5 2)' invalid truncate/ parameter"
+
+    "(truncate-quotient 1.5 2)"
+    |> rep
+    |> should startWith "'(1.5 2)' invalid truncate-quotient parameter"
+
+    "(truncate-remainder 1.5 2)"
+    |> rep
+    |> should startWith "'(1.5 2)' invalid truncate-remainder parameter"
+
+    "(quotient 1.5 2)"
+    |> rep
+    |> should startWith "'(1.5 2)' invalid quotient parameter"
+
+    "(remainder 1.5 2)"
+    |> rep
+    |> should startWith "'(1.5 2)' invalid remainder parameter"
+
+    "(modulo 1.5 2)" |> rep |> should startWith "'(1.5 2)' invalid modulo parameter"
+
+    "(number->string 42 10 3)"
+    |> rep
+    |> should startWith "'(42 10 3)' invalid number->string parameter"
+
+    "(max 1+2i 3+4i)" |> rep |> should startWith "Ordering on complex numbers"
+
+    "(min 1+2i 3+4i)" |> rep |> should startWith "Ordering on complex numbers"
+
+    "(make-rectangular 1 \"a\")"
+    |> rep
+    |> should startWith "'\"a\"' is not a number"
+
+    "(make-polar 1 \"a\")" |> rep |> should startWith "'\"a\"' is not a number"
+
+    "(< \"a\" \"b\")" |> rep |> should startWith "'\"a\"' is not a number"
+
+    "(= \"a\" 1)" |> rep |> should startWith "'\"a\"' is not a number"
+
+    "(< \"a\" 1)" |> rep |> should startWith "'\"a\"' is not a number"
+
+    "(> \"a\" 1)" |> rep |> should startWith "'\"a\"' is not a number"
+
+    "(<= \"a\" 1)" |> rep |> should startWith "'\"a\"' is not a number"
+
+    "(>= \"a\" 1)" |> rep |> should startWith "'\"a\"' is not a number"
+
+    "(max \"a\" 1)" |> rep |> should startWith "'\"a\"' is not a number"
+
+    "(min \"a\" 1)" |> rep |> should startWith "'\"a\"' is not a number"
+
+    "(= 1 \"a\")" |> rep |> should startWith "'\"a\"' is not a number"
+
+    "(< 1 \"a\")" |> rep |> should startWith "'\"a\"' is not a number"
+
+    "(> 1 \"a\")" |> rep |> should startWith "'\"a\"' is not a number"
+
+    "(<= 1 \"a\")" |> rep |> should startWith "'\"a\"' is not a number"
+
+    "(>= 1 \"a\")" |> rep |> should startWith "'\"a\"' is not a number"
+
+    "(max 1 \"a\")" |> rep |> should startWith "'\"a\"' is not a number"
+
+    "(min 1 \"a\")" |> rep |> should startWith "'\"a\"' is not a number"
+
+    "(real-part \"a\")" |> rep |> should startWith "'\"a\"' is not a number"
+
+    "(imag-part \"a\")" |> rep |> should startWith "'\"a\"' is not a number"
+
+    "(magnitude \"a\")" |> rep |> should startWith "'\"a\"' is not a number"
+
+    "(angle \"a\")" |> rep |> should startWith "'\"a\"' is not a number"
+
+    "(/ 1 \"a\")" |> rep |> should startWith "'\"a\"' is not a number"
+
+    "(number->string 1/2 10)" |> rep |> should equal "\"1/2\""
+
+    "(log 1 \"a\")" |> rep |> should startWith "'\"a\"' is not a number"
+
+    "(expt 1 \"a\")" |> rep |> should startWith "'\"a\"' is not a number"
+
+    "(atan \"a\" 1)" |> rep |> should startWith "atan expected real"
+
+    "(number? 1 2)" |> rep |> should startWith "'(1 2)' invalid number? parameter"
+
+    "(complex? 1 2)" |> rep |> should startWith "'(1 2)' invalid complex? parameter"
+
+    "(real? 1 2)" |> rep |> should startWith "'(1 2)' invalid real? parameter"
+
+    "(rational? 1 2)"
+    |> rep
+    |> should startWith "'(1 2)' invalid rational? parameter"
+
+    "(integer? 1 2)" |> rep |> should startWith "'(1 2)' invalid integer? parameter"
+
+    "(exact? 1 2)" |> rep |> should startWith "'(1 2)' invalid exact? parameter"
+
+    "(inexact? 1 2)" |> rep |> should startWith "'(1 2)' invalid inexact? parameter"
+
+    "(exact-integer? 1 2)"
+    |> rep
+    |> should startWith "'(1 2)' invalid exact-integer? parameter"
+
+    "(finite? 1 2)" |> rep |> should startWith "'(1 2)' invalid finite? parameter"
+
+    "(infinite? 1 2)"
+    |> rep
+    |> should startWith "'(1 2)' invalid infinite? parameter"
+
+    "(nan? 1 2)" |> rep |> should startWith "'(1 2)' invalid nan? parameter"
+
+    "(string->number \"abc\" 3)" |> rep |> should equal "#f"

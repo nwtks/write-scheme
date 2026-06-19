@@ -666,3 +666,51 @@ let ``make-parameter`` () =
 
     "(parameterize ((p 100)) (p))" |> rep |> should equal "200"
     "(p)" |> rep |> should equal "20"
+
+[<Fact>]
+let ``special form error paths`` () =
+    "(quote 1 2)" |> rep |> should startWith "'(1 2)' invalid quote parameter"
+
+    "(lambda)" |> rep |> should startWith "'()' invalid lambda parameter"
+
+    "(if 1)" |> rep |> should startWith "'(1)' invalid if parameter"
+
+    "(if 1 2 3 4)" |> rep |> should startWith "'(1 2 3 4)' invalid if parameter"
+
+    "(set! 1 2)" |> rep |> should startWith "'(1 2)' invalid set! parameter"
+
+    "(set!)" |> rep |> should startWith "'()' invalid set! parameter"
+
+    "(when)" |> rep |> should startWith "'()' invalid when parameter"
+
+    "(unless)" |> rep |> should startWith "'()' invalid unless parameter"
+
+    "(case)" |> rep |> should startWith "'()' invalid case parameter"
+
+    "(case 1 2)" |> rep |> should startWith "'2' invalid case clause"
+
+    "(include 1)" |> rep |> should startWith "'(1)' invalid include parameter"
+
+    "(delay)" |> rep |> should startWith "'()' invalid delay parameter"
+
+    "(delay-force)" |> rep |> should startWith "'()' invalid delay-force parameter"
+
+    "(parameterize 1)" |> rep |> should startWith "not a proper list"
+
+    "(guard)" |> rep |> should startWith "'()' invalid guard parameter"
+
+    "(do 1)" |> rep |> should startWith "'(1)' invalid do parameter"
+
+    "(define-values 1)"
+    |> rep
+    |> should startWith "'(1)' invalid define-values parameter"
+
+    "(cond-expand \"a\")"
+    |> rep
+    |> should startWith "'\"a\"' invalid cond-expand clause"
+
+    "(let)" |> rep |> should startWith "'()' invalid let parameter"
+
+    "(define-values (x y) (values 1 2) 3)"
+    |> rep
+    |> should startWith "'((x y) (values 1 2) 3)' invalid define-values parameter"
