@@ -114,12 +114,6 @@ All code — including test code — must work on **both Windows and Linux**.
 - **Arity boundaries** — Zero arguments, one argument, many arguments, wrong number of arguments.
 - **`call/cc` interactions** — Test first-class continuations with procedures that capture/restore state.
 
-### Evaluation Helpers
-
-- **`rep`** — for pure evaluation (predicates, arithmetic) — uses the shared global context. Define at module level.
-- **`newRep ()`** — for tests involving mutation, macros, libraries, or exception handlers — creates a fresh context each call. Define at module level; call `let rep = newRep()` at the top of each test that needs a fresh context.
-- Use `|> rep |> ignore` for side-effect-only expressions.
-
 ### Assertion patterns
 
 - Use `should equal` for result comparison (string output from the printer).

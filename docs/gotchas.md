@@ -77,7 +77,7 @@ Always end a function branch with a call to `cont`, and ensure it's the last exp
 
 ### Root Cause
 
-`eqv?` (`Builtin/Helper.fs` lines 59–72):
+`eqv?` (`Builtin/Helper.fs`):
 
 ```fsharp
 | (SPair x, _), (SPair y, _) -> LanguagePrimitives.PhysicalEquality x y
@@ -96,7 +96,7 @@ Two separate calls to `(list 1 2 3)` produce different objects, so `(eqv? (list 
 
 ### Symptom
 
-`eqv?` on pairs uses `LanguagePrimitives.PhysicalEquality x y` on `SPairData`, which is reference equality because `SPairData` is marked `[<ReferenceEquality>]` (Type.fs line 41).
+`eqv?` on pairs uses `LanguagePrimitives.PhysicalEquality x y` on `SPairData`, which is reference equality because `SPairData` is marked `[<ReferenceEquality>]` (Type.fs).
 
 ### Pitfall
 
@@ -142,7 +142,7 @@ All newly constructed strings from the library use `isImmutable = false`. But st
 
 ### Root Cause
 
-`evalArgs` (Eval.fs line 76) explicitly checks for `SValues`:
+`evalArgs` (Eval.fs) explicitly checks for `SValues`:
 
 ```fsharp
 | Ok(SValues _, p) -> EvalError("Multiple values in single value context.", p) |> Error |> cont
@@ -184,7 +184,7 @@ Internal definitions work only if `begin` blocks are transparently flattened.
 
 ### Root Cause
 
-`collectInternalDefinitions` (Eval.fs line 115) recursively destructures `begin` forms found within a body:
+`collectInternalDefinitions` (Eval.fs) recursively destructures `begin` forms found within a body:
 
 ```fsharp
 | SPair { car = SSymbol "begin", _; cdr = inner }, _ ->
@@ -206,7 +206,7 @@ If `toList` fails (the `begin` body is an improper list), the collector falls ba
 
 ### Root Cause
 
-`toList` (`Type.fs` lines 112–120) uses `loopListInfo` which returns `Error` for improper lists:
+`toList` (`Type.fs`) uses `loopListInfo` which returns `Error` for improper lists:
 
 ```fsharp
 | Ok(None, _) -> failwith "unreachable."
@@ -223,7 +223,7 @@ Many list operations (`map`, `append`, `reverse`, `member`, etc.) call `toList` 
 
 ### Symptom
 
-Floyd's cycle detection is split across two mutually recursive functions (`Type.fs` lines 86–101): `loopListInfo` advances the hare and terminates on empty/improper lists, while `checkAndAdvance` advances the tortoise and detects cycles:
+Floyd's cycle detection is split across two mutually recursive functions (`Type.fs`): `loopListInfo` advances the hare and terminates on empty/improper lists, while `checkAndAdvance` advances the tortoise and detects cycles:
 
 ```fsharp
 [<TailCall>]
@@ -261,7 +261,7 @@ The printer avoids infinite loops on cyclic structures using `obj.ReferenceEqual
 
 ### Root Cause
 
-`isVisited` (Print.fs line 85) compares objects by identity:
+`isVisited` (Print.fs) compares objects by identity:
 
 ```fsharp
 let isVisited visited x =
@@ -302,7 +302,7 @@ If a record type has a field that circularly references itself (e.g., a record w
 
 ### Symptom
 
-`DatumLabel.fs` line 100–111:
+`DatumLabel.fs`:
 
 ```fsharp
 pair.car
@@ -346,7 +346,7 @@ After a Scheme error in the REPL, `dynamic-wind` guards and exception handlers a
 
 ### Root Cause
 
-`Repl.fs` line 17:
+`Repl.fs`:
 
 ```fsharp
 |> Result.defaultWith (fun e ->
@@ -424,11 +424,12 @@ Always use `should startWith` when asserting error messages. Never use `should e
 
 Several places in the codebase use `failwith "unreachable."` to mark branches that should never execute:
 
-| Location | Context |
-|----------|---------|
-| `Read.fs:140` | Parser character class fallback |
-| `Context.fs:10` | Initial exception handler with wrong number of arguments |
-| `Builtin/Helper.fs:93,97` | `loopDiffWinders` with mismatched lengths |
+| File | Context |
+|------|---------|
+| `Read.fs` | Parser character class fallback |
+| `Context.fs` | Initial exception handler with wrong number of arguments |
+| `Builtin/Helper.fs` | `loopDiffWinders` with mismatched lengths |
+| `Print.fs` | CPS printer cycle/formatting branches |
 
 ### Pitfall
 
@@ -476,7 +477,7 @@ If a pattern variable does not appear in a particular iteration's bindings (e.g.
 
 ### Symptom
 
-`decodePair` (Macro.fs line 15–18) converts a pair tree into a list of elements plus an optional tail:
+`decodePair` (Macro.fs) converts a pair tree into a list of elements plus an optional tail:
 
 ```fsharp
 let rec decodePair acc =
@@ -587,7 +588,7 @@ In Scheme, `string-upcase` should follow Unicode's Default Case Conversion, whic
 
 ### Symptom
 
-`realToRational` (Type.fs line 147–167) converts a float to the nearest exact rational by formatting it with `%.17g` and parsing the decimal representation:
+`realToRational` (Type.fs) converts a float to the nearest exact rational by formatting it with `%.17g` and parsing the decimal representation:
 
 ```fsharp
 let s = sprintf "%.17g" r

@@ -17,7 +17,7 @@ A R7RS (Small) Scheme interpreter written in F#. Features a Continuation-Passing
 
 ## Requirements
 
-- .NET 8.0 SDK
+- .NET 10.0 SDK
 
 ## Build & Run
 

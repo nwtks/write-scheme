@@ -473,7 +473,7 @@ type SNumber = NRational of bigint * bigint | NReal of float | NComplex of Compl
 | Conversion overhead | ❌ Must convert SExpression → SNumber → SExpression | ✅ Direct match on SExpressionKind |
 | Code duplication | ✅ `add`/`sub`/`mul`/`div` are single functions | ❌ Repeated type-checking in each operation |
 | Cyclomatic complexity | ✅ `loopCalc`: 93 → 10 | ❌ Very high per-operation complexity |
-| File organization | ✅ Separate `Number.fs` (159 lines) + `Math.fs` (790 lines) | ✅ Single file |
+| File organization | ✅ Separate `Number.fs` + `Math.fs` | ✅ Single file |
 
 ### Rationale
 

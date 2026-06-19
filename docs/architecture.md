@@ -28,30 +28,30 @@ This document describes the internal architecture of the Scheme interpreter.
 ```
 write-scheme/                     # Interpreter core (F# executable)
 ├── Type.fs                       # SExpression type definitions, constructors, utilities
-├── Read.fs                       # FParsec-based parser (418 lines)
-├── DatumLabel.fs                 # #N= / #N# datum label resolution (127 lines)
-├── Print.fs                      # S-expression serializer (226 lines)
-├── Context.fs                    # Execution context: environments, libraries, winders, handlers (111 lines)
-├── Eval.fs                       # CPS evaluator: eval / apply / eachEval (173 lines)
+├── Read.fs                       # FParsec-based parser
+├── DatumLabel.fs                 # #N= / #N# datum label resolution
+├── Print.fs                      # S-expression serializer
+├── Context.fs                    # Execution context: environments, libraries, winders, handlers
+├── Eval.fs                       # CPS evaluator: eval / apply / eachEval
 ├── Builtin/
-│   ├── Helper.fs                 # Shared helpers: invalid, mapResult, doWind, getRange, eqv (184 lines)
-│   ├── SpecialForm.fs            # All special forms: lambda, if, cond, let, define, ... (1416 lines)
-│   ├── Macro.fs                  # syntax-rules hygienic macro engine (563 lines)
-│   ├── Procedure.fs              # apply, map, for-each, call/cc, dynamic-wind (221 lines)
-│   ├── Core.fs                   # eqv?, equal? (105 lines)
-│   ├── Number.fs                 # SNumber type (NRational|NReal|NComplex) and unified arithmetic (159 lines)
-│   ├── Math.fs                   # Numeric tower operations (777 lines)
-│   ├── List.fs                   # Pair/list operations (290 lines)
-│   ├── Str.fs                    # String operations (205 lines)
-│   ├── Char.fs                   # Character operations (97 lines)
-│   ├── Vector.fs                 # Vector operations (122 lines)
-│   ├── ByteVector.fs             # Bytevector operations (102 lines)
-│   ├── Bool.fs                   # Boolean operations (30 lines)
-│   ├── Symbol.fs                 # Symbol operations (36 lines)
-│   ├── Promise.fs                # delay / force (39 lines)
-│   ├── SavedParameter.fs         # make-parameter / parameterize (90 lines)
-│   └── Exception.fs              # with-exception-handler, raise, guard (74 lines)
-├── Builtin.fs                    # builtinBindings registry + builtinContext (268 lines)
+│   ├── Helper.fs                 # Shared helpers: invalid, mapResult, doWind, getRange, eqv
+│   ├── SpecialForm.fs            # All special forms: lambda, if, cond, let, define, ...
+│   ├── Macro.fs                  # syntax-rules hygienic macro engine
+│   ├── Procedure.fs              # apply, map, for-each, call/cc, dynamic-wind
+│   ├── Core.fs                   # eqv?, equal?
+│   ├── Number.fs                 # SNumber type (NRational|NReal|NComplex) and unified arithmetic
+│   ├── Math.fs                   # Numeric tower operations
+│   ├── List.fs                   # Pair/list operations
+│   ├── Str.fs                    # String operations
+│   ├── Char.fs                   # Character operations
+│   ├── Vector.fs                 # Vector operations
+│   ├── ByteVector.fs             # Bytevector operations
+│   ├── Bool.fs                   # Boolean operations
+│   ├── Symbol.fs                 # Symbol operations
+│   ├── Promise.fs                # delay / force
+│   ├── SavedParameter.fs         # make-parameter / parameterize
+│   └── Exception.fs              # with-exception-handler, raise, guard
+├── Builtin.fs                    # builtinBindings registry + builtinContext
 ├── Repl.fs                       # rep function + REPL loop
 ├── Program.fs                    # Entry point
 └── write-scheme.fsproj           # Project file (depends on FParsec only)
@@ -452,7 +452,7 @@ The second element of the tuple is an optional `SExpression option` that can hol
 
 ### 9.2 Special Forms (`Builtin/SpecialForm.fs`)
 
-This is the largest file (1415 lines) containing the implementation of all special forms:
+The largest file containing the implementation of all special forms:
 
 | Special Form | Implementation | Key Behavior |
 |---|---|---|
@@ -485,6 +485,7 @@ This is the largest file (1415 lines) containing the implementation of all speci
 | `define-record-type` | `sDefineRecordType` | Record type definition (R7RS) |
 | `define-library` | `sDefineLibrary` | Library definition (R7RS) |
 | `include`, `include-ci` | `sInclude`, `sIncludeCi` | File inclusion |
+| `cond-expand` | `sCondExpand` | Feature-based conditional expansion |
 
 ### 9.3 Procedure Categories
 
@@ -707,4 +708,4 @@ The `dotnet test` output includes coverage data — check after every change.
 
 Functions exceeding 15 complexity are typically those with large `match` expressions on `SExpressionKind` (e.g., `eqv`, `loopEqual`). These are refactored incrementally by extracting helpers, using or-patterns, or introducing intermediate types.
 
-`SpecialForm.fs` (1400+ lines, 30+ special forms) is the most complexity-sensitive area. New special forms should be added as separate functions rather than extending existing ones.
+`SpecialForm.fs` (the largest file, 30+ special forms) is the most complexity-sensitive area. New special forms should be added as separate functions rather than extending existing ones.
