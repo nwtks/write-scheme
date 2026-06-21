@@ -7,6 +7,46 @@ let newRep () =
     WriteScheme.Repl.newContext () |> WriteScheme.Repl.rep
 
 [<Fact>]
+let ``guard`` () =
+    let rep = newRep ()
+
+    "(guard (condition
+             (else 'caught))
+       (+ 1 2))"
+    |> rep
+    |> should equal "3"
+
+    "(guard (condition
+             (else condition))
+       (raise 'error-happened))"
+    |> rep
+    |> should equal "error-happened"
+
+    "(guard (condition
+             ((eq? condition 'foo) 'matched-foo)
+             ((eq? condition 'bar) 'matched-bar)
+             (else 'fallback))
+       (raise 'bar))"
+    |> rep
+    |> should equal "matched-bar"
+
+    "(guard (condition
+             ((eq? condition 'foo) 'matched))
+       (raise 'bar))"
+    |> rep
+    |> should equal "bar"
+
+[<Fact>]
+let ``guard re-raise`` () =
+    let rep = newRep ()
+
+    "(guard (e ((eq? e 'not-found) 'caught))
+       (guard (e ((eq? e 'foo) 'matched))
+         (raise 'not-found)))"
+    |> rep
+    |> should equal "caught"
+
+[<Fact>]
 let ``with-exception-handler`` () =
     let rep = newRep ()
 
@@ -41,6 +81,10 @@ let ``with-exception-handler`` () =
     |> rep
     |> should equal "111"
 
+    "(with-exception-handler 1)"
+    |> rep
+    |> should startWith "'(1)' invalid with-exception-handler parameter"
+
 [<Fact>]
 let ``error and error-object?`` () =
     let rep = newRep ()
@@ -63,6 +107,21 @@ let ``error and error-object?`` () =
     |> rep
     |> should equal "#f"
 
+    "(error)" |> rep |> should startWith "'()' invalid error parameter"
+    "(error 1)" |> rep |> should startWith "'(1)' invalid error parameter"
+
+    "(error-object? 1 2)"
+    |> rep
+    |> should startWith "'(1 2)' invalid error-object? parameter"
+
+    "(error-object-message 1)"
+    |> rep
+    |> should startWith "'(1)' invalid error-object-message parameter"
+
+    "(error-object-irritants 1)"
+    |> rep
+    |> should startWith "'(1)' invalid error-object-irritants parameter"
+
 [<Fact>]
 let ``raise vs raise-continuable`` () =
     let rep = newRep ()
@@ -79,6 +138,17 @@ let ``raise vs raise-continuable`` () =
     |> rep
     |> should startWith "Exception handler returned."
 
+    "(raise)" |> rep |> should startWith "'()' invalid raise parameter"
+    "(raise 1 2)" |> rep |> should startWith "'(1 2)' invalid raise parameter"
+
+    "(raise-continuable)"
+    |> rep
+    |> should startWith "'()' invalid raise-continuable parameter"
+
+    "(raise-continuable 1 2)"
+    |> rep
+    |> should startWith "'(1 2)' invalid raise-continuable parameter"
+
 [<Fact>]
 let ``raise-continuable multiple values`` () =
     let rep = newRep ()
@@ -91,49 +161,3 @@ let ``raise-continuable multiple values`` () =
        list)"
     |> rep
     |> should equal "(a b)"
-
-[<Fact>]
-let ``guard re-raise`` () =
-    let rep = newRep ()
-
-    "(guard (e ((eq? e 'not-found) 'caught))
-       (guard (e ((eq? e 'foo) 'matched))
-         (raise 'not-found)))"
-    |> rep
-    |> should equal "caught"
-
-[<Fact>]
-let ``exception handler error paths`` () =
-    let rep = newRep ()
-
-    "(with-exception-handler 1)"
-    |> rep
-    |> should startWith "'(1)' invalid with-exception-handler parameter"
-
-    "(raise)" |> rep |> should startWith "'()' invalid raise parameter"
-
-    "(raise 1 2)" |> rep |> should startWith "'(1 2)' invalid raise parameter"
-
-    "(raise-continuable)"
-    |> rep
-    |> should startWith "'()' invalid raise-continuable parameter"
-
-    "(raise-continuable 1 2)"
-    |> rep
-    |> should startWith "'(1 2)' invalid raise-continuable parameter"
-
-    "(error)" |> rep |> should startWith "'()' invalid error parameter"
-
-    "(error 1)" |> rep |> should startWith "'(1)' invalid error parameter"
-
-    "(error-object? 1 2)"
-    |> rep
-    |> should startWith "'(1 2)' invalid error-object? parameter"
-
-    "(error-object-message 1)"
-    |> rep
-    |> should startWith "'(1)' invalid error-object-message parameter"
-
-    "(error-object-irritants 1)"
-    |> rep
-    |> should startWith "'(1)' invalid error-object-irritants parameter"

@@ -4,7 +4,7 @@ open WriteScheme
 open Type
 
 [<AutoOpen>]
-module SavedParameter =
+module DynamicBinding =
     type SavedParameter =
         { Ref: SExpression ref
           SavedValue: SExpression ref }
@@ -78,6 +78,14 @@ module SavedParameter =
                     parameters
                     |> loopParameterize context pos cont body ((paramVal, ref newVal, ref oldVal) :: acc)
             | x -> x |> cont)
+
+    let sParameterize context pos cont =
+        function
+        | parameters :: body ->
+            match parameters |> parseParamBindings with
+            | Ok parameters' -> parameters' |> loopParameterize context pos cont body []
+            | Error e -> Error e |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid parameterize parameter." |> cont
 
     let sMakeParameter context pos cont =
         function

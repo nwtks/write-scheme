@@ -5,6 +5,51 @@ open Type
 
 [<AutoOpen>]
 module Exception =
+    let evalGuardClauses context pos cont variable savedWinders raised =
+        function
+        | Ok clauses ->
+            let hasElse =
+                match clauses |> List.tryLast with
+                | Some(SPair { car = SSymbol "else", _; cdr = _ }, _) -> true
+                | _ -> false
+
+            let clauses' =
+                if hasElse then
+                    clauses
+                else
+                    clauses
+                    @ [ [ SSymbol "else", pos; [ SSymbol "raise", pos; SQuote raised, pos ] |> toSPair ]
+                        |> toSPair ]
+
+            doWind
+                context
+                (fun _ ->
+                    let context' = [ variable, ref raised ] |> Context.extendEnvironments context
+                    clauses' |> sCond context' pos cont)
+                savedWinders
+                (Ok(SUnspecified, pos))
+        | Error e -> Error e |> cont
+
+    let sGuard context pos cont =
+        function
+        | (SPair { car = SSymbol variable, _
+                   cdr = clauses },
+           _) :: body ->
+            let savedWinders = context.winders.Value
+
+            body
+            |> Eval.evalBody
+                context
+                (function
+                | Ok res -> Ok res |> cont
+                | Error(SchemeRaise(raised, _)) ->
+                    clauses
+                    |> toList
+                    |> evalGuardClauses context pos cont variable savedWinders raised
+                | x -> x |> cont)
+                (Ok(SEmpty, pos))
+        | x -> x |> invalidParameter pos "'%s' invalid guard parameter." |> cont
+
     let sWithExceptionHandler context pos cont =
         function
         | [ handler; thunk ] ->

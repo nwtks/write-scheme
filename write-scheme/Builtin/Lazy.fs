@@ -4,7 +4,21 @@ open WriteScheme
 open Type
 
 [<AutoOpen>]
-module Promise =
+module Lazy =
+    let makeLazyPromise context pos expression =
+        let thunk = closure context (SEmpty, pos) [ expression ]
+        SPromise(ref (false, (SProcedure thunk, pos))), pos
+
+    let sDelay context pos cont =
+        function
+        | [ expression ] -> expression |> makeLazyPromise context pos |> Ok |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid delay parameter." |> cont
+
+    let sDelayForce context pos cont =
+        function
+        | [ expression ] -> expression |> makeLazyPromise context pos |> Ok |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid delay-force parameter." |> cont
+
     let isPromise context pos cont =
         function
         | [ SPromise _, _ ] -> Ok(STrue, pos) |> cont

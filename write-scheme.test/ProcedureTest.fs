@@ -248,6 +248,49 @@ let ``call-with-values`` () =
     |> should equal "(values 2 1)"
 
 [<Fact>]
+let ``values and call-with-values`` () =
+    let newRep () =
+        WriteScheme.Repl.newContext () |> WriteScheme.Repl.rep
+
+    let rep = newRep ()
+
+    "(call-with-values (lambda () (values 1 2)) +)" |> rep |> should equal "3"
+
+    "(call-with-values (lambda () (values 4 5)) (lambda (a b) b))"
+    |> rep
+    |> should equal "5"
+
+    "(call-with-values (lambda () 42) (lambda (x) x))" |> rep |> should equal "42"
+
+    "(call-with-values (lambda () (begin 1 (values 2 3))) +)"
+    |> rep
+    |> should equal "5"
+
+    "(call-with-values (lambda () (let ((x 1)) (values x 2))) +)"
+    |> rep
+    |> should equal "3"
+
+    "(call-with-values (lambda () (if #t (values 1 2) 3)) +)"
+    |> rep
+    |> should equal "3"
+
+    "(call-with-values (lambda () (do ((i 0 (+ i 1))) ((= i 3) (values 1 2)))) +)"
+    |> rep
+    |> should equal "3"
+
+    "(call-with-values (lambda () (cond (#t => (lambda (x) (values 1 2))))) +)"
+    |> rep
+    |> should equal "3"
+
+    "(+ 1 (values 2 3))"
+    |> rep
+    |> should startWith "Multiple values in single value context"
+
+    "(list (values 1 2))"
+    |> rep
+    |> should startWith "Multiple values in single value context"
+
+[<Fact>]
 let ``call/cc multi-values`` () =
     let rep = newRep ()
 

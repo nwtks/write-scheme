@@ -87,24 +87,6 @@ let ``syntax-rules literal keywords`` () =
     "(my-cond (else 99))" |> rep |> should equal "99"
 
 [<Fact>]
-let ``syntax-error`` () =
-    let rep = newRep ()
-
-    "(syntax-error \"test error\" 1 2)"
-    |> rep
-    |> should equal "#<error \"test error\" 1 2>"
-
-    "(define-syntax check-positive
-       (syntax-rules ()
-         ((check-positive x)
-          (if (> x 0) x (syntax-error \"not positive\" x)))))"
-    |> rep
-    |> ignore
-
-    "(check-positive 1)" |> rep |> should equal "1"
-    "(check-positive -1)" |> rep |> should equal "#<error \"not positive\" -1>"
-
-[<Fact>]
 let ``syntax-rules hygiene shadowing`` () =
     let rep = newRep ()
 
@@ -289,33 +271,6 @@ let ``ellipsis literal template`` () =
     "(lit-tmpl 1 2 3)" |> rep |> should equal "(x ...)"
 
 [<Fact>]
-let ``let-syntax basic`` () =
-    let rep = newRep ()
-
-    "(let-syntax ((given-that (syntax-rules ()
-                               ((_ test body) (if test body)))))
-       (given-that #t 'yes))"
-    |> rep
-    |> should equal "yes"
-
-    "(let-syntax ((my-macro (syntax-rules () ((_ x) (+ x 1)))))
-       (my-macro 10))"
-    |> rep
-    |> should equal "11"
-
-[<Fact>]
-let ``letrec-syntax recursive`` () =
-    let rep = newRep ()
-
-    "(letrec-syntax ((my-or (syntax-rules ()
-                               ((my-or) #f)
-                               ((my-or x) x)
-                               ((my-or x y ...) (let ((temp x)) (if temp temp (my-or y ...)))))))
-       (my-or #f #f 42))"
-    |> rep
-    |> should equal "42"
-
-[<Fact>]
 let ``recursive macro definition`` () =
     let rep = newRep ()
 
@@ -353,3 +308,70 @@ let ``underscore wildcard`` () =
 
     "(check-underscore 1)" |> rep |> should equal "#t"
     "(check-underscore (1 2))" |> rep |> should equal "#t"
+
+[<Fact>]
+let ``let-syntax`` () =
+    let rep = newRep ()
+
+    "(let-syntax ((when (syntax-rules ()
+                          ((when test stmt1 stmt2 ...)
+                           (if test
+                               (begin stmt1 stmt2 ...))))))
+       (let ((x #t))
+         (when x (set! x 'now))
+         x))"
+    |> rep
+    |> should equal "now"
+
+    "(let-syntax ((given-that (syntax-rules ()
+                               ((_ test body) (if test body)))))
+       (given-that #t 'yes))"
+    |> rep
+    |> should equal "yes"
+
+    "(let-syntax ((my-macro (syntax-rules () ((_ x) (+ x 1)))))
+       (my-macro 10))"
+    |> rep
+    |> should equal "11"
+
+[<Fact>]
+let ``letrec-syntax`` () =
+    let rep = newRep ()
+
+    "(letrec-syntax ((my-or (syntax-rules ()
+                              ((my-or) #f)
+                              ((my-or e) e)
+                              ((my-or e1 e2 ...)
+                               (let ((temp e1))
+                                 (if temp temp (my-or e2 ...)))))))
+       (my-or #f #f 1 2))"
+    |> rep
+    |> should equal "1"
+
+    "(letrec-syntax ((my-or (syntax-rules ()
+                               ((my-or) #f)
+                               ((my-or x) x)
+                               ((my-or x y ...) (let ((temp x)) (if temp temp (my-or y ...)))))))
+       (my-or #f #f 42))"
+    |> rep
+    |> should equal "42"
+
+[<Fact>]
+let ``syntax-error`` () =
+    let rep = newRep ()
+
+    "(syntax-error \"test error\" 1 2)"
+    |> rep
+    |> should equal "#<error \"test error\" 1 2>"
+
+    "(syntax-error \"msg\" #1=1 #1#)" |> rep |> should equal "#<error \"msg\" 1 1>"
+
+    "(define-syntax check-positive
+       (syntax-rules ()
+         ((check-positive x)
+          (if (> x 0) x (syntax-error \"not positive\" x)))))"
+    |> rep
+    |> ignore
+
+    "(check-positive 1)" |> rep |> should equal "1"
+    "(check-positive -1)" |> rep |> should equal "#<error \"not positive\" -1>"
