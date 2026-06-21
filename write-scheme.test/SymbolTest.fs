@@ -13,6 +13,7 @@ let ``symbol?`` () =
     "(symbol? 'nil)" |> rep |> should equal "#t"
     "(symbol? '())" |> rep |> should equal "#f"
     "(symbol? #f)" |> rep |> should equal "#f"
+
     "(symbol? 'a 'b)" |> rep |> should startWith "'(a b)' invalid symbol? parameter"
 
 [<Fact>]
@@ -24,6 +25,7 @@ let ``symbol=?`` () =
     "(symbol=? 'abc 'ABC)" |> rep |> should equal "#f"
     "(symbol=? 'foo)" |> rep |> should equal "#t"
     "(symbol=?)" |> rep |> should equal "#t"
+
     "(symbol=? 'a 1)" |> rep |> should startWith "'1' is not a symbol in symbol=?"
 
 [<Fact>]

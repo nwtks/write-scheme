@@ -11,6 +11,8 @@ let ``pair?`` () =
     "(pair? '(a b c))" |> rep |> should equal "#t"
     "(pair? '())" |> rep |> should equal "#f"
 
+    "(pair? 1 2)" |> rep |> should startWith "'(1 2)' invalid pair? parameter"
+
 [<Fact>]
 let cons () =
     "(cons 'a '())" |> rep |> should equal "(a)"
@@ -20,6 +22,8 @@ let cons () =
     "(cons '(a b) 'c)" |> rep |> should equal "((a b) . c)"
     "(cons 'a '(b . c))" |> rep |> should equal "(a b . c)"
 
+    "(cons 1)" |> rep |> should startWith "'(1)' invalid cons parameter"
+
 [<Fact>]
 let car () =
     "(car '(a b c))" |> rep |> should equal "a"
@@ -27,12 +31,20 @@ let car () =
     "(car '(1 . 2))" |> rep |> should equal "1"
     "(car '(1 2 . 3))" |> rep |> should equal "1"
 
+    "(car)" |> rep |> should startWith "'()' invalid car parameter"
+    "(car 1 2)" |> rep |> should startWith "'(1 2)' invalid car parameter"
+    "(car 'a)" |> rep |> should startWith "'a' invalid car parameter"
+
 [<Fact>]
 let cdr () =
     "(cdr '(a b c))" |> rep |> should equal "(b c)"
     "(cdr '((a) b c d))" |> rep |> should equal "(b c d)"
     "(cdr '(1 . 2))" |> rep |> should equal "2"
     "(cdr '(1 2 . 3))" |> rep |> should equal "(2 . 3)"
+
+    "(cdr)" |> rep |> should startWith "'()' invalid cdr parameter"
+    "(cdr 1 2)" |> rep |> should startWith "'(1 2)' invalid cdr parameter"
+    "(cdr 'a)" |> rep |> should startWith "'a' invalid cdr parameter"
 
 [<Fact>]
 let ``set-car!`` () =
@@ -46,6 +58,12 @@ let ``set-car!`` () =
     "(let* ((x (list 'a 'b 'c)) (y (cdr x))) (set-car! y 'z) x)"
     |> rep
     |> should equal "(a z c)"
+
+    "(set-car! 1)" |> rep |> should startWith "'(1)' invalid set-car! parameter"
+
+    "(set-car! 1 2 3)"
+    |> rep
+    |> should startWith "'(1 2 3)' invalid set-car! parameter"
 
 [<Fact>]
 let ``set-cdr!`` () =
@@ -62,6 +80,12 @@ let ``set-cdr!`` () =
     |> rep
     |> should equal "(1 2 3 4 ...)"
 
+    "(set-cdr! 1)" |> rep |> should startWith "'(1)' invalid set-cdr! parameter"
+
+    "(set-cdr! 1 2 3)"
+    |> rep
+    |> should startWith "'(1 2 3)' invalid set-cdr! parameter"
+
 [<Fact>]
 let ``c...r`` () =
     "(caar '((1 2) 3))" |> rep |> should equal "1"
@@ -69,11 +93,30 @@ let ``c...r`` () =
     "(cdar '((1 2) 3))" |> rep |> should equal "(2)"
     "(cddr '(1 2 3))" |> rep |> should equal "(3)"
 
+    "(caar)" |> rep |> should startWith "'()' invalid caar parameter"
+    "(caar)" |> rep |> should startWith "'()' invalid caar parameter"
+    "(caar 1 2)" |> rep |> should startWith "'(1 2)' invalid caar parameter"
+    "(caar 1)" |> rep |> should startWith "'1' invalid car parameter"
+
+    "(cadr)" |> rep |> should startWith "'()' invalid cadr parameter"
+    "(cadr 1 2)" |> rep |> should startWith "'(1 2)' invalid cadr parameter"
+    "(cadr 1)" |> rep |> should startWith "'1' invalid cdr parameter"
+
+    "(cdar)" |> rep |> should startWith "'()' invalid cdar parameter"
+    "(cdar 1 2)" |> rep |> should startWith "'(1 2)' invalid cdar parameter"
+    "(cdar 1)" |> rep |> should startWith "'1' invalid car parameter"
+
+    "(cddr)" |> rep |> should startWith "'()' invalid cddr parameter"
+    "(cddr 1 2)" |> rep |> should startWith "'(1 2)' invalid cddr parameter"
+    "(cddr 1)" |> rep |> should startWith "'1' invalid cdr parameter"
+
 [<Fact>]
 let ``null?`` () =
     "(null? '(a . b))" |> rep |> should equal "#f"
     "(null? '(a b c))" |> rep |> should equal "#f"
     "(null? '())" |> rep |> should equal "#t"
+
+    "(null? 1 2)" |> rep |> should startWith "'(1 2)' invalid null? parameter"
 
 [<Fact>]
 let ``list?`` () =
@@ -81,6 +124,8 @@ let ``list?`` () =
     "(list? '(a b c))" |> rep |> should equal "#t"
     "(list? '())" |> rep |> should equal "#t"
     "(let ((x (list 'a))) (set-cdr! x x) (list? x))" |> rep |> should equal "#f"
+
+    "(list? 1 2)" |> rep |> should startWith "'(1 2)' invalid list? parameter"
 
 [<Fact>]
 let ``make-list`` () =
@@ -92,6 +137,12 @@ let ``make-list`` () =
     "(make-list 2.5)"
     |> rep
     |> should startWith "'(2.5)' invalid make-list parameter"
+
+    "(make-list)" |> rep |> should startWith "'()' invalid make-list parameter"
+
+    "(make-list 1 2 3)"
+    |> rep
+    |> should startWith "'(1 2 3)' invalid make-list parameter"
 
 [<Fact>]
 let list () =
@@ -110,6 +161,8 @@ let ``length`` () =
 
     "(length 'a)" |> rep |> should startWith "'a' not a proper list."
     "(length '(a . b))" |> rep |> should startWith "'(a . b)' not a proper list."
+    "(length)" |> rep |> should startWith "'()' invalid length parameter"
+    "(length 1 2)" |> rep |> should startWith "'(1 2)' invalid length parameter"
 
 [<Fact>]
 let append () =
@@ -129,11 +182,19 @@ let append () =
     "(append '() '() '())" |> rep |> should equal "()"
     "(append '(1) '(2) '())" |> rep |> should equal "(1 2)"
 
+    "(append '(1 . 2) '(3) '(4))" |> rep |> should startWith "not a proper list"
+
 [<Fact>]
 let ``reverse`` () =
     "(reverse '(a b c))" |> rep |> should equal "(c b a)"
     "(reverse '(a (b c) d (e (f))))" |> rep |> should equal "((e (f)) d (b c) a)"
     "(reverse '())" |> rep |> should equal "()"
+
+    "(reverse 1 2)" |> rep |> should startWith "'(1 2)' invalid reverse parameter"
+
+    "(reverse '(a . b))"
+    |> rep
+    |> should startWith "'b' is not a proper list in reverse"
 
 [<Fact>]
 let ``list-tail`` () =
@@ -148,6 +209,10 @@ let ``list-tail`` () =
     |> rep
     |> should startWith "'()' invalid list-tail parameter"
 
+    "(list-tail 1 2 3)"
+    |> rep
+    |> should startWith "'(1 2 3)' invalid list-tail parameter"
+
 [<Fact>]
 let ``list-ref`` () =
     "(list-ref '(a b c d) 2)" |> rep |> should equal "c"
@@ -158,6 +223,10 @@ let ``list-ref`` () =
     "(list-ref '(a b c) -1)"
     |> rep
     |> should startWith "'((a b c) -1)' invalid list-ref parameter"
+
+    "(list-ref 1 2 3)"
+    |> rep
+    |> should startWith "'(1 2 3)' invalid list-ref parameter"
 
 [<Fact>]
 let ``list-set!`` () =
@@ -173,6 +242,10 @@ let ``list-set!`` () =
     |> rep
     |> should startWith "'((a b c) -1 z)' invalid list-set! parameter."
 
+    "(list-set! 1 2)"
+    |> rep
+    |> should startWith "'(1 2)' invalid list-set! parameter"
+
 [<Fact>]
 let ``memq`` () =
     "(memq 'a '(a b c))" |> rep |> should equal "(a b c)"
@@ -185,9 +258,13 @@ let ``memq`` () =
     "(memq 'a '(a b . c))" |> rep |> should equal "(a b . c)"
     "(memq 'c '(a b . c))" |> rep |> should equal "#f"
 
+    "(memq 1)" |> rep |> should startWith "'(1)' invalid memq parameter"
+
 [<Fact>]
 let ``memv`` () =
     "(memv 101 '(100 101 102))" |> rep |> should equal "(101 102)"
+
+    "(memv 1)" |> rep |> should startWith "'(1)' invalid memv parameter"
 
 [<Fact>]
 let ``member`` () =
@@ -199,6 +276,15 @@ let ``member`` () =
 
     "(member 2.0 '(1 2 3) =)" |> rep |> should equal "(2 3)"
     "(member 2.0 '(1 2 3) eqv?)" |> rep |> should equal "#f"
+    "(member 'a 'b)" |> rep |> should equal "#f"
+    "(member 1 'a eqv?)" |> rep |> should equal "#f"
+    "(member 1 '(2 3) (lambda (x y) #f))" |> rep |> should equal "#f"
+
+    "(member 1)" |> rep |> should startWith "'(1)' invalid member parameter"
+
+    "(member 1 '(2 3) (lambda (x y) (car 1)))"
+    |> rep
+    |> should startWith "'1' invalid car parameter"
 
 [<Fact>]
 let ``assq`` () =
@@ -212,9 +298,13 @@ let ``assq`` () =
     "(assq 'a '((a 1) (b 2) . c))" |> rep |> should equal "(a 1)"
     "(assq 'c '((a 1) (b 2) . c))" |> rep |> should equal "#f"
 
+    "(assq 1)" |> rep |> should startWith "'(1)' invalid assq parameter"
+
 [<Fact>]
 let ``assv`` () =
     "(assv 5 '((2 3) (5 7) (11 13)))" |> rep |> should equal "(5 7)"
+
+    "(assv 1)" |> rep |> should startWith "'(1)' invalid assv parameter"
 
 [<Fact>]
 let ``assoc`` () =
@@ -228,6 +318,20 @@ let ``assoc`` () =
     |> rep
     |> should equal "(\"b\" 2)"
 
+    "(assoc 'a 'b)" |> rep |> should equal "#f"
+    "(assoc 1 '((2)) (lambda (x y) #f))" |> rep |> should equal "#f"
+    "(assoc 2 '((2 3)) (lambda (x y) (= x y)))" |> rep |> should equal "(2 3)"
+    "(assoc 1 2 eqv?)" |> rep |> should equal "#f"
+
+    "(assoc 1)" |> rep |> should startWith "'(1)' invalid assoc parameter"
+    "(assoc 1 '(2))" |> rep |> should startWith "'2' invalid car parameter"
+
+    "(assoc 1 '((2 3)) (lambda (x y) (car 1)))"
+    |> rep
+    |> should startWith "'1' invalid car parameter"
+
+    "(assoc 1 '(2) eqv?)" |> rep |> should startWith "'2' invalid car parameter"
+
 [<Fact>]
 let ``list-copy`` () =
     "(list-copy '(a b c))" |> rep |> should equal "(a b c)"
@@ -235,136 +339,6 @@ let ``list-copy`` () =
     "(list-copy 'a)" |> rep |> should equal "a"
     "(list-copy '())" |> rep |> should equal "()"
 
-[<Fact>]
-let ``arity errors`` () =
-    "(cons 1)" |> rep |> should startWith "'(1)' invalid cons parameter"
-    "(car)" |> rep |> should startWith "'()' invalid car parameter"
-    "(car 1 2)" |> rep |> should startWith "'(1 2)' invalid car parameter"
-    "(cdr)" |> rep |> should startWith "'()' invalid cdr parameter"
-    "(cdr 1 2)" |> rep |> should startWith "'(1 2)' invalid cdr parameter"
-    "(set-car! 1)" |> rep |> should startWith "'(1)' invalid set-car! parameter"
-
-    "(set-car! 1 2 3)"
-    |> rep
-    |> should startWith "'(1 2 3)' invalid set-car! parameter"
-
-    "(set-cdr! 1)" |> rep |> should startWith "'(1)' invalid set-cdr! parameter"
-
-    "(set-cdr! 1 2 3)"
-    |> rep
-    |> should startWith "'(1 2 3)' invalid set-cdr! parameter"
-
-    "(caar)" |> rep |> should startWith "'()' invalid caar parameter"
-    "(caar)" |> rep |> should startWith "'()' invalid caar parameter"
-    "(caar 1 2)" |> rep |> should startWith "'(1 2)' invalid caar parameter"
-    "(cadr)" |> rep |> should startWith "'()' invalid cadr parameter"
-    "(cadr 1 2)" |> rep |> should startWith "'(1 2)' invalid cadr parameter"
-    "(cdar)" |> rep |> should startWith "'()' invalid cdar parameter"
-    "(cdar 1 2)" |> rep |> should startWith "'(1 2)' invalid cdar parameter"
-    "(cddr)" |> rep |> should startWith "'()' invalid cddr parameter"
-    "(cddr 1 2)" |> rep |> should startWith "'(1 2)' invalid cddr parameter"
-    "(null? 1 2)" |> rep |> should startWith "'(1 2)' invalid null? parameter"
-    "(list? 1 2)" |> rep |> should startWith "'(1 2)' invalid list? parameter"
-    "(make-list)" |> rep |> should startWith "'()' invalid make-list parameter"
-
-    "(make-list 1 2 3)"
-    |> rep
-    |> should startWith "'(1 2 3)' invalid make-list parameter"
-
-    "(length)" |> rep |> should startWith "'()' invalid length parameter"
-    "(length 1 2)" |> rep |> should startWith "'(1 2)' invalid length parameter"
-    "(reverse 1 2)" |> rep |> should startWith "'(1 2)' invalid reverse parameter"
-
-    "(list-tail 1 2 3)"
-    |> rep
-    |> should startWith "'(1 2 3)' invalid list-tail parameter"
-
-    "(list-ref 1 2 3)"
-    |> rep
-    |> should startWith "'(1 2 3)' invalid list-ref parameter"
-
-    "(list-set! 1 2)"
-    |> rep
-    |> should startWith "'(1 2)' invalid list-set! parameter"
-
-    "(memq 1)" |> rep |> should startWith "'(1)' invalid memq parameter"
-    "(memv 1)" |> rep |> should startWith "'(1)' invalid memv parameter"
-    "(member 1)" |> rep |> should startWith "'(1)' invalid member parameter"
-    "(assq 1)" |> rep |> should startWith "'(1)' invalid assq parameter"
-    "(assv 1)" |> rep |> should startWith "'(1)' invalid assv parameter"
-    "(assoc 1)" |> rep |> should startWith "'(1)' invalid assoc parameter"
-
     "(list-copy 1 2)"
     |> rep
     |> should startWith "'(1 2)' invalid list-copy parameter"
-
-[<Fact>]
-let ``car cdr type errors`` () =
-    "(car 'a)" |> rep |> should startWith "'a' invalid car parameter"
-    "(cdr 'a)" |> rep |> should startWith "'a' invalid cdr parameter"
-    "(caar 1)" |> rep |> should startWith "'1' invalid car parameter"
-    "(cadr 1)" |> rep |> should startWith "'1' invalid cdr parameter"
-    "(cdar 1)" |> rep |> should startWith "'1' invalid car parameter"
-    "(cddr 1)" |> rep |> should startWith "'1' invalid cdr parameter"
-
-[<Fact>]
-let ``reverse improper list error`` () =
-    "(reverse '(a . b))"
-    |> rep
-    |> should startWith "'b' is not a proper list in reverse"
-
-[<Fact>]
-let ``member non-list`` () =
-    "(member 'a 'b)" |> rep |> should equal "#f"
-
-[<Fact>]
-let ``member 3-arg non-list fallback`` () =
-    "(member 1 'a eqv?)" |> rep |> should equal "#f"
-
-[<Fact>]
-let ``assoc non-list`` () =
-    "(assoc 'a 'b)" |> rep |> should equal "#f"
-
-[<Fact>]
-let ``member 3-arg no match`` () =
-    "(member 1 '(2 3) (lambda (x y) #f))" |> rep |> should equal "#f"
-
-[<Fact>]
-let ``assoc 3-arg no match`` () =
-    "(assoc 1 '((2)) (lambda (x y) #f))" |> rep |> should equal "#f"
-
-[<Fact>]
-let ``assoc 3-arg match`` () =
-    "(assoc 2 '((2 3)) (lambda (x y) (= x y)))" |> rep |> should equal "(2 3)"
-
-[<Fact>]
-let ``pair? arity`` () =
-    "(pair? 1 2)" |> rep |> should startWith "'(1 2)' invalid pair? parameter"
-
-[<Fact>]
-let ``append error path`` () =
-    "(append '(1 . 2) '(3) '(4))" |> rep |> should startWith "not a proper list"
-
-[<Fact>]
-let ``member 3-arg compare error`` () =
-    "(member 1 '(2 3) (lambda (x y) (car 1)))"
-    |> rep
-    |> should startWith "'1' invalid car parameter"
-
-[<Fact>]
-let ``assoc 2-arg non-pair entry`` () =
-    "(assoc 1 '(2))" |> rep |> should startWith "'2' invalid car parameter"
-
-[<Fact>]
-let ``assoc 3-arg compare error`` () =
-    "(assoc 1 '((2 3)) (lambda (x y) (car 1)))"
-    |> rep
-    |> should startWith "'1' invalid car parameter"
-
-[<Fact>]
-let ``assoc 3-arg non-pair entry error`` () =
-    "(assoc 1 '(2) eqv?)" |> rep |> should startWith "'2' invalid car parameter"
-
-[<Fact>]
-let ``assoc 3-arg non-list fallback`` () =
-    "(assoc 1 2 eqv?)" |> rep |> should equal "#f"

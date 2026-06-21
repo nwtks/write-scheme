@@ -45,6 +45,7 @@ let ``eqv?`` () =
     "(eqv? (cons 1 2) (cons 1 2))" |> rep |> should equal "#f"
     "(eqv? (lambda () 1) (lambda () 1))" |> rep |> should equal "#f"
     "(let ((p (lambda (x) x))) (eqv? p p))" |> rep |> should equal "#t"
+
     "(eqv? 'a)" |> rep |> should startWith "'(a)' invalid eqv? parameter"
 
     "(eqv? (values 1 2) (values 1 2))"

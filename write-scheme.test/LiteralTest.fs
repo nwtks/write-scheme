@@ -244,6 +244,7 @@ let bytevector () =
     "'#u8(1 2)" |> rep |> should equal "#u8(1 2)"
     "#U8(1 2)" |> rep |> should equal "#u8(1 2)"
     "#u8(  1   2   )" |> rep |> should equal "#u8(1 2)"
+
     "#u8(256)" |> rep |> should startWith "Error"
     "#u8(-1)" |> rep |> should startWith "Error"
     "#u8(1.0)" |> rep |> should startWith "Error"

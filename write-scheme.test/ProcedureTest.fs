@@ -49,7 +49,6 @@ let ``apply`` () =
     |> should equal "(1 (2 3 4))"
 
     "(apply + 1 2 3)" |> rep |> should startWith "'(1 2 3)' invalid apply parameter"
-
     "(apply)" |> rep |> should startWith "'()' invalid apply parameter"
 
 [<Fact>]
@@ -78,10 +77,10 @@ let ``map`` () =
     |> rep
     |> should equal "(3 2 3 2 1)"
 
+    "(map (lambda (x) (raise 1)) '(1 2))" |> rep |> should equal "1"
+
     "(map car)" |> rep |> should startWith "'(#<procedure>)' invalid map parameter"
-
     "(map)" |> rep |> should startWith "'()' invalid map parameter"
-
     "(map 1 '(1 2))" |> rep |> should startWith "'1' not operator"
 
 [<Fact>]
@@ -98,15 +97,14 @@ let ``string-map`` () =
     "(string-map (lambda (x y) x) \"🍎a\" \"bc\")" |> rep |> should equal "\"🍎a\""
     "(string-map (lambda (x y) x) \"abc\" \"de\")" |> rep |> should equal "\"ab\""
 
+    "(string-map (lambda (x) (raise 1)) \"abc\")" |> rep |> should equal "1"
+
     "(string-map char-upcase)"
     |> rep
     |> should startWith "'(#<procedure>)' invalid string-map parameter"
 
     "(string-map)" |> rep |> should startWith "'()' invalid string-map parameter"
-
     "(string-map 1 \"abc\")" |> rep |> should startWith "'1' not operator"
-
-    "(string-map (lambda (x) (raise 1)) \"abc\")" |> rep |> should equal "1"
 
 [<Fact>]
 let ``vector-map`` () =
@@ -118,15 +116,14 @@ let ``vector-map`` () =
     |> rep
     |> should equal "#(11 22 33)"
 
+    "(vector-map (lambda (x) (raise 1)) '#(1 2))" |> rep |> should equal "1"
+
     "(vector-map vector-ref)"
     |> rep
     |> should startWith "'(#<procedure>)' invalid vector-map parameter"
 
     "(vector-map)" |> rep |> should startWith "'()' invalid vector-map parameter"
-
     "(vector-map 1 '#(1 2))" |> rep |> should startWith "'1' not operator"
-
-    "(vector-map (lambda (x) (raise 1)) '#(1 2))" |> rep |> should equal "1"
 
 [<Fact>]
 let ``for-each`` () =
@@ -147,17 +144,14 @@ let ``for-each`` () =
     |> rep
     |> should equal "(33 22 11)"
 
+    "(for-each (lambda (x) (raise 1)) '(1 2))" |> rep |> should equal "1"
+
+    "(for-each 1 '(1 2))" |> rep |> should startWith "'1' not operator"
     "(for-each)" |> rep |> should startWith "'()' invalid for-each parameter"
 
     "(for-each car)"
     |> rep
     |> should startWith "'(#<procedure>)' invalid for-each parameter"
-
-    "(for-each 1 '(1 2))" |> rep |> should startWith "'1' not operator"
-
-    "(map (lambda (x) (raise 1)) '(1 2))" |> rep |> should equal "1"
-
-    "(for-each (lambda (x) (raise 1)) '(1 2))" |> rep |> should equal "1"
 
 [<Fact>]
 let ``string-for-each`` () =
@@ -225,6 +219,8 @@ let ``call-with-current-continuation`` () =
     "(list-length '(a b c d))" |> rep |> should equal "4"
     "(list-length '(a b . c))" |> rep |> should equal "#f"
 
+    "(call/cc (lambda (k) (k 1 2)))" |> rep |> should equal "(values 1 2)"
+
     "(call/cc)" |> rep |> should startWith "'()' invalid call/cc parameter"
 
     "(call/cc + 2)"
@@ -246,13 +242,6 @@ let ``call-with-values`` () =
        (lambda (a b) (values b a)))"
     |> rep
     |> should equal "(values 2 1)"
-
-[<Fact>]
-let ``values and call-with-values`` () =
-    let newRep () =
-        WriteScheme.Repl.newContext () |> WriteScheme.Repl.rep
-
-    let rep = newRep ()
 
     "(call-with-values (lambda () (values 1 2)) +)" |> rep |> should equal "3"
 
@@ -282,29 +271,15 @@ let ``values and call-with-values`` () =
     |> rep
     |> should equal "3"
 
-    "(+ 1 (values 2 3))"
-    |> rep
-    |> should startWith "Multiple values in single value context"
-
-    "(list (values 1 2))"
-    |> rep
-    |> should startWith "Multiple values in single value context"
-
-[<Fact>]
-let ``call/cc multi-values`` () =
-    let rep = newRep ()
-
     "(call-with-values (lambda () (call/cc (lambda (k) (k 1 2)))) list)"
     |> rep
     |> should equal "(1 2)"
 
-    "(values)" |> rep |> should equal "(values)"
+    "(call-with-values (lambda () (raise 1)) list)" |> rep |> should equal "1"
 
     "(call-with-values (lambda () (call/cc (lambda (k) (k)))) list)"
     |> rep
     |> should equal "()"
-
-    "(call/cc (lambda (k) (k 1 2)))" |> rep |> should equal "(values 1 2)"
 
     "(call-with-values)"
     |> rep
@@ -314,4 +289,16 @@ let ``call/cc multi-values`` () =
     |> rep
     |> should startWith "'(#<procedure>)' invalid call-with-values parameter"
 
-    "(call-with-values (lambda () (raise 1)) list)" |> rep |> should equal "1"
+[<Fact>]
+let ``values`` () =
+    let rep = newRep ()
+
+    "(values)" |> rep |> should equal "(values)"
+
+    "(+ 1 (values 2 3))"
+    |> rep
+    |> should startWith "Multiple values in single value context"
+
+    "(list (values 1 2))"
+    |> rep
+    |> should startWith "Multiple values in single value context"

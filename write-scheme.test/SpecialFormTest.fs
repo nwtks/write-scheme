@@ -70,6 +70,7 @@ let ``set!`` () =
 [<Fact>]
 let ``begin`` () =
     let rep = newRep ()
+
     "(define x 0)" |> rep |> ignore
     "(and (= x 0) (begin (set! x 5) (+ x 1)))" |> rep |> should equal "6"
     "(begin)" |> rep |> should equal "#<unspecified>"

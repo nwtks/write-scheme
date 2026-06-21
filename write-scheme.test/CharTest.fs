@@ -24,6 +24,7 @@ let ``char=?`` () =
     "(char=? #\\a #\\a #\\b)" |> rep |> should equal "#f"
     "(char=? #\\a)" |> rep |> should equal "#t"
     "(char=? #\\🍎 #\\🍎)" |> rep |> should equal "#t"
+
     "(char=? #\\a 1)" |> rep |> should startWith "'1' is not a char in char=?"
 
 [<Fact>]
@@ -91,12 +92,20 @@ let ``char-alphabetic?`` () =
     "(char-alphabetic? #\\x10400)" |> rep |> should equal "#t"
     "(char-alphabetic? #\\🍎)" |> rep |> should equal "#f"
 
+    "(char-alphabetic? 42)"
+    |> rep
+    |> should startWith "'(42)' invalid char-alphabetic? parameter"
+
 [<Fact>]
 let ``char-numeric?`` () =
     "(char-numeric? #\\1)" |> rep |> should equal "#t"
     "(char-numeric? #\\a)" |> rep |> should equal "#f"
     "(char-numeric? #\\x1D7DC)" |> rep |> should equal "#t"
     "(char-numeric? #\\🍎)" |> rep |> should equal "#f"
+
+    "(char-numeric? 42)"
+    |> rep
+    |> should startWith "'(42)' invalid char-numeric? parameter"
 
 [<Fact>]
 let ``char-whitespace?`` () =
@@ -105,6 +114,10 @@ let ``char-whitespace?`` () =
     "(char-whitespace? #\\a)" |> rep |> should equal "#f"
     "(char-whitespace? #\\🍎)" |> rep |> should equal "#f"
 
+    "(char-whitespace? 42)"
+    |> rep
+    |> should startWith "'(42)' invalid char-whitespace? parameter"
+
 [<Fact>]
 let ``char-upper-case?`` () =
     "(char-upper-case? #\\A)" |> rep |> should equal "#t"
@@ -112,12 +125,20 @@ let ``char-upper-case?`` () =
     "(char-upper-case? #\\x10400)" |> rep |> should equal "#t"
     "(char-upper-case? #\\🍎)" |> rep |> should equal "#f"
 
+    "(char-upper-case? 42)"
+    |> rep
+    |> should startWith "'(42)' invalid char-upper-case? parameter"
+
 [<Fact>]
 let ``char-lower-case?`` () =
     "(char-lower-case? #\\a)" |> rep |> should equal "#t"
     "(char-lower-case? #\\A)" |> rep |> should equal "#f"
     "(char-lower-case? #\\x10428)" |> rep |> should equal "#t"
     "(char-lower-case? #\\🍎)" |> rep |> should equal "#f"
+
+    "(char-lower-case? 42)"
+    |> rep
+    |> should startWith "'(42)' invalid char-lower-case? parameter"
 
 [<Fact>]
 let ``digit-value`` () =
@@ -127,11 +148,19 @@ let ``digit-value`` () =
     "(digit-value #\\x1D7DC)" |> rep |> should equal "4"
     "(digit-value #\\a)" |> rep |> should equal "#f"
 
+    "(digit-value 42)"
+    |> rep
+    |> should startWith "'(42)' invalid digit-value parameter"
+
 [<Fact>]
 let ``char->integer`` () =
     "(char->integer #\\a)" |> rep |> should equal "97"
     "(char->integer #\\A)" |> rep |> should equal "65"
     "(char->integer #\\🍎)" |> rep |> should equal "127822"
+
+    "(char->integer 42)"
+    |> rep
+    |> should startWith "'(42)' invalid char->integer parameter"
 
 [<Fact>]
 let ``integer->char`` () =
@@ -153,55 +182,25 @@ let ``char-upcase`` () =
     "(char-upcase #\\A)" |> rep |> should equal "#\\A"
     "(char-upcase #\\1)" |> rep |> should equal "#\\1"
 
+    "(char-upcase 42)"
+    |> rep
+    |> should startWith "'(42)' invalid char-upcase parameter"
+
 [<Fact>]
 let ``char-downcase`` () =
     "(char-downcase #\\A)" |> rep |> should equal "#\\a"
     "(char-downcase #\\a)" |> rep |> should equal "#\\a"
     "(char-downcase #\\1)" |> rep |> should equal "#\\1"
 
+    "(char-downcase 42)"
+    |> rep
+    |> should startWith "'(42)' invalid char-downcase parameter"
+
 [<Fact>]
 let ``char-foldcase`` () =
     "(char-foldcase #\\A)" |> rep |> should equal "#\\a"
     "(char-foldcase #\\a)" |> rep |> should equal "#\\a"
 
-[<Fact>]
-let ``char procedures error on non-char arguments`` () =
-    "(digit-value 42)"
-    |> rep
-    |> should startWith "'(42)' invalid digit-value parameter"
-
-    "(char->integer 42)"
-    |> rep
-    |> should startWith "'(42)' invalid char->integer parameter"
-
-    "(char-upcase 42)"
-    |> rep
-    |> should startWith "'(42)' invalid char-upcase parameter"
-
-    "(char-downcase 42)"
-    |> rep
-    |> should startWith "'(42)' invalid char-downcase parameter"
-
     "(char-foldcase 42)"
     |> rep
     |> should startWith "'(42)' invalid char-foldcase parameter"
-
-    "(char-alphabetic? 42)"
-    |> rep
-    |> should startWith "'(42)' invalid char-alphabetic? parameter"
-
-    "(char-numeric? 42)"
-    |> rep
-    |> should startWith "'(42)' invalid char-numeric? parameter"
-
-    "(char-whitespace? 42)"
-    |> rep
-    |> should startWith "'(42)' invalid char-whitespace? parameter"
-
-    "(char-upper-case? 42)"
-    |> rep
-    |> should startWith "'(42)' invalid char-upper-case? parameter"
-
-    "(char-lower-case? 42)"
-    |> rep
-    |> should startWith "'(42)' invalid char-lower-case? parameter"

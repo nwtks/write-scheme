@@ -36,10 +36,6 @@ let ``guard`` () =
     |> rep
     |> should equal "bar"
 
-[<Fact>]
-let ``guard re-raise`` () =
-    let rep = newRep ()
-
     "(guard (e ((eq? e 'not-found) 'caught))
        (guard (e ((eq? e 'foo) 'matched))
          (raise 'not-found)))"
@@ -86,7 +82,7 @@ let ``with-exception-handler`` () =
     |> should startWith "'(1)' invalid with-exception-handler parameter"
 
 [<Fact>]
-let ``error and error-object?`` () =
+let ``error`` () =
     let rep = newRep ()
 
     "(guard (e (else (list (error-object? e)
@@ -102,13 +98,17 @@ let ``error and error-object?`` () =
     |> rep
     |> should equal "(\"simple error\" ())"
 
+    "(error)" |> rep |> should startWith "'()' invalid error parameter"
+    "(error 1)" |> rep |> should startWith "'(1)' invalid error parameter"
+
+[<Fact>]
+let ``error-object?`` () =
+    let rep = newRep ()
+
     "(guard (e (else (error-object? e)))
        (raise 42))"
     |> rep
     |> should equal "#f"
-
-    "(error)" |> rep |> should startWith "'()' invalid error parameter"
-    "(error 1)" |> rep |> should startWith "'(1)' invalid error parameter"
 
     "(error-object? 1 2)"
     |> rep
@@ -123,14 +123,8 @@ let ``error and error-object?`` () =
     |> should startWith "'(1)' invalid error-object-irritants parameter"
 
 [<Fact>]
-let ``raise vs raise-continuable`` () =
+let ``raise`` () =
     let rep = newRep ()
-
-    "(with-exception-handler
-       (lambda (e) (+ e 10))
-       (lambda () (raise-continuable 1)))"
-    |> rep
-    |> should equal "11"
 
     "(with-exception-handler
        (lambda (e) (+ e 10))
@@ -141,17 +135,15 @@ let ``raise vs raise-continuable`` () =
     "(raise)" |> rep |> should startWith "'()' invalid raise parameter"
     "(raise 1 2)" |> rep |> should startWith "'(1 2)' invalid raise parameter"
 
-    "(raise-continuable)"
-    |> rep
-    |> should startWith "'()' invalid raise-continuable parameter"
-
-    "(raise-continuable 1 2)"
-    |> rep
-    |> should startWith "'(1 2)' invalid raise-continuable parameter"
-
 [<Fact>]
-let ``raise-continuable multiple values`` () =
+let ``raise-continuable`` () =
     let rep = newRep ()
+
+    "(with-exception-handler
+       (lambda (e) (+ e 10))
+       (lambda () (raise-continuable 1)))"
+    |> rep
+    |> should equal "11"
 
     "(call-with-values
        (lambda ()
@@ -161,3 +153,11 @@ let ``raise-continuable multiple values`` () =
        list)"
     |> rep
     |> should equal "(a b)"
+
+    "(raise-continuable)"
+    |> rep
+    |> should startWith "'()' invalid raise-continuable parameter"
+
+    "(raise-continuable 1 2)"
+    |> rep
+    |> should startWith "'(1 2)' invalid raise-continuable parameter"

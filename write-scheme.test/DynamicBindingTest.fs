@@ -3,8 +3,6 @@ module WriteScheme.Tests.DynamicBindingTest
 open Xunit
 open FsUnit.Xunit
 
-let rep = WriteScheme.Repl.rep WriteScheme.Builtin.builtinContext
-
 let newRep () =
     WriteScheme.Repl.newContext () |> WriteScheme.Repl.rep
 

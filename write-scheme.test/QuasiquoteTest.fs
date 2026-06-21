@@ -37,25 +37,9 @@ let ``quasiquote`` () =
     "`(,@'())" |> rep |> should equal "()"
     "`(,@'() 1 2)" |> rep |> should equal "(1 2)"
 
-    "`(,@'() . ,@'())"
-    |> rep
-    |> should startWith "unquote-splicing must be in a list or vector context."
-
-    "`,@'(1 2)"
-    |> rep
-    |> should startWith "unquote-splicing must be in a list or vector context."
-
-    "``(a . ,,@'(1 2))"
-    |> rep
-    |> should startWith "unquote-splicing must be in a list or vector context."
-
     "`(,@'(1 2) . 3)" |> rep |> should equal "(1 2 . 3)"
     "`(1 2 . ,(append '(3 4) 5))" |> rep |> should equal "(1 2 3 4 . 5)"
     "`(,@'(1 2) . ,(append '(3 4) 5))" |> rep |> should equal "(1 2 3 4 . 5)"
-
-    "`(a . ,(values 1 2))"
-    |> rep
-    |> should startWith "Multiple values in single value context."
 
     "`(,@(values '(1 2)))" |> rep |> should equal "(1 2)"
     "`#()" |> rep |> should equal "#()"
@@ -69,6 +53,24 @@ let ``quasiquote`` () =
     "(let ((x '(1 2))) `(a `(b . ,@x)))" |> rep |> should equal "(a `(b . ,@x))"
     "(let ((x '(1 2))) `(a `(b ,@,x)))" |> rep |> should equal "(a `(b ,@(1 2)))"
 
+    "'(quote a)" |> rep |> should equal "(quote a)"
+
+    "`(a . ,(values 1 2))"
+    |> rep
+    |> should startWith "Multiple values in single value context."
+
+    "`(,@'() . ,@'())"
+    |> rep
+    |> should startWith "unquote-splicing must be in a list or vector context."
+
+    "`,@'(1 2)"
+    |> rep
+    |> should startWith "unquote-splicing must be in a list or vector context."
+
+    "``(a . ,,@'(1 2))"
+    |> rep
+    |> should startWith "unquote-splicing must be in a list or vector context."
+
     "(let ((x '(1 2)) (y '(3 4))) `(,@x . ,@y))"
     |> rep
     |> should startWith "unquote-splicing must be in a list or vector context."
@@ -76,7 +78,3 @@ let ``quasiquote`` () =
     "(let ((x '((1 2)))) `(a `(b ,,@x)))"
     |> rep
     |> should startWith "unquote-splicing must be in a list or vector context."
-
-[<Fact>]
-let ``quasiquote quote keyword`` () =
-    "'(quote a)" |> rep |> should equal "(quote a)"

@@ -11,6 +11,7 @@ let ``string?`` () =
     "(string? \"\")" |> rep |> should equal "#t"
     "(string? 'hello)" |> rep |> should equal "#f"
     "(string? 1)" |> rep |> should equal "#f"
+
     "(string? 1 2)" |> rep |> should startWith "'(1 2)' invalid string? parameter"
 
 [<Fact>]
@@ -33,6 +34,7 @@ let ``string`` () =
     "(string #\\a #\\b #\\c)" |> rep |> should equal "\"abc\""
     "(string)" |> rep |> should equal "\"\""
     "(string #\\H #\\e #\\l #\\l #\\o)" |> rep |> should equal "\"Hello\""
+
     "(string 1)" |> rep |> should startWith "'1' is not a char in string"
 
 [<Fact>]
@@ -304,6 +306,10 @@ let ``string-copy!`` () =
     "(string-copy! dest 1 src 2 4)" |> rep |> ignore
     "dest" |> rep |> should equal "\".cd..\""
 
+    "(string-copy! (make-string 5 #\\x) 0 \"abc\" 5)"
+    |> rep
+    |> should startWith "'(\"xxxxx\""
+
     "(string-copy! \"abc\" 0 \"xyz\")"
     |> rep
     |> should startWith "Immutable destination string in string-copy!"
@@ -311,11 +317,6 @@ let ``string-copy!`` () =
     "(string-copy! (make-string 3 #\\x) 0 \"hello\" 0 5)"
     |> rep
     |> should startWith "Destination out of range in string-copy!"
-
-    "(string-copy! (make-string 5 #\\x) 0 \"abc\" 5)"
-    |> rep
-    |> should startWith "'(\"xxxxx\""
-    |> ignore
 
     "(string-copy! 1 0 \"abc\")"
     |> rep
@@ -333,14 +334,13 @@ let ``string-fill!`` () =
     "(string-fill! s2 #\\c 3)" |> rep |> ignore
     "s2" |> rep |> should equal "\"abbcc\""
 
-    "(string-fill! \"abc\" #\\x)"
-    |> rep
-    |> should startWith "Immutable string in string-fill!"
-
     "(string-fill! (make-string 5 #\\a) #\\b 10)"
     |> rep
     |> should startWith "'(\"aaaaa\" #\\b 10)'"
-    |> ignore
+
+    "(string-fill! \"abc\" #\\x)"
+    |> rep
+    |> should startWith "Immutable string in string-fill!"
 
     "(string-fill! 1 #\\x)"
     |> rep

@@ -3,8 +3,6 @@ module WriteScheme.Tests.LazyTest
 open Xunit
 open FsUnit.Xunit
 
-let rep = WriteScheme.Repl.rep WriteScheme.Builtin.builtinContext
-
 let newRep () =
     WriteScheme.Repl.newContext () |> WriteScheme.Repl.rep
 
@@ -13,7 +11,6 @@ let ``delay`` () =
     let rep = newRep ()
 
     "(force (delay (+ 1 2)))" |> rep |> should equal "3"
-    "(force (make-promise 42))" |> rep |> should equal "42"
 
     "(define count 0)" |> rep |> ignore
     "(define p (delay (begin (set! count (+ count 1)) count)))" |> rep |> ignore
@@ -32,9 +29,17 @@ let ``delay-force`` () =
 
 [<Fact>]
 let ``promise?`` () =
+    let rep = newRep ()
+
     "(promise? 1)" |> rep |> should equal "#f"
     "(promise? (make-promise 1))" |> rep |> should equal "#t"
-    "(make-promise (delay 1))" |> rep |> should equal "#<promise>"
 
     "(define p (delay 42))" |> rep |> ignore
     "(promise? p)" |> rep |> should equal "#t"
+
+[<Fact>]
+let ``make-promise`` () =
+    let rep = newRep ()
+
+    "(force (make-promise 42))" |> rep |> should equal "42"
+    "(make-promise (delay 1))" |> rep |> should equal "#<promise>"

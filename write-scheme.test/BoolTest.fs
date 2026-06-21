@@ -14,6 +14,7 @@ let ``not`` () =
     "(not '())" |> rep |> should equal "#f"
     "(not (list))" |> rep |> should equal "#f"
     "(not 'nil)" |> rep |> should equal "#f"
+
     "(not #t #f)" |> rep |> should startWith "'(#t #f)' invalid not parameter"
 
 [<Fact>]

@@ -12,6 +12,8 @@ let ``vector?`` () =
     "(vector? '())" |> rep |> should equal "#f"
     "(vector? 1)" |> rep |> should equal "#f"
 
+    "(vector? 1 2)" |> rep |> should startWith "'(1 2)' invalid vector? parameter"
+
 [<Fact>]
 let ``make-vector`` () =
     "(make-vector 3 0)" |> rep |> should equal "#(0 0 0)"
@@ -34,6 +36,14 @@ let ``vector-length`` () =
     "(vector-length #(1 2 3))" |> rep |> should equal "3"
     "(vector-length #())" |> rep |> should equal "0"
     "(vector-length (make-vector 5))" |> rep |> should equal "5"
+
+    "(vector-length)"
+    |> rep
+    |> should startWith "'()' invalid vector-length parameter"
+
+    "(vector-length 1 2)"
+    |> rep
+    |> should startWith "'(1 2)' invalid vector-length parameter"
 
 [<Fact>]
 let ``vector-ref`` () =
@@ -70,16 +80,33 @@ let ``vector-set!`` () =
 let ``vector->list`` () =
     "(vector->list #(1 2 3))" |> rep |> should equal "(1 2 3)"
     "(vector->list #())" |> rep |> should equal "()"
+    "(vector->list '#(a b c d) 1)" |> rep |> should equal "(b c d)"
+    "(vector->list '#(a b c d) 1 3)" |> rep |> should equal "(b c)"
+
+    "(vector->list 1)"
+    |> rep
+    |> should startWith "'(1)' invalid vector->list parameter"
+
+    "(vector->list '#(a) 5)"
+    |> rep
+    |> should startWith "'(#(a) 5)' invalid vector->list parameter"
+
+    "(vector->list '#(a b c) 1 2 3)"
+    |> rep
+    |> should startWith "'(#(a b c) 1 2 3)' invalid vector->list parameter"
 
 [<Fact>]
 let ``list->vector`` () =
     "(list->vector '(1 2 3))" |> rep |> should equal "#(1 2 3)"
     "(list->vector '())" |> rep |> should equal "#()"
 
-[<Fact>]
-let ``vector->list with bounds`` () =
-    "(vector->list '#(a b c d) 1)" |> rep |> should equal "(b c d)"
-    "(vector->list '#(a b c d) 1 3)" |> rep |> should equal "(b c)"
+    "(list->vector 1)"
+    |> rep
+    |> should startWith "'(1)' invalid list->vector parameter"
+
+    "(list->vector '(1 . 2))"
+    |> rep
+    |> should startWith "'((1 . 2))' invalid list->vector parameter"
 
 [<Fact>]
 let ``vector->string`` () =
@@ -93,6 +120,18 @@ let ``vector->string`` () =
     |> rep
     |> should equal "\"bcd\""
 
+    "(vector->string 1)"
+    |> rep
+    |> should startWith "'(1)' invalid vector->string parameter"
+
+    "(vector->string '#(#\\a) 5)"
+    |> rep
+    |> should startWith "'(#(#\\a) 5)' invalid vector->string parameter"
+
+    "(vector->string '#(1 2 3))"
+    |> rep
+    |> should startWith "'1' is not a char in vector->string"
+
 [<Fact>]
 let ``string->vector`` () =
     "(string->vector \"ABC\")" |> rep |> should equal "#(#\\A #\\B #\\C)"
@@ -100,6 +139,14 @@ let ``string->vector`` () =
     "(string->vector \"abcde\" 1 4)" |> rep |> should equal "#(#\\b #\\c #\\d)"
     "(string->vector \"🍎\")" |> rep |> should equal "#(#\\🍎)"
     "(string->vector \"a🍎b\" 1 2)" |> rep |> should equal "#(#\\🍎)"
+
+    "(string->vector 1)"
+    |> rep
+    |> should startWith "'(1)' invalid string->vector parameter"
+
+    "(string->vector \"ab\" 5)"
+    |> rep
+    |> should startWith "'(\"ab\" 5)' invalid string->vector parameter"
 
 [<Fact>]
 let ``vector-copy`` () =
@@ -183,65 +230,3 @@ let ``vector-fill!`` () =
     "(vector-fill! 1)"
     |> rep
     |> should startWith "'(1)' invalid vector-fill! parameter"
-
-[<Fact>]
-let ``vector? arity`` () =
-    "(vector? 1 2)" |> rep |> should startWith "'(1 2)' invalid vector? parameter"
-
-[<Fact>]
-let ``vector-length arity`` () =
-    "(vector-length)"
-    |> rep
-    |> should startWith "'()' invalid vector-length parameter"
-
-    "(vector-length 1 2)"
-    |> rep
-    |> should startWith "'(1 2)' invalid vector-length parameter"
-
-[<Fact>]
-let ``vector->list error`` () =
-    "(vector->list 1)"
-    |> rep
-    |> should startWith "'(1)' invalid vector->list parameter"
-
-    "(vector->list '#(a) 5)"
-    |> rep
-    |> should startWith "'(#(a) 5)' invalid vector->list parameter"
-
-    "(vector->list '#(a b c) 1 2 3)"
-    |> rep
-    |> should startWith "'(#(a b c) 1 2 3)' invalid vector->list parameter"
-
-[<Fact>]
-let ``list->vector error`` () =
-    "(list->vector 1)"
-    |> rep
-    |> should startWith "'(1)' invalid list->vector parameter"
-
-    "(list->vector '(1 . 2))"
-    |> rep
-    |> should startWith "'((1 . 2))' invalid list->vector parameter"
-
-[<Fact>]
-let ``vector->string error`` () =
-    "(vector->string 1)"
-    |> rep
-    |> should startWith "'(1)' invalid vector->string parameter"
-
-    "(vector->string '#(#\\a) 5)"
-    |> rep
-    |> should startWith "'(#(#\\a) 5)' invalid vector->string parameter"
-
-    "(vector->string '#(1 2 3))"
-    |> rep
-    |> should startWith "'1' is not a char in vector->string"
-
-[<Fact>]
-let ``string->vector error`` () =
-    "(string->vector 1)"
-    |> rep
-    |> should startWith "'(1)' invalid string->vector parameter"
-
-    "(string->vector \"ab\" 5)"
-    |> rep
-    |> should startWith "'(\"ab\" 5)' invalid string->vector parameter"
