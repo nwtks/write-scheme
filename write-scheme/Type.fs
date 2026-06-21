@@ -138,6 +138,21 @@ module Type =
         normalizeRational n d
         |> Result.map (fun (n', d') -> if n' = 0I then SZero else SRational(n', d'))
 
+    let parseFloatString (s: string) =
+        let parts = s.Split [| 'e'; 'E' |]
+        let baseNum = parts.[0]
+        let exp = if parts.Length > 1 then int parts.[1] else 0
+        let dotIdx = baseNum.IndexOf '.'
+        let digits = baseNum.Replace(".", "")
+        let scale = if dotIdx < 0 then 0 else baseNum.Length - dotIdx - 1
+        let numerator = bigint.Parse digits
+
+        if scale - exp < 0 then
+            numerator * bigint.Pow(10I, exp - scale) |> newInteger |> Ok
+        else
+            let denominator = bigint.Pow(10I, scale - exp)
+            newSRational numerator denominator
+
     let realToRational r =
         if System.Double.IsInfinity r || System.Double.IsNaN r then
             SReal r
@@ -146,19 +161,7 @@ module Type =
 
             let res =
                 if s.Contains '.' || s.Contains 'e' || s.Contains 'E' then
-                    let parts = s.Split [| 'e'; 'E' |]
-                    let baseNum = parts.[0]
-                    let exp = if parts.Length > 1 then int parts.[1] else 0
-                    let dotIdx = baseNum.IndexOf '.'
-                    let digits = baseNum.Replace(".", "")
-                    let scale = if dotIdx < 0 then 0 else baseNum.Length - dotIdx - 1
-                    let numerator = bigint.Parse digits
-
-                    if scale - exp < 0 then
-                        numerator * bigint.Pow(10I, exp - scale) |> newInteger |> Ok
-                    else
-                        let denominator = bigint.Pow(10I, scale - exp)
-                        newSRational numerator denominator
+                    parseFloatString s
                 else
                     bigint r |> newInteger |> Ok
 

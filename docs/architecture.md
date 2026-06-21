@@ -706,6 +706,6 @@ Cyclomatic complexity is measured by Coverlet. The current project-wide threshol
 
 The `dotnet test` output includes coverage data — check after every change.
 
-Functions exceeding 15 complexity are typically those with large `match` expressions on `SExpressionKind` (e.g., `eqv`, `loopEqual`). These are refactored incrementally by extracting helpers, using or-patterns, or introducing intermediate types.
+Functions with large `match` expressions on `SExpressionKind` (e.g., `eqv`, `loopEqual`, `replaceQuasiquoteList`) historically exceeded the threshold. These are refactored incrementally by extracting helpers, using or-patterns, or introducing intermediate types.
 
 `SpecialForm.fs` (the largest file, 30+ special forms) is the most complexity-sensitive area. New special forms should be added as separate functions rather than extending existing ones.

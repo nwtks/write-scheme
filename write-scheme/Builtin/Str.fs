@@ -91,26 +91,19 @@ module Str =
     let sStringCiLe context = compareStringsCi (<=) "string-ci<=?"
     let sStringCiGe context = compareStringsCi (>=) "string-ci>=?"
 
-    let sStringUpcase context pos cont =
+    let mapStringCase transformer name pos cont =
         function
-        | [ SString s, _ ] ->
-            Ok((s.runes |> runesToString).ToUpperInvariant() |> newSString false, pos)
-            |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid string-upcase parameter." |> cont
+        | [ SString s, _ ] -> Ok(s.runes |> runesToString |> transformer |> newSString false, pos) |> cont
+        | x -> x |> invalidParameter pos (sprintf "'%%s' invalid %s parameter." name) |> cont
+
+    let sStringUpcase context pos cont =
+        mapStringCase (fun s -> s.ToUpperInvariant()) "string-upcase" pos cont
 
     let sStringDowncase context pos cont =
-        function
-        | [ SString s, _ ] ->
-            Ok((s.runes |> runesToString).ToLowerInvariant() |> newSString false, pos)
-            |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid string-downcase parameter." |> cont
+        mapStringCase (fun s -> s.ToLowerInvariant()) "string-downcase" pos cont
 
     let sStringFoldcase context pos cont =
-        function
-        | [ SString s, _ ] ->
-            Ok((s.runes |> runesToString).ToLowerInvariant() |> newSString false, pos)
-            |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid string-foldcase parameter." |> cont
+        mapStringCase (fun s -> s.ToLowerInvariant()) "string-foldcase" pos cont
 
     let getRunesRange =
         function

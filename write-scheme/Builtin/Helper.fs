@@ -24,22 +24,6 @@ module Helper =
 
     let mapResult f = loopMapResult f []
 
-    let wrapUnaryPred name pred =
-        let fmt = sprintf "'%%s' invalid %s parameter." name
-
-        fun context pos cont ->
-            function
-            | [ x ] -> Ok(pred (fst x) |> toSBool, pos) |> cont
-            | x -> x |> invalidParameter pos fmt |> cont
-
-    let wrapUnarySExprPred name pred =
-        let fmt = sprintf "'%%s' invalid %s parameter." name
-
-        fun context pos cont ->
-            function
-            | [ x ] -> Ok(pred x |> toSBool, pos) |> cont
-            | x -> x |> invalidParameter pos fmt |> cont
-
     let wrapUnary name fn =
         let fmt = sprintf "'%%s' invalid %s parameter." name
 
@@ -47,6 +31,12 @@ module Helper =
             function
             | [ x ] -> fn x |> Result.map (fun v -> v, pos) |> cont
             | x -> x |> invalidParameter pos fmt |> cont
+
+    let wrapUnaryPred name pred =
+        wrapUnary name (fun x -> Ok(pred (fst x) |> toSBool))
+
+    let wrapUnarySExprPred name pred =
+        wrapUnary name (fun x -> Ok(pred x |> toSBool))
 
     let eachBinding =
         function
@@ -172,6 +162,10 @@ module Helper =
         with
         | :? System.IO.FileNotFoundException -> EvalError(sprintf "File not found: %s." path, pos) |> Error
         | ex -> EvalError(sprintf "Error reading file %s: %s." path ex.Message, pos) |> Error
+
+    let readAndResolveInclude foldCase filename pos =
+        tryReadAll foldCase filename pos
+        |> Result.bind (fun exprs -> exprs |> mapResult DatumLabel.resolveLabels)
 
     let getRange (length: int) =
         function

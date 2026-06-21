@@ -36,11 +36,9 @@ module Context =
     let defineEnvironmentVariable context symbol value =
         let env = context.environments.Head
 
-        symbol
-        |> tryLookupEnvironment env
-        |> function
-            | Some r -> r.Value <- value
-            | None -> env.Value <- env.Value |> Map.add symbol (ref value)
+        match symbol |> tryLookupEnvironment env with
+        | Some r -> r.Value <- value
+        | None -> env.Value <- env.Value |> Map.add symbol (ref value)
 
     let tryLookupEnvironments context symbol =
         context.environments

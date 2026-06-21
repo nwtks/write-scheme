@@ -16,6 +16,9 @@ module SavedParameter =
           _ -> Ok(parameter, expression)
         | x -> x |> invalid (snd x) "'%s' invalid parameterize binding."
 
+    let parseParamBindings bindings =
+        bindings |> toList |> Result.bind (mapResult eachParamBinding)
+
     let doParameterize context pos cont body acc =
         let triples = acc |> List.rev
 

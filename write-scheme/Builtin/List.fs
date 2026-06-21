@@ -91,23 +91,22 @@ module List =
 
     let sList context pos cont = toSPair >> Ok >> cont
 
-    let sLength context pos cont =
-        let length list =
-            match list with
-            | SEmpty, _ -> Ok 0I
-            | SPair _, _ ->
-                match loopListInfo list list 0I [] with
-                | Ok(_, len) -> Ok len
-                | Error msg -> EvalError(sprintf "'%s' %s" (list |> Print.print) msg, snd list) |> Error
-            | _ ->
-                EvalError(sprintf "'%s' not a proper list." (list |> Print.print), snd list)
-                |> Error
+    let computeLength list =
+        match list with
+        | SEmpty, _ -> Ok 0I
+        | SPair _, _ ->
+            match loopListInfo list list 0I [] with
+            | Ok(_, len) -> Ok len
+            | Error msg -> Error msg
+        | _ -> Error "not a proper list."
 
+    let sLength context pos cont =
         function
         | [ list ] ->
-            match length list with
-            | Ok len -> Ok(newInteger len, pos) |> cont
-            | Error e -> Error e |> cont
+            match computeLength list with
+            | Ok len -> Ok(newInteger len, pos)
+            | Error msg -> EvalError(sprintf "'%s' %s" (list |> Print.print) msg, snd list) |> Error
+            |> cont
         | x -> x |> invalidParameter pos "'%s' invalid length parameter." |> cont
 
     let appendTwo a b =

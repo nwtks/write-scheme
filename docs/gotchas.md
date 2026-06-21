@@ -176,7 +176,7 @@ let rec eachEval context cont acc =
 
 ---
 
-## 7. `collectInternalDefinitions` Destructures `begin` Blocks
+## 7. `expandBeginInBody` Pre-processes `begin` Blocks Before Definition Collection
 
 ### Symptom
 
@@ -184,17 +184,24 @@ Internal definitions work only if `begin` blocks are transparently flattened.
 
 ### Root Cause
 
-`collectInternalDefinitions` (Eval.fs) recursively destructures `begin` forms found within a body:
+`expandBeginInBody` (Eval.fs) pre-processes a body by flattening `begin` forms before definition collection:
 
 ```fsharp
-| SPair { car = SSymbol "begin", _; cdr = inner }, _ ->
-    match inner |> toList with
-    | Ok ilist -> ilist :: rest :: stack |> collectInternalDefinitions acc
+let rec expandBeginInBody acc =
+    function
+    | [] -> acc |> List.rev
+    | ((SPair { car = SSymbol "begin", _; cdr = inner }, _) as expr) :: rest ->
+        match inner |> toList with
+        | Ok ilist -> ilist @ rest |> expandBeginInBody acc
+        | Error _ -> rest |> expandBeginInBody (expr :: acc)
+    | expr :: rest -> rest |> expandBeginInBody (expr :: acc)
 ```
+
+This separation of concerns means `collectInternalDefinitions` no longer needs to handle `begin` expansion — it only classifies `define`/`define-values` vs non-definitions.
 
 ### Pitfall
 
-If `toList` fails (the `begin` body is an improper list), the collector falls back to treating the remaining forms as expressions. This means a malformed `begin` inside internal definitions can silently change semantics.
+If `toList` fails (the `begin` body is an improper list), `expandBeginInBody` preserves the original expression unchanged. This means a malformed `begin` inside internal definitions can silently change semantics.
 
 ---
 

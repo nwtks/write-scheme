@@ -219,60 +219,39 @@ module Math =
             | _ -> true)
 
     [<TailCall>]
-    let rec findMaxValue acc =
+    let rec findExtremumValue pred1 pred2 pred3 acc =
         function
         | [] -> Ok acc
         | x :: xs ->
-            match comparePred (>) (>) (complexReal (>)) (acc, x) with
-            | Ok true -> xs |> findMaxValue acc
-            | Ok false -> xs |> findMaxValue x
+            match comparePred pred1 pred2 pred3 (acc, x) with
+            | Ok true -> xs |> findExtremumValue pred1 pred2 pred3 acc
+            | Ok false -> xs |> findExtremumValue pred1 pred2 pred3 x
             | Error e -> Error e
 
-    let sMax context pos cont args =
+    let extremum pred1 pred2 pred3 name context pos cont args =
         if args |> List.isEmpty then
-            args |> invalidParameter pos "'%s' invalid max parameter." |> cont
+            args
+            |> invalidParameter pos (sprintf "'%%s' invalid %s parameter." name)
+            |> cont
         else
-            match args with
-            | h :: t ->
-                t
-                |> findMaxValue h
-                |> Result.map (fun maxVal ->
-                    if isAnyInexact args then
-                        match maxVal with
-                        | SRational(n, d), _ -> float n / float d |> SReal, pos
-                        | x -> x
-                    else
-                        maxVal)
-                |> cont
-            | [] -> args |> invalidParameter pos "'%s' invalid max parameter." |> cont
+            let h = args.Head
 
-    [<TailCall>]
-    let rec findMinValue acc =
-        function
-        | [] -> Ok acc
-        | x :: xs ->
-            match comparePred (<) (<) (complexReal (<)) (acc, x) with
-            | Ok true -> xs |> findMinValue acc
-            | Ok false -> xs |> findMinValue x
-            | Error e -> Error e
+            args.Tail
+            |> findExtremumValue pred1 pred2 pred3 h
+            |> Result.map (fun v ->
+                if isAnyInexact args then
+                    match v with
+                    | SRational(n, d), _ -> SReal(float n / float d), pos
+                    | x -> x
+                else
+                    v)
+            |> cont
 
-    let sMin context pos cont args =
-        if args |> List.isEmpty then
-            args |> invalidParameter pos "'%s' invalid min parameter." |> cont
-        else
-            match args with
-            | h :: t ->
-                t
-                |> findMinValue h
-                |> Result.map (fun minVal ->
-                    if isAnyInexact args then
-                        match minVal with
-                        | SRational(n, d), _ -> SReal(float n / float d), pos
-                        | x -> x
-                    else
-                        minVal)
-                |> cont
-            | [] -> args |> invalidParameter pos "'%s' invalid min parameter." |> cont
+    let sMax context =
+        extremum (>) (>) (complexReal (>)) "max" context
+
+    let sMin context =
+        extremum (<) (<) (complexReal (<)) "min" context
 
     [<TailCall>]
     let rec loopCalc op pos cont acc =
@@ -336,15 +315,18 @@ module Math =
         else
             quotient, remainder
 
-    let sFloorDiv context pos cont =
+    let checkedBigintDivOp name divFn context pos cont =
         function
         | [ SRational(n1, d1), _; SRational(n2, d2), _ ] when d1 = 1I && d2 = 1I ->
             if n2 = 0I then
                 EvalError("Division by zero.", pos) |> Error |> cont
             else
-                let quotient, remainder = floorDiv n1 n2
-                Ok(SValues [ newInteger quotient, pos; newInteger remainder, pos ], pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid floor/ parameter." |> cont
+                let q, r = divFn n1 n2
+                Ok(SValues [ newInteger q, pos; newInteger r, pos ], pos) |> cont
+        | x -> x |> invalidParameter pos (sprintf "'%%s' invalid %s parameter." name) |> cont
+
+    let sFloorDiv context =
+        checkedBigintDivOp "floor/" floorDiv context
 
     let sFloorQuotient context pos cont =
         function
@@ -360,15 +342,8 @@ module Math =
             Ok(newInteger remainder, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid floor-remainder parameter." |> cont
 
-    let sTruncateDiv context pos cont =
-        function
-        | [ SRational(n1, d1), _; SRational(n2, d2), _ ] when d1 = 1I && d2 = 1I ->
-            if n2 = 0I then
-                EvalError("Division by zero.", pos) |> Error |> cont
-            else
-                let quotient, remainder = truncateDiv n1 n2
-                Ok(SValues [ newInteger quotient, pos; newInteger remainder, pos ], pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid truncate/ parameter." |> cont
+    let sTruncateDiv context =
+        checkedBigintDivOp "truncate/" truncateDiv context
 
     let sTruncateQuotient context pos cont =
         function
@@ -384,36 +359,42 @@ module Math =
             Ok(newInteger remainder, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid truncate-remainder parameter." |> cont
 
+    let checkNonZeroDivisor n1 n2 pos =
+        if n2 = 0I then
+            EvalError("Division by zero.", pos) |> Error
+        else
+            Ok(n1, n2)
+
     let sQuotient context pos cont =
         function
         | [ SRational(n1, d1), _; SRational(n2, d2), _ ] when d1 = 1I && d2 = 1I ->
-            if n2 = 0I then
-                EvalError("Division by zero.", pos) |> Error |> cont
-            else
-                Ok(n1 / n2 |> newInteger, pos) |> cont
+            checkNonZeroDivisor n1 n2 pos
+            |> Result.map (fun (n1', n2') -> n1' / n2' |> newInteger, pos)
+            |> cont
         | x -> x |> invalidParameter pos "'%s' invalid quotient parameter." |> cont
 
     let sRemainder context pos cont =
         function
         | [ SRational(n1, d1), _; SRational(n2, d2), _ ] when d1 = 1I && d2 = 1I ->
-            if n2 = 0I then
-                EvalError("Division by zero.", pos) |> Error |> cont
-            else
-                Ok(n1 % n2 |> newInteger, pos) |> cont
+            checkNonZeroDivisor n1 n2 pos
+            |> Result.map (fun (n1', n2') -> n1' % n2' |> newInteger, pos)
+            |> cont
         | x -> x |> invalidParameter pos "'%s' invalid remainder parameter." |> cont
+
+    let modulo (n1: bigint) (n2: bigint) =
+        let remainder = n1 % n2
+
+        if remainder <> 0I && n1.Sign <> n2.Sign then
+            remainder + n2
+        else
+            remainder
 
     let sModulo context pos cont =
         function
         | [ SRational(n1, d1), _; SRational(n2, d2), _ ] when d1 = 1I && d2 = 1I ->
-            if n2 = 0I then
-                EvalError("Division by zero.", pos) |> Error |> cont
-            else
-                let remainder = n1 % n2
-
-                if remainder <> 0I && n1.Sign <> n2.Sign then
-                    Ok(remainder + n2 |> newInteger, pos) |> cont
-                else
-                    Ok(remainder |> newInteger, pos) |> cont
+            checkNonZeroDivisor n1 n2 pos
+            |> Result.map (fun (n1', n2') -> modulo n1' n2' |> newInteger, pos)
+            |> cont
         | x -> x |> invalidParameter pos "'%s' invalid modulo parameter." |> cont
 
     let gcd x y = bigint.GreatestCommonDivisor(x, y)
@@ -435,95 +416,61 @@ module Math =
         >> Result.map (List.fold lcm 1I >> fun v -> newInteger v, pos)
         >> cont
 
-    let sNumerator context pos cont =
+    let rationalProjection name projectField defaultResult context pos cont =
         wrapUnary
-            "numerator"
+            name
             (function
-            | SRational(n, _), _ -> newInteger n |> Ok
+            | SRational(n, d), _ -> newInteger (projectField n d) |> Ok
             | SReal r, _ when SNumber.finiteFloat r ->
                 match realToRational r with
-                | SRational(n, _) -> SReal(float n)
-                | _ -> SReal r
+                | SRational(n, d) -> SReal(float (projectField n d))
+                | _ -> defaultResult r
                 |> Ok
-            | x -> x |> invalid (snd x) "'%s' invalid numerator parameter.")
+            | x -> x |> invalid (snd x) (sprintf "'%%s' invalid %s parameter." name))
             context
             pos
             cont
 
-    let sDenominator context pos cont =
+    let sNumerator context =
+        rationalProjection "numerator" (fun n _ -> n) SReal context
+
+    let sDenominator context =
+        rationalProjection "denominator" (fun _ d -> d) (fun _ -> SReal 1.0) context
+
+    let roundingOp name adjust floatRound context pos cont =
         wrapUnary
-            "denominator"
+            name
             (function
-            | SRational(_, d), _ -> newInteger d |> Ok
-            | SReal r, _ when SNumber.finiteFloat r ->
-                match realToRational r with
-                | SRational(_, d) -> SReal(float d)
-                | _ -> SReal 1.0
-                |> Ok
-            | x -> x |> invalid (snd x) "'%s' invalid denominator parameter.")
+            | SRational(n, d), _ -> adjust n d |> newInteger |> Ok
+            | SReal r, _ -> floatRound r |> SReal |> Ok
+            | x -> x |> invalid (snd x) (sprintf "'%%s' invalid %s parameter." name))
             context
             pos
             cont
 
-    let sFloor context pos cont =
-        wrapUnary
+    let sFloor context =
+        roundingOp
             "floor"
-            (function
-            | SRational(n, d), _ ->
-                let quotient, remainder = truncateDiv n d
-
-                if remainder <> 0I && n.Sign <> d.Sign then
-                    quotient - 1I
-                else
-                    quotient
-                |> newInteger
-                |> Ok
-            | SReal r, _ -> r |> floor |> SReal |> Ok
-            | x -> x |> invalid (snd x) "'%s' invalid floor parameter.")
+            (fun n d ->
+                let q, r = truncateDiv n d
+                if r <> 0I && n.Sign <> d.Sign then q - 1I else q)
+            floor
             context
-            pos
-            cont
 
-    let sCeiling context pos cont =
-        wrapUnary
+    let sCeiling context =
+        roundingOp
             "ceiling"
-            (function
-            | SRational(n, d), _ ->
-                let quotient, remainder = truncateDiv n d
-
-                if remainder <> 0I && n.Sign = d.Sign then
-                    quotient + 1I
-                else
-                    quotient
-                |> newInteger
-                |> Ok
-            | SReal r, _ -> r |> ceil |> SReal |> Ok
-            | x -> x |> invalid (snd x) "'%s' invalid ceiling parameter.")
+            (fun n d ->
+                let q, r = truncateDiv n d
+                if r <> 0I && n.Sign = d.Sign then q + 1I else q)
+            ceil
             context
-            pos
-            cont
 
-    let sTruncate context pos cont =
-        wrapUnary
-            "truncate"
-            (function
-            | SRational(n, d), _ -> n / d |> newInteger |> Ok
-            | SReal r, _ -> r |> truncate |> SReal |> Ok
-            | x -> x |> invalid (snd x) "'%s' invalid truncate parameter.")
-            context
-            pos
-            cont
+    let sTruncate context =
+        roundingOp "truncate" (fun n d -> n / d) truncate context
 
-    let sRound context pos cont =
-        wrapUnary
-            "round"
-            (function
-            | SRational(n, d), _ -> float n / float d |> round |> bigint |> newInteger |> Ok
-            | SReal r, _ -> r |> round |> SReal |> Ok
-            | x -> x |> invalid (snd x) "'%s' invalid round parameter.")
-            context
-            pos
-            cont
+    let sRound context =
+        roundingOp "round" (fun n d -> float n / float d |> round |> bigint) round context
 
     [<TailCall>]
     let rec simplestRational n1 d1 n2 d2 next =
@@ -659,24 +606,26 @@ module Math =
             Ok(SValues [ newInteger sqrt, pos; newInteger remainder, pos ], pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid exact-integer-sqrt parameter." |> cont
 
+    let sExptInteger n1 n2 pos =
+        if n2 >= 0I then
+            Ok(bigint.Pow(n1, int n2) |> newInteger, pos)
+        else if n1 = 0I then
+            EvalError("Division by zero in expt.", pos) |> Error
+        else
+            newSRational 1I (bigint.Pow(n1, int -n2))
+            |> Result.map (fun r -> r, pos)
+            |> Result.mapError (fun msg -> EvalError(msg, pos))
+
+    let sExptComplex x y =
+        bothOk (toComplex x) (toComplex y)
+        |> Result.map (fun (c1, c2) -> System.Numerics.Complex.Pow(c1, c2) |> SComplex)
+
     let sExpt context pos cont =
         function
         | [ x; y ] ->
             match x, y with
-            | (SRational(n1, d1), _), (SRational(n2, d2), _) when d1 = 1I && d2 = 1I ->
-                if n2 >= 0I then
-                    Ok(bigint.Pow(n1, int n2) |> newInteger, pos) |> cont
-                else if n1 = 0I then
-                    EvalError("Division by zero in expt.", pos) |> Error |> cont
-                else
-                    newSRational 1I (bigint.Pow(n1, int -n2))
-                    |> Result.map (fun r -> r, pos)
-                    |> Result.mapError (fun msg -> EvalError(msg, pos))
-                    |> cont
-            | _ ->
-                match bothOk (toComplex x) (toComplex y) with
-                | Ok(c1, c2) -> Ok(System.Numerics.Complex.Pow(c1, c2) |> SComplex, pos) |> cont
-                | Error e -> Error e |> cont
+            | (SRational(n1, d1), _), (SRational(n2, d2), _) when d1 = 1I && d2 = 1I -> sExptInteger n1 n2 pos |> cont
+            | _ -> sExptComplex x y |> Result.map (fun r -> r, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid expt parameter." |> cont
 
     let sMakeRectangular context pos cont =

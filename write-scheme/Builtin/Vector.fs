@@ -39,11 +39,16 @@ module Vector =
             Ok(SUnspecified, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid vector-set! parameter." |> cont
 
+    let tryVectorSlice (vector: SExpression array) (range: SExpression list) =
+        match getRange vector.Length range with
+        | Some(start, stop) -> Some(vector, start, stop)
+        | None -> None
+
     let sVectorToList context pos cont =
         function
         | (SVector vector, _) :: range as args ->
-            match getRange vector.Length range with
-            | Some(start, stop) -> Ok(vector.[start .. stop - 1] |> Array.toList |> toSPair) |> cont
+            match tryVectorSlice vector range with
+            | Some(vector, start, stop) -> Ok(vector.[start .. stop - 1] |> Array.toList |> toSPair) |> cont
             | None -> args |> invalidParameter pos "'%s' invalid vector->list parameter." |> cont
         | x -> x |> invalidParameter pos "'%s' invalid vector->list parameter." |> cont
 
@@ -76,12 +81,17 @@ module Vector =
             | None -> args |> invalidParameter pos "'%s' invalid vector->string parameter." |> cont
         | x -> x |> invalidParameter pos "'%s' invalid vector->string parameter." |> cont
 
+    let tryStringSlice (s: SStringData) (range: SExpression list) =
+        match getRange s.runes.Length range with
+        | Some(start, stop) -> Some(s.runes, start, stop)
+        | None -> None
+
     let sStringToVector context pos cont =
         function
         | (SString s, _) :: range as args ->
-            match getRange s.runes.Length range with
-            | Some(start, stop) ->
-                Ok(s.runes.[start .. stop - 1] |> Array.map (fun c -> SChar c, pos) |> SVector, pos)
+            match tryStringSlice s range with
+            | Some(runes, start, stop) ->
+                Ok(runes.[start .. stop - 1] |> Array.map (fun c -> SChar c, pos) |> SVector, pos)
                 |> cont
             | None -> args |> invalidParameter pos "'%s' invalid string->vector parameter." |> cont
         | x -> x |> invalidParameter pos "'%s' invalid string->vector parameter." |> cont
@@ -89,8 +99,8 @@ module Vector =
     let sVectorCopy context pos cont =
         function
         | (SVector vector, _) :: range as args ->
-            match getRange vector.Length range with
-            | Some(start, stop) -> Ok(vector.[start .. stop - 1] |> Array.copy |> SVector, pos) |> cont
+            match tryVectorSlice vector range with
+            | Some(vector, start, stop) -> Ok(vector.[start .. stop - 1] |> Array.copy |> SVector, pos) |> cont
             | None -> args |> invalidParameter pos "'%s' invalid vector-copy parameter." |> cont
         | x -> x |> invalidParameter pos "'%s' invalid vector-copy parameter." |> cont
 
@@ -114,8 +124,8 @@ module Vector =
     let sVectorFillBang context pos cont =
         function
         | (SVector vector, _) :: fill :: range as args ->
-            match getRange vector.Length range with
-            | Some(start, stop) ->
+            match tryVectorSlice vector range with
+            | Some(vector, start, stop) ->
                 Array.fill vector start (stop - start) fill
                 Ok(SUnspecified, pos) |> cont
             | None -> args |> invalidParameter pos "'%s' invalid vector-fill! parameter." |> cont

@@ -79,15 +79,15 @@ module DatumLabel =
         | SValues args, pos ->
             args
             |> resolveDatumRefList labels [] (fun resolved -> Ok(SValues resolved, pos) |> next)
-        | SQuote d, pos -> d |> resolveDatumRef labels (Result.bind (fun x -> Ok(SQuote x, pos) |> next))
-        | SQuasiquote d, pos ->
-            d
-            |> resolveDatumRef labels (Result.bind (fun x -> Ok(SQuasiquote x, pos) |> next))
-        | SUnquote d, pos -> d |> resolveDatumRef labels (Result.bind (fun x -> Ok(SUnquote x, pos) |> next))
-        | SUnquoteSplicing d, pos ->
-            d
-            |> resolveDatumRef labels (Result.bind (fun x -> Ok(SUnquoteSplicing x, pos) |> next))
+        | SQuote d, pos -> resolveQuoteLike labels pos next SQuote d
+        | SQuasiquote d, pos -> resolveQuoteLike labels pos next SQuasiquote d
+        | SUnquote d, pos -> resolveQuoteLike labels pos next SUnquote d
+        | SUnquoteSplicing d, pos -> resolveQuoteLike labels pos next SUnquoteSplicing d
         | x -> Ok x |> next
+
+    and [<TailCall>] resolveQuoteLike labels pos next wrap expression =
+        expression
+        |> resolveDatumRef labels (Result.bind (fun x -> Ok(wrap x, pos) |> next))
 
     and [<TailCall>] resolveDatumRefPair labels pair pos next =
         pair.car

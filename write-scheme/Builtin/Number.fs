@@ -57,37 +57,22 @@ module SNumber =
         | NReal r1, NReal r2 -> NReal(r1 * r2) |> Ok
         | _, _ -> NComplex(promoteToComplex a * promoteToComplex b) |> Ok
 
+    let isZeroSNumber =
+        function
+        | NRational(n, _) -> n = 0I
+        | NReal r -> r = 0.0
+        | NComplex c -> c.Magnitude = 0.0
+
     let div a b =
-        match a, b with
-        | NRational(n1, d1), NRational(n2, d2) ->
-            if n2 = 0I then
-                Error "Division by zero."
-            else
-                nRational (n1 * d2) (d1 * n2)
-        | NRational(n, d), NReal r ->
-            if r = 0.0 then
-                Error "Division by zero."
-            else
-                NReal(toFloat n d / r) |> Ok
-        | NReal r, NRational(n, d) ->
-            let f = toFloat n d
-
-            if f = 0.0 then
-                Error "Division by zero."
-            else
-                NReal(r / f) |> Ok
-        | NReal r1, NReal r2 ->
-            if r2 = 0.0 then
-                Error "Division by zero."
-            else
-                NReal(r1 / r2) |> Ok
-        | _, _ ->
-            let c2 = promoteToComplex b
-
-            if c2.Magnitude = 0.0 then
-                Error "Division by zero."
-            else
-                NComplex(promoteToComplex a / c2) |> Ok
+        if b |> isZeroSNumber then
+            Error "Division by zero."
+        else
+            match a, b with
+            | NRational(n1, d1), NRational(n2, d2) -> nRational (n1 * d2) (d1 * n2)
+            | NRational(n, d), NReal r -> NReal(toFloat n d / r) |> Ok
+            | NReal r, NRational(n, d) -> NReal(r / toFloat n d) |> Ok
+            | NReal r1, NReal r2 -> NReal(r1 / r2) |> Ok
+            | _, _ -> NComplex(promoteToComplex a / promoteToComplex b) |> Ok
 
     let unaryMath
         name

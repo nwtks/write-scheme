@@ -25,78 +25,86 @@ module Print =
         let imag = formatFloat x.Imaginary true + "i"
         real + imag
 
+    let escapeChar c =
+        match c with
+        | '"' -> "\\\""
+        | '\\' -> "\\\\"
+        | c -> string c
+
+    let runesToChars (runes: System.Text.Rune array) =
+        runes |> Seq.collect (fun r -> (string r).ToCharArray())
+
     let formatString data =
-        let sb = System.Text.StringBuilder data.runes.Length
-        sb.Append '"' |> ignore
+        let content = data.runes |> runesToChars |> Seq.map escapeChar |> String.concat ""
+        sprintf "\"%s\"" content
 
-        data.runes
-        |> Seq.iter (
-            string
-            >> function
-                | "\"" -> "\\\""
-                | "\\" -> "\\\\"
-                | x -> x
-            >> sb.Append
-            >> ignore
-        )
-
-        sb.Append '"' |> ignore
-        sb |> string
+    let namedCharNames =
+        Map.ofList
+            [ 32, "#\\space"
+              10, "#\\newline"
+              13, "#\\return"
+              9, "#\\tab"
+              7, "#\\alarm"
+              8, "#\\backspace"
+              127, "#\\delete"
+              27, "#\\escape"
+              0, "#\\null" ]
 
     let formatChar (c: System.Text.Rune) =
-        match c.Value with
-        | 32 -> "#\\space"
-        | 10 -> "#\\newline"
-        | 13 -> "#\\return"
-        | 9 -> "#\\tab"
-        | 7 -> "#\\alarm"
-        | 8 -> "#\\backspace"
-        | 127 -> "#\\delete"
-        | 27 -> "#\\escape"
-        | 0 -> "#\\null"
-        | x when System.Text.Rune.IsControl c -> x |> sprintf "#\\x%x"
+        match namedCharNames |> Map.tryFind c.Value with
+        | Some name -> name
+        | None when System.Text.Rune.IsControl c -> c.Value |> sprintf "#\\x%x"
         | _ -> c |> string |> sprintf "#\\%s"
 
+    let isInitial c =
+        System.Char.IsLetter c || "!$%&*/:<=>?^_~".Contains c
+
+    let isSubsequent c =
+        isInitial c || System.Char.IsDigit c || "+-.@".Contains c
+
+    let symbolNeedsPipe s =
+        if s = "" || s = "+" || s = "-" || s = "..." then
+            false
+        else
+            not (isInitial s.[0])
+            && not (s.[0] = '+' || s.[0] = '-')
+            && not (s.Length > 1 && s.[0] = '.' && (isInitial s.[1] || "+-.@".Contains(s.[1])))
+            && not (s.StartsWith "...")
+            || s |> Seq.exists (not << isSubsequent)
 
     let formatSymbol s =
-        let isInitial c =
-            System.Char.IsLetter c || "!$%&*/:<=>?^_~".Contains c
-
-        let isSubsequent c =
-            isInitial c || System.Char.IsDigit c || "+-.@".Contains c
-
         if s = "" then
             "||"
         elif s = "+" || s = "-" || s = "..." then
             s
+        elif s |> symbolNeedsPipe then
+            "|" + s.Replace("\\", "\\\\").Replace("|", "\\|") + "|"
         else
-            let needsPipe =
-                not (isInitial s.[0])
-                && not (s.[0] = '+' || s.[0] = '-')
-                && not (s.Length > 1 && s.[0] = '.' && (isInitial s.[1] || "+-.@".Contains(s.[1])))
-                && not (s.StartsWith "...")
-                || s |> Seq.exists (fun c -> not (isSubsequent c))
-
-            if needsPipe then
-                "|" + s.Replace("\\", "\\\\").Replace("|", "\\|") + "|"
-            else
-                s
+            s
 
     let isVisited visited x =
         visited |> List.exists (fun v -> obj.ReferenceEquals(v, x))
+
+    let formatBool b = if b then "#t" else "#f"
+
+    let formatRational n d =
+        if d = 1I then string n else sprintf "%A/%A" n d
+
+    let formatByteVector (xs: byte array) =
+        xs |> Array.map string |> String.concat " " |> sprintf "#u8(%s)"
 
     let formatSimpleValue =
         function
         | SUnspecified, _ -> "#<unspecified>"
         | SEmpty, _ -> "()"
-        | SBool b, _ -> if b then "#t" else "#f"
-        | SRational(n, d), _ -> if d = 1I then string n else sprintf "%A/%A" n d
+        | SBool b, _ -> formatBool b
+        | SRational(n, d), _ -> formatRational n d
         | SReal x, _ -> formatFloat x false
         | SComplex x, _ -> formatComplex x
         | SString data, _ -> formatString data
         | SChar x, _ -> formatChar x
         | SSymbol x, _ -> formatSymbol x
-        | SByteVector xs, _ -> xs |> Array.map string |> String.concat " " |> sprintf "#u8(%s)"
+        | SByteVector xs, _ -> formatByteVector xs
         | _ -> failwith "unreachable."
 
     let formatOpaqueDescriptor =

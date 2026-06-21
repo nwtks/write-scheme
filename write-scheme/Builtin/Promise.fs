@@ -21,9 +21,9 @@ module Promise =
                 |> Eval.apply
                     context
                     (function
-                    | Ok(SPromise r, p) ->
+                    | Ok(SPromise r, _) ->
                         promise.Value <- r.Value
-                        sForce context p cont [ (SPromise promise, p) ]
+                        sForce context pos cont [ (SPromise promise, pos) ]
                     | Ok value ->
                         promise.Value <- true, value
                         Ok value |> cont

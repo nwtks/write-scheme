@@ -77,29 +77,27 @@ module Core =
         | [ x; y ] -> Ok([ x, y ] |> loopEqual [] |> toSBool, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid equal? parameter." |> cont
 
+    let getDisplayString =
+        function
+        | SString x, _ -> x.runes |> runesToString
+        | SChar x, _ -> x |> string
+        | expr -> expr |> Print.print
+
     let sDisplay context pos cont =
         function
-        | [ SString x, _ ] ->
-            x.runes |> runesToString |> printf "%s"
-            Ok(SUnspecified, pos) |> cont
-        | [ SChar x, _ ] ->
-            x |> string |> printf "%s"
-            Ok(SUnspecified, pos) |> cont
-        | [ x ] ->
-            x |> Print.print |> printf "%s"
+        | [ arg ] ->
+            arg |> getDisplayString |> printf "%s"
             Ok(SUnspecified, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid display parameter." |> cont
+
+    let readAndEvalFile context f p =
+        readAndResolveInclude false f p
+        |> Result.bind (fun exprs' -> exprs' |> mapResult (Eval.eval context id))
 
     let sLoad context pos cont =
         function
         | [ SString f, p ] ->
-            match tryReadAll false f p with
-            | Ok exprs ->
-                match exprs |> mapResult DatumLabel.resolveLabels with
-                | Ok exprs' ->
-                    match exprs' |> mapResult (Eval.eval context id) with
-                    | Ok _ -> Ok(f.runes |> runesToString |> sprintf "Loaded '%s'." |> SSymbol, pos) |> cont
-                    | Error e -> Error e |> cont
-                | Error e -> Error e |> cont
-            | Error e -> Error e |> cont
+            readAndEvalFile context f p
+            |> Result.map (fun _ -> f.runes |> runesToString |> sprintf "Loaded '%s'." |> SSymbol, pos)
+            |> cont
         | x -> x |> invalidParameter pos "'%s' invalid load parameter." |> cont

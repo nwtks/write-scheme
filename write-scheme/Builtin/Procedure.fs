@@ -13,6 +13,22 @@ module Procedure =
         | [ _ ] -> Ok(SFalse, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid procedure? parameter." |> cont
 
+    let coerceList name =
+        function
+        | SEmpty, _ -> Ok []
+        | list when list |> isProperList -> list |> toList
+        | x -> x |> invalid (snd x) (sprintf "'%%s' invalid %s parameter." name)
+
+    let coerceString pos name =
+        function
+        | SString s, _ -> s.runes |> Array.map (fun c -> SChar c, pos) |> Array.toList |> Ok
+        | x -> x |> invalid (snd x) (sprintf "'%%s' invalid %s parameter." name)
+
+    let coerceVector name =
+        function
+        | SVector vector, _ -> Array.toList vector |> Ok
+        | x -> x |> invalid (snd x) (sprintf "'%%s' invalid %s parameter." name)
+
     [<TailCall>]
     let rec foldApply pos args =
         function
@@ -58,10 +74,7 @@ module Procedure =
         | [ _ ] as x -> x |> invalidParameter pos "'%s' invalid map parameter." |> cont
         | proc :: lists ->
             lists
-            |> mapResult (function
-                | SEmpty, _ -> Ok []
-                | list when list |> isProperList -> list |> toList
-                | x -> x |> invalid (snd x) "'%s' invalid map parameter.")
+            |> mapResult (coerceList "map")
             |> function
                 | Ok lists' -> lists' |> transposeList |> mapMap context cont proc []
                 | Error e -> Error e |> cont
@@ -96,9 +109,7 @@ module Procedure =
         | [ _ ] as x -> x |> invalidParameter pos "'%s' invalid string-map parameter." |> cont
         | proc :: strings ->
             strings
-            |> mapResult (function
-                | SString s, _ -> s.runes |> Array.map (fun c -> SChar c, pos) |> Array.toList |> Ok
-                | x -> x |> invalid (snd x) "'%s' invalid string-map parameter.")
+            |> mapResult (coerceString pos "string-map")
             |> function
                 | Ok strings' -> strings' |> transposeList |> mapStringMap context (snd proc) cont proc []
                 | Error e -> Error e |> cont
@@ -122,9 +133,7 @@ module Procedure =
         | [ _ ] as x -> x |> invalidParameter pos "'%s' invalid vector-map parameter." |> cont
         | proc :: vectors ->
             vectors
-            |> mapResult (function
-                | SVector vector, _ -> Array.toList vector |> Ok
-                | x -> x |> invalid (snd x) "'%s' invalid vector-map parameter.")
+            |> mapResult (coerceVector "vector-map")
             |> function
                 | Ok vectors' -> vectors' |> transposeList |> mapVectorMap context (snd proc) cont proc []
                 | Error e -> Error e |> cont
@@ -148,10 +157,7 @@ module Procedure =
         | [ _ ] as x -> x |> invalidParameter pos "'%s' invalid for-each parameter." |> cont
         | proc :: lists ->
             lists
-            |> mapResult (function
-                | SEmpty, _ -> Ok []
-                | list when list |> isProperList -> list |> toList
-                | x -> x |> invalid (snd x) "'%s' invalid for-each parameter.")
+            |> mapResult (coerceList "for-each")
             |> function
                 | Ok lists' -> lists' |> transposeList |> loopForEach context (snd proc) cont proc
                 | Error e -> Error e |> cont
@@ -162,9 +168,7 @@ module Procedure =
         | [ _ ] as x -> x |> invalidParameter pos "'%s' invalid string-for-each parameter." |> cont
         | proc :: strings ->
             strings
-            |> mapResult (function
-                | SString s, _ -> s.runes |> Array.map (fun c -> SChar c, pos) |> Array.toList |> Ok
-                | x -> x |> invalid (snd x) "'%s' invalid string-for-each parameter.")
+            |> mapResult (coerceString pos "string-for-each")
             |> function
                 | Ok strings' -> strings' |> transposeList |> loopForEach context (snd proc) cont proc
                 | Error e -> Error e |> cont
@@ -175,9 +179,7 @@ module Procedure =
         | [ _ ] as x -> x |> invalidParameter pos "'%s' invalid vector-for-each parameter." |> cont
         | proc :: vectors ->
             vectors
-            |> mapResult (function
-                | SVector vector, _ -> Array.toList vector |> Ok
-                | x -> x |> invalid (snd x) "'%s' invalid vector-for-each parameter.")
+            |> mapResult (coerceVector "vector-for-each")
             |> function
                 | Ok vectors' -> vectors' |> transposeList |> loopForEach context (snd proc) cont proc
                 | Error e -> Error e |> cont

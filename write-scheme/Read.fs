@@ -387,10 +387,10 @@ module Read =
               parseDatumLabelDef
               parseDatumLabelRef ]
 
-    let read foldCase input =
+    let runParse parser foldCase input =
         match
             input
-            |> runParserOnString (pIntertokenSpace >>. parseDatum .>> pIntertokenSpace .>> eof) foldCase ""
+            |> runParserOnString (pIntertokenSpace >>. parser .>> pIntertokenSpace .>> eof) foldCase ""
         with
         | Success(res, _, _) -> Result.Ok res
         | Failure(msg, error, _) ->
@@ -402,17 +402,7 @@ module Read =
             )
             |> Result.Error
 
+    let read foldCase input = runParse parseDatum foldCase input
+
     let readAll foldCase input =
-        match
-            input
-            |> runParserOnString (pIntertokenSpace >>. many (parseDatum .>> pIntertokenSpace) .>> eof) foldCase ""
-        with
-        | Success(res, _, _) -> Result.Ok res
-        | Failure(msg, error, _) ->
-            ParseError(
-                msg,
-                Some
-                    { line = int64 error.Position.Line
-                      column = int64 error.Position.Column }
-            )
-            |> Result.Error
+        runParse (many (parseDatum .>> pIntertokenSpace)) foldCase input

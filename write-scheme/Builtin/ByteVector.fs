@@ -88,15 +88,21 @@ module ByteVector =
             | None -> args |> invalidParameter pos "'%s' invalid utf8->string parameter." |> cont
         | x -> x |> invalidParameter pos "'%s' invalid utf8->string parameter." |> cont
 
+    let runeRangeToString (start: int) (stop: int) (runes: System.Text.Rune array) =
+        let sb = System.Text.StringBuilder(stop - start)
+        runes.[start .. stop - 1] |> Seq.iter (string >> sb.Append >> ignore)
+        sb |> string
+
     let sStringToUtf8 context pos cont =
         function
         | (SString s, _) :: range as args ->
             match getRange s.runes.Length range with
             | Some(start, stop) ->
-                let sb = System.Text.StringBuilder stop
-                s.runes.[start .. stop - 1] |> Seq.iter (string >> sb.Append >> ignore)
-
-                Ok(sb |> string |> System.Text.Encoding.UTF8.GetBytes |> SByteVector, pos)
+                s.runes
+                |> runeRangeToString start stop
+                |> System.Text.Encoding.UTF8.GetBytes
+                |> SByteVector
+                |> fun x -> Ok(x, pos)
                 |> cont
             | None -> args |> invalidParameter pos "'%s' invalid string->utf8 parameter." |> cont
         | x -> x |> invalidParameter pos "'%s' invalid string->utf8 parameter." |> cont

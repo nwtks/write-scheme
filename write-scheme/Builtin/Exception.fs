@@ -28,7 +28,8 @@ module Exception =
     let doRaise continuable context pos cont obj =
         let handler = Context.popHandler context
 
-        Eval.apply
+        handler
+        |> Eval.apply
             context
             (fun res ->
                 handler |> Context.pushHandler context
@@ -37,7 +38,6 @@ module Exception =
                 | Ok _ when not continuable -> EvalError("Exception handler returned.", pos) |> Error |> cont
                 | _ -> res |> cont)
             [ obj ]
-            handler
 
     let sRaise context pos cont =
         function

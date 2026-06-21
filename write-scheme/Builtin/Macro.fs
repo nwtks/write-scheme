@@ -18,6 +18,14 @@ module Macro =
         | SPair p, _ -> p.cdr |> decodePair (p.car :: acc)
         | x -> acc |> List.rev, x
 
+    let getQuoteChild =
+        function
+        | SQuote v, _
+        | SQuasiquote v, _
+        | SUnquote v, _
+        | SUnquoteSplicing v, _ -> Some v
+        | _ -> None
+
     [<TailCall>]
     let rec collectSymbols recurseQuotes shouldCollect acc =
         function
@@ -30,15 +38,11 @@ module Macro =
             | SPair _, _ as pair ->
                 let elements, tail = pair |> decodePair []
                 collectSymbols recurseQuotes shouldCollect acc (elements @ tail :: xs)
-            | SQuote v, _
-            | SQuasiquote v, _
-            | SUnquote v, _
-            | SUnquoteSplicing v, _ ->
-                if recurseQuotes then
-                    v :: xs |> collectSymbols recurseQuotes shouldCollect acc
-                else
-                    xs |> collectSymbols recurseQuotes shouldCollect acc
             | SVector v, _ -> (v |> Array.toList) @ xs |> collectSymbols recurseQuotes shouldCollect acc
+            | _ when recurseQuotes ->
+                match getQuoteChild x with
+                | Some child -> child :: xs |> collectSymbols recurseQuotes shouldCollect acc
+                | None -> xs |> collectSymbols recurseQuotes shouldCollect acc
             | _ -> xs |> collectSymbols recurseQuotes shouldCollect acc
 
     let loopPatternVars literals ellipsis acc xs =
@@ -97,6 +101,17 @@ module Macro =
     let matchAtom patternKind argKind =
         eqv ((patternKind, None), (argKind, None))
 
+    let splitEllipsisPatterns (ellipsis: string) (patterns: SExpression list) =
+        patterns
+        |> List.tryFindIndex (function
+            | SSymbol s, _ when s = ellipsis -> true
+            | _ -> false)
+        |> Option.bind (fun i ->
+            if i > 0 then
+                Some(patterns |> List.take (i - 1), patterns |> List.skip (i + 1), patterns.[i - 1])
+            else
+                None)
+
     [<TailCall>]
     let rec matchOne defContext useContext literals ellipsis arg next =
         function
@@ -145,32 +160,22 @@ module Macro =
         | pattern, arg -> pattern |> matchOne defContext useContext literals ellipsis arg next
 
     and [<TailCall>] matchPatternList defContext useContext literals ellipsis args next patterns =
-        let dotIdx =
-            patterns
-            |> List.tryFindIndex (function
-                | SSymbol s, _ when s = ellipsis -> true
-                | _ -> false)
-
-        match dotIdx with
-        | Some i when i > 0 ->
-            let prefixPatterns = patterns |> List.take (i - 1)
-            let suffixPatterns = patterns |> List.skip (i + 1)
-            let ellipsisPattern = patterns.[i - 1]
-
-            if args.Length < prefixPatterns.Length + suffixPatterns.Length then
-                None |> next
-            else
-                matchPatternListWithEllipsisParts
-                    defContext
-                    useContext
-                    literals
-                    ellipsis
-                    args
-                    next
-                    prefixPatterns
-                    suffixPatterns
-                    ellipsisPattern
-        | _ ->
+        match splitEllipsisPatterns ellipsis patterns with
+        | Some(prefixPatterns, suffixPatterns, ellipsisPattern) when
+            args.Length >= prefixPatterns.Length + suffixPatterns.Length
+            ->
+            matchPatternListWithEllipsisParts
+                defContext
+                useContext
+                literals
+                ellipsis
+                args
+                next
+                prefixPatterns
+                suffixPatterns
+                ellipsisPattern
+        | Some _ -> None |> next
+        | None ->
             match patterns with
             | pattern :: rest -> matchPatternListCons defContext useContext literals ellipsis args next pattern rest
             | [] ->
@@ -403,31 +408,38 @@ module Macro =
                     (List.foldBack (fun x acc -> SPair { car = x; cdr = acc }, snd x) expandedElements
                      >> next))
 
-    let expandSyntaxRule defContext useContext literalSet ellipsis cont elements template bindings =
-        let patternVars =
-            elements |> toSPair |> collectPatternVariables literalSet ellipsis |> Set.ofList
+    let filterTemplateVars literalSet ellipsis patternVars template =
+        template
+        |> collectTemplateVars ellipsis
+        |> List.filter (fun s -> not (patternVars |> Set.contains s || literalSet |> Set.contains s || s = ellipsis))
+        |> List.distinct
 
-        let templateVars =
-            template
-            |> collectTemplateVars ellipsis
-            |> List.filter (fun s ->
-                not (patternVars |> Set.contains s || literalSet |> Set.contains s || s = ellipsis))
-            |> List.distinct
-
+    let buildRenameContext defContext useContext templateVars =
         let expansionId = Context.getNextExpansionId useContext
         let rename s = sprintf "%s#%d" s expansionId
         let renameMap = templateVars |> List.map (fun s -> s, rename s) |> Map.ofList
 
+        let extendedContext =
+            templateVars
+            |> List.choose (fun s ->
+                match s |> Context.tryLookupEnvironments defContext with
+                | Some v -> Some(rename s, v)
+                | None -> None)
+            |> Context.extendEnvironments useContext
+
+        renameMap, extendedContext
+
+    let expandSyntaxRule defContext useContext literalSet ellipsis cont elements template bindings =
+        let patternVars =
+            elements |> toSPair |> collectPatternVariables literalSet ellipsis |> Set.ofList
+
+        let templateVars = filterTemplateVars literalSet ellipsis patternVars template
+
+        let renameMap, extendedContext =
+            buildRenameContext defContext useContext templateVars
+
         template
         |> renameTemplate renameMap (fun renamedTemplate ->
-            let extendedContext =
-                templateVars
-                |> List.choose (fun s ->
-                    match s |> Context.tryLookupEnvironments defContext with
-                    | Some v -> Some(rename s, v)
-                    | None -> None)
-                |> Context.extendEnvironments useContext
-
             renamedTemplate
             |> expandTemplate ellipsis false bindings (Eval.eval extendedContext cont))
 
@@ -464,30 +476,25 @@ module Macro =
           _ -> elements |> toList |> Result.map (fun elist -> elist, template)
         | x -> x |> invalid (snd x) "'%s' invalid syntax-rules clause."
 
+    let buildSyntaxTransformer context pos cont ellipsis literalSet rules =
+        match rules |> mapResult parseSyntaxRule with
+        | Ok parsedRules ->
+            let transformer context' pos' cont' args =
+                parsedRules
+                |> trySyntaxRules context context' pos' cont' ellipsis literalSet args
+
+            Ok(SSyntax transformer, pos) |> cont
+        | Error e -> Error e |> cont
+
     let sSyntaxRules context pos cont =
         function
         | (SSymbol ellipsis, _) :: literals :: rules ->
             match parseSyntaxLiterals literals with
-            | Ok literalSet ->
-                match rules |> mapResult parseSyntaxRule with
-                | Ok parsedRules ->
-                    let transformer context' pos' cont' args =
-                        parsedRules
-                        |> trySyntaxRules context context' pos' cont' ellipsis literalSet args
-
-                    Ok(SSyntax transformer, pos) |> cont
-                | Error e -> Error e |> cont
+            | Ok literalSet -> buildSyntaxTransformer context pos cont ellipsis literalSet rules
             | Error e -> Error e |> cont
         | literals :: rules ->
             match parseSyntaxLiterals literals with
-            | Ok literalSet ->
-                match rules |> mapResult parseSyntaxRule with
-                | Ok parsedRules ->
-                    let transformer context' pos' cont' args =
-                        parsedRules |> trySyntaxRules context context' pos' cont' "..." literalSet args
-
-                    Ok(SSyntax transformer, pos) |> cont
-                | Error e -> Error e |> cont
+            | Ok literalSet -> buildSyntaxTransformer context pos cont "..." literalSet rules
             | Error e -> Error e |> cont
         | x -> x |> invalidParameter pos "'%s' invalid syntax-rules parameter." |> cont
 

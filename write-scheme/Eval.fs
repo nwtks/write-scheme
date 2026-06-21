@@ -36,6 +36,11 @@ module Eval =
             EvalError(sprintf "'%s' invalid parameter object call." (x |> toSPair |> Print.print), pos)
             |> Error
 
+    let evalSyntaxArgs context pos cont fn =
+        function
+        | Ok args -> args |> fn context pos cont
+        | Error e -> Error e |> cont
+
     [<TailCall>]
     let rec eval context cont =
         function
@@ -50,21 +55,16 @@ module Eval =
         | SQuasiquote x, pos -> [ SSymbol "quasiquote", pos; x ] |> toSPair |> eval context cont
         | expr -> expr |> Ok |> cont
 
+    and [<TailCall>] evalProcedureArgs context cont op =
+        function
+        | Ok args -> args |> evalArgs context cont (fun e c a -> op |> apply e c a) []
+        | Error e -> Error e |> cont
+
     and [<TailCall>] evalPair context cont pair =
         pair.car
         |> eval context (function
-            | Ok(SSyntax fn, pos) ->
-                pair.cdr
-                |> toList
-                |> function
-                    | Ok args -> args |> fn context pos cont
-                    | Error e -> Error e |> cont
-            | Ok op ->
-                pair.cdr
-                |> toList
-                |> function
-                    | Ok args -> args |> evalArgs context cont (fun e c a -> op |> apply e c a) []
-                    | Error e -> Error e |> cont
+            | Ok(SSyntax fn, pos) -> pair.cdr |> toList |> evalSyntaxArgs context pos cont fn
+            | Ok op -> pair.cdr |> toList |> evalProcedureArgs context cont op
             | x -> x |> cont)
 
     and [<TailCall>] evalArgs context cont fn acc =
@@ -112,6 +112,18 @@ module Eval =
         | _ -> []
 
     [<TailCall>]
+    let rec expandBeginInBody acc =
+        function
+        | [] -> acc |> List.rev
+        | SPair { car = SSymbol "begin", _
+                  cdr = inner },
+          _ as expr :: rest ->
+            match inner |> toList with
+            | Ok ilist -> ilist @ rest |> expandBeginInBody acc
+            | Error _ -> rest |> expandBeginInBody (expr :: acc)
+        | expr :: rest -> rest |> expandBeginInBody (expr :: acc)
+
+    [<TailCall>]
     let rec collectInternalDefinitions acc =
         function
         | [] -> acc |> List.rev, []
@@ -122,12 +134,6 @@ module Eval =
             | SPair { car = SSymbol "define-values", _
                       cdr = _ },
               _ -> rest :: stack |> collectInternalDefinitions (head :: acc)
-            | SPair { car = SSymbol "begin", _
-                      cdr = inner },
-              _ ->
-                match inner |> toList with
-                | Ok ilist -> ilist :: rest :: stack |> collectInternalDefinitions acc
-                | Error _ -> acc |> List.rev, head :: rest @ List.concat stack
             | _ -> acc |> List.rev, head :: rest @ List.concat stack
 
     let isDefinition =
@@ -138,36 +144,43 @@ module Eval =
           _ -> true
         | _ -> false
 
-    let evalBody context cont acc body =
-        let definitions, expressions = [ body ] |> collectInternalDefinitions []
-
+    let validateBodyStructure definitions expressions =
         match expressions |> List.tryFind isDefinition with
-        | Some(_, pos) ->
-            EvalError("Definitions must appear at the beginning of a body.", pos)
-            |> Error
-            |> cont
+        | Some(_, pos) -> Error("Definitions must appear at the beginning of a body.", pos)
         | None ->
             if definitions |> List.isEmpty then
-                body |> eachEval context cont acc
-            else if expressions |> List.isEmpty then
-                EvalError(
+                Ok None
+            elif expressions |> List.isEmpty then
+                Error(
                     "Internal definitions must be followed by at least one expression.",
                     definitions |> List.last |> snd
                 )
-                |> Error
-                |> cont
             else
-                let context' =
-                    definitions
-                    |> List.collect getDefinedVariables
-                    |> List.distinct
-                    |> List.map (fun var -> var, ref (SUnspecified, None))
-                    |> Context.extendEnvironments context
+                Ok(Some(definitions, expressions))
 
-                definitions
-                |> eachEval
-                    context'
-                    (function
-                    | Ok _ -> expressions |> eachEval context' cont acc
-                    | x -> x |> cont)
-                    (Ok(SUnspecified, None))
+    let prepareDefinitionContext context definitions =
+        definitions
+        |> List.collect getDefinedVariables
+        |> List.distinct
+        |> List.map (fun var -> var, ref (SUnspecified, None))
+        |> Context.extendEnvironments context
+
+    let evalDefinitionsAndBody context cont acc definitions expressions =
+        let context' = definitions |> prepareDefinitionContext context
+
+        definitions
+        |> eachEval
+            context'
+            (function
+            | Ok _ -> expressions |> eachEval context' cont acc
+            | x -> x |> cont)
+            (Ok(SUnspecified, None))
+
+    let evalBody context cont acc body =
+        let expandedBody = body |> expandBeginInBody []
+        let definitions, expressions = [ expandedBody ] |> collectInternalDefinitions []
+
+        match validateBodyStructure definitions expressions with
+        | Ok None -> body |> eachEval context cont acc
+        | Ok(Some(defs, exprs)) -> evalDefinitionsAndBody context cont acc defs exprs
+        | Error(msg, pos) -> EvalError(msg, pos) |> Error |> cont

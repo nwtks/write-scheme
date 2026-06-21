@@ -69,16 +69,14 @@ module SpecialForm =
     let sSetBang context pos cont =
         function
         | [ SSymbol variable, pos'; expression ] ->
-            expression
-            |> Eval.eval
-                context
-                (Result.bind (fun exprVal ->
-                    variable
-                    |> Context.lookupEnvironments context pos'
-                    |> Result.map (fun v ->
-                        v.Value <- exprVal
-                        exprVal)))
-            |> cont
+            let setVariable value =
+                variable
+                |> Context.lookupEnvironments context pos'
+                |> Result.map (fun v ->
+                    v.Value <- value
+                    value)
+
+            expression |> Eval.eval context (Result.bind setVariable) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid set! parameter." |> cont
 
     [<TailCall>]
@@ -89,13 +87,10 @@ module SpecialForm =
             | [] -> Ok(SUnspecified, pos) |> cont
             | expressions -> expressions |> Eval.eachEval context cont (Ok(SUnspecified, pos))
         | (SString f, p) :: rest ->
-            match tryReadAll foldCase f p with
-            | Ok expressions ->
-                match expressions |> mapResult DatumLabel.resolveLabels with
-                | Ok resolvedExpressions ->
-                    rest
-                    |> sIncludeFiles foldCase context pos cont (List.rev resolvedExpressions @ acc)
-                | Error e -> Error e |> cont
+            match readAndResolveInclude foldCase f p with
+            | Ok resolvedExpressions ->
+                rest
+                |> sIncludeFiles foldCase context pos cont (List.rev resolvedExpressions @ acc)
             | Error e -> Error e |> cont
         | x :: _ -> [ x ] |> invalidParameter pos "'%s' invalid include parameter." |> cont
 
@@ -313,32 +308,29 @@ module SpecialForm =
                 | Ok i -> bindings |> bindLet context pos cont body ((variable, ref i) :: acc)
                 | x -> x |> cont)
 
-    let evalNamedLet context pos cont variable body =
-        function
-        | Ok bindings ->
-            match bindings |> mapResult eachBinding with
-            | Ok bindings' ->
-                let r = ref (SUnspecified, pos)
-                let context' = [ variable, r ] |> Context.extendEnvironments context
-                let formals = bindings' |> List.map (fun (v, _) -> SSymbol v, pos) |> toSPair
-                let proc = SProcedure(closure context' formals body), pos
-                r.Value <- proc
+    let evalNamedLet context pos cont variable body bindings' =
+        let r = ref (SUnspecified, pos)
+        let context' = [ variable, r ] |> Context.extendEnvironments context
+        let formals = bindings' |> List.map (fun (v, _) -> SSymbol v, pos) |> toSPair
+        let proc = SProcedure(closure context' formals body), pos
+        r.Value <- proc
 
-                bindings'
-                |> List.map snd
-                |> Eval.evalArgs context' cont (fun e c a -> proc |> Eval.apply e c a) []
-            | Error e -> Error e |> cont
-        | Error e -> Error e |> cont
+        bindings'
+        |> List.map snd
+        |> Eval.evalArgs context' cont (fun e c a -> proc |> Eval.apply e c a) []
+
+    let parseLetBindings bindings =
+        bindings |> toList |> Result.bind (mapResult eachBinding)
 
     let sLet context pos cont =
         function
-        | (SSymbol variable, _) :: bindings :: body -> evalNamedLet context pos cont variable body (bindings |> toList)
+        | (SSymbol variable, _) :: bindings :: body ->
+            match bindings |> parseLetBindings with
+            | Ok bindings' -> evalNamedLet context pos cont variable body bindings'
+            | Error e -> Error e |> cont
         | bindings :: body ->
-            match bindings |> toList with
-            | Ok blist ->
-                match blist |> mapResult eachBinding with
-                | Ok bindings' -> bindings' |> bindLet context pos cont body []
-                | Error e -> Error e |> cont
+            match bindings |> parseLetBindings with
+            | Ok bindings' -> bindings' |> bindLet context pos cont body []
             | Error e -> Error e |> cont
         | x -> x |> invalidParameter pos "'%s' invalid let parameter." |> cont
 
@@ -357,11 +349,8 @@ module SpecialForm =
     let sLetStar context pos cont =
         function
         | bindings :: body ->
-            match bindings |> toList with
-            | Ok blist ->
-                match blist |> mapResult eachBinding with
-                | Ok bindings' -> bindings' |> bindLetStar context pos cont body
-                | Error e -> Error e |> cont
+            match bindings |> parseLetBindings with
+            | Ok bindings' -> bindings' |> bindLetStar context pos cont body
             | Error e -> Error e |> cont
         | x -> x |> invalidParameter pos "'%s' invalid let* parameter." |> cont
 
@@ -386,11 +375,8 @@ module SpecialForm =
 
         function
         | bindings :: body ->
-            match bindings |> toList with
-            | Ok blist ->
-                match blist |> mapResult eachBinding with
-                | Ok bindings' -> bindings' |> bindLetRec (bindings' |> bindRef) pos cont body
-                | Error e -> Error e |> cont
+            match bindings |> parseLetBindings with
+            | Ok bindings' -> bindings' |> bindLetRec (bindings' |> bindRef) pos cont body
             | Error e -> Error e |> cont
         | x -> x |> invalidParameter pos "'%s' invalid letrec parameter." |> cont
 
@@ -418,13 +404,10 @@ module SpecialForm =
 
         function
         | bindings :: body ->
-            match bindings |> toList with
-            | Ok blist ->
-                match blist |> mapResult eachBinding with
-                | Ok bindings' ->
-                    let context', refs = bindRef bindings'
-                    (bindings', refs) |> bindLetRecStar context' pos cont body
-                | Error e -> Error e |> cont
+            match bindings |> parseLetBindings with
+            | Ok bindings' ->
+                let context', refs = bindRef bindings'
+                (bindings', refs) |> bindLetRecStar context' pos cont body
             | Error e -> Error e |> cont
         | x -> x |> invalidParameter pos "'%s' invalid letrec* parameter." |> cont
 
@@ -442,6 +425,9 @@ module SpecialForm =
                 |> Result.map (fun vars -> vars, init)
             | Error e -> Error e
         | x -> x |> invalid (snd x) "'%s' invalid values binding."
+
+    let parseLetValuesBindings bindings =
+        bindings |> toList |> Result.bind (mapResult eachValuesBinding)
 
     let matchValuesBinding pos cont name variables init next =
         let values =
@@ -473,11 +459,8 @@ module SpecialForm =
     let sLetValues context pos cont =
         function
         | bindings :: body ->
-            match bindings |> toList with
-            | Ok blist ->
-                match blist |> mapResult eachValuesBinding with
-                | Ok bindings' -> bindings' |> bindLetValues context pos cont body []
-                | Error e -> Error e |> cont
+            match bindings |> parseLetValuesBindings with
+            | Ok bindings' -> bindings' |> bindLetValues context pos cont body []
             | Error e -> Error e |> cont
         | x -> x |> invalidParameter pos "'%s' invalid let-values parameter." |> cont
 
@@ -497,11 +480,8 @@ module SpecialForm =
     let sLetStarValues context pos cont =
         function
         | bindings :: body ->
-            match bindings |> toList with
-            | Ok blist ->
-                match blist |> mapResult eachValuesBinding with
-                | Ok bindings' -> bindings' |> bindLetStarValues context pos cont body
-                | Error e -> Error e |> cont
+            match bindings |> parseLetValuesBindings with
+            | Ok bindings' -> bindings' |> bindLetStarValues context pos cont body
             | Error e -> Error e |> cont
         | x -> x |> invalidParameter pos "'%s' invalid let*-values parameter." |> cont
 
@@ -595,45 +575,42 @@ module SpecialForm =
           _ -> Ok(variable, varPos, init, None)
         | x -> x |> invalid (snd x) "'%s' invalid do binding parameter."
 
+    let parseDoBindings bindings =
+        bindings |> toList |> Result.bind (mapResult parseDoBinding)
+
     let sDo context pos cont =
         function
         | bindings :: testClause :: commands ->
             match testClause with
             | SPair { car = test; cdr = expressions }, _ ->
-                match bindings |> toList with
-                | Ok blist ->
-                    match blist |> mapResult parseDoBinding with
-                    | Ok bindings' ->
-                        match expressions |> toList with
-                        | Ok elist -> bindings' |> initDoVariables context pos cont bindings' test elist commands []
-                        | Error e -> Error e |> cont
+                match bindings |> parseDoBindings with
+                | Ok bindings' ->
+                    match expressions |> toList with
+                    | Ok elist -> bindings' |> initDoVariables context pos cont bindings' test elist commands []
                     | Error e -> Error e |> cont
                 | Error e -> Error e |> cont
             | _ -> [ testClause ] |> invalidParameter pos "'%s' invalid do test clause." |> cont
         | x -> x |> invalidParameter pos "'%s' invalid do parameter." |> cont
 
+    let makeLazyPromise context pos expression =
+        let thunk = closure context (SEmpty, pos) [ expression ]
+        SPromise(ref (false, (SProcedure thunk, pos))), pos
+
     let sDelay context pos cont =
         function
-        | [ expression ] ->
-            let thunk = closure context (SEmpty, pos) [ expression ]
-            Ok(SPromise(ref (false, (SProcedure thunk, pos))), pos) |> cont
+        | [ expression ] -> expression |> makeLazyPromise context pos |> Ok |> cont
         | x -> x |> invalidParameter pos "'%s' invalid delay parameter." |> cont
 
     let sDelayForce context pos cont =
         function
-        | [ expression ] ->
-            let thunk = closure context (SEmpty, pos) [ expression ]
-            Ok(SPromise(ref (false, (SProcedure thunk, pos))), pos) |> cont
+        | [ expression ] -> expression |> makeLazyPromise context pos |> Ok |> cont
         | x -> x |> invalidParameter pos "'%s' invalid delay-force parameter." |> cont
 
     let sParameterize context pos cont =
         function
         | parameters :: body ->
-            match parameters |> toList with
-            | Ok plist ->
-                match plist |> mapResult eachParamBinding with
-                | Ok parameters' -> parameters' |> loopParameterize context pos cont body []
-                | Error e -> Error e |> cont
+            match parameters |> parseParamBindings with
+            | Ok parameters' -> parameters' |> loopParameterize context pos cont body []
             | Error e -> Error e |> cont
         | x -> x |> invalidParameter pos "'%s' invalid parameterize parameter." |> cont
 
@@ -897,87 +874,82 @@ module SpecialForm =
         | Ok parsedClauses -> Ok(SProcedure(caseClosure context parsedClauses), pos) |> cont
         | Error e -> Error e |> cont
 
-    let processImportSetOnly cont ids =
+    let onImportBindings cont transformFn =
         function
-        | Ok bindings ->
-            match ids |> toList with
-            | Ok idList ->
-                let mutable result = Map.empty
-                let mutable err = None
-
-                idList
-                |> List.iter (function
-                    | SSymbol id, pos ->
-                        match bindings |> Map.tryFind id with
-                        | Some r -> result <- result |> Map.add id r
-                        | None -> err <- Some(EvalError(sprintf "only: identifier '%s' not exported." id, pos))
-                    | x -> err <- Some(EvalError("only: identifier expected.", snd x)))
-
-                match err with
-                | Some e -> Error e |> cont
-                | None -> Ok result |> cont
-            | Error e -> Error e |> cont
+        | Ok bindings -> transformFn bindings |> cont
         | x -> x |> cont
+
+    let resolveImportOnlyId bindings id pos =
+        match bindings |> Map.tryFind id with
+        | Some r -> Ok(Some(id, r))
+        | None -> EvalError(sprintf "only: identifier '%s' not exported." id, pos) |> Error
+
+    let collectImportOnlyIds bindings ids =
+        ids
+        |> mapResult (function
+            | SSymbol id, pos -> resolveImportOnlyId bindings id pos
+            | x -> EvalError("only: identifier expected.", snd x) |> Error)
+        |> Result.map (fun pairs -> pairs |> List.choose id |> Map.ofList)
+
+    let processImportSetOnly cont ids =
+        onImportBindings cont (fun bindings ->
+            ids
+            |> toList
+            |> Result.bind (fun idList -> idList |> collectImportOnlyIds bindings))
+
+    let resolveImportExceptId bindings id pos =
+        if bindings |> Map.containsKey id then
+            Ok id
+        else
+            EvalError(sprintf "except: identifier '%s' not exported." id, pos) |> Error
+
+    let collectImportExceptIds bindings ids =
+        ids
+        |> mapResult (function
+            | SSymbol id, pos -> resolveImportExceptId bindings id pos |> Result.map (fun _ -> id)
+            | x -> EvalError("except: identifier expected.", snd x) |> Error)
 
     let processImportSetExcept cont ids =
-        function
-        | Ok bindings ->
-            match ids |> toList with
-            | Ok idList ->
-                let mutable result = bindings
-                let mutable err = None
-
+        onImportBindings cont (fun bindings ->
+            ids
+            |> toList
+            |> Result.bind (fun idList ->
                 idList
-                |> List.iter (function
-                    | SSymbol id, pos ->
-                        if bindings |> Map.containsKey id then
-                            result <- result |> Map.remove id
-                        else
-                            err <- Some(EvalError(sprintf "except: identifier '%s' not exported." id, pos))
-                    | x -> err <- Some(EvalError("except: identifier expected.", snd x)))
-
-                match err with
-                | Some e -> Error e |> cont
-                | None -> Ok result |> cont
-            | Error e -> Error e |> cont
-        | x -> x |> cont
+                |> collectImportExceptIds bindings
+                |> Result.map (fun removedIds ->
+                    removedIds |> List.fold (fun acc id -> acc |> Map.remove id) bindings)))
 
     let processImportSetPrefix cont prefix =
-        function
-        | Ok bindings ->
+        onImportBindings cont (fun bindings ->
             bindings
             |> Map.toSeq
             |> Seq.map (fun (name, r) -> prefix + name, r)
             |> Map.ofSeq
-            |> Ok
-            |> cont
-        | x -> x |> cont
+            |> Ok)
+
+    let resolveRenameClause bindings =
+        function
+        | SPair { car = SSymbol fromId, _
+                  cdr = SPair { car = SSymbol toId, _
+                                cdr = SEmpty, _ },
+                        _ },
+          pos ->
+            match bindings |> Map.tryFind fromId with
+            | Some r -> Ok(fromId, toId, r)
+            | None -> EvalError(sprintf "rename: identifier '%s' not exported." fromId, pos) |> Error
+        | x -> EvalError("rename: invalid rename clause.", snd x) |> Error
+
+    let applyRename bindings (fromId, toId, r) =
+        bindings |> Map.remove fromId |> Map.add toId r
 
     let processImportSetRename cont renames =
-        function
-        | Ok bindings ->
-            match renames |> toList with
-            | Ok renameList ->
-                let mutable result = bindings
-                let mutable err = None
-
+        onImportBindings cont (fun bindings ->
+            renames
+            |> toList
+            |> Result.bind (fun renameList ->
                 renameList
-                |> List.iter (function
-                    | SPair { car = SSymbol fromId, _
-                              cdr = SPair { car = SSymbol toId, _
-                                            cdr = SEmpty, _ },
-                                    _ },
-                      pos ->
-                        match bindings |> Map.tryFind fromId with
-                        | Some r -> result <- result |> Map.remove fromId |> Map.add toId r
-                        | None -> err <- Some(EvalError(sprintf "rename: identifier '%s' not exported." fromId, pos))
-                    | x -> err <- Some(EvalError("rename: invalid rename clause.", snd x)))
-
-                match err with
-                | Some e -> Error e |> cont
-                | None -> Ok result |> cont
-            | Error e -> Error e |> cont
-        | x -> x |> cont
+                |> mapResult (resolveRenameClause bindings)
+                |> Result.map (fun clauses -> clauses |> List.fold applyRename bindings)))
 
     [<TailCall>]
     let rec processImportSet context pos cont =
