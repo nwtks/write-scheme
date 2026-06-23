@@ -5,7 +5,7 @@ open Type
 module Repl =
     let formatPosition =
         function
-        | Some pos -> sprintf " (at line %d, column %d)" pos.line pos.column
+        | Some pos -> $" (at line {pos.line}, column {pos.column})"
         | None -> ""
 
     let rep context =
@@ -17,9 +17,9 @@ module Repl =
             context |> Context.reset
 
             match e with
-            | ParseError(msg, pos) -> sprintf "%s%s" msg (pos |> formatPosition)
-            | EvalError(msg, pos) -> sprintf "%s%s" msg (pos |> formatPosition)
-            | SchemeRaise(expr, pos) -> sprintf "%s%s" (expr |> Print.print) (pos |> formatPosition))
+            | ParseError(msg, pos) -> $"{msg}{pos |> formatPosition}"
+            | EvalError(msg, pos) -> $"{msg}{pos |> formatPosition}"
+            | SchemeRaise(expr, pos) -> $"{expr |> Print.print}{pos |> formatPosition}")
 
     let newContext () =
         let context = Builtin.builtinContext

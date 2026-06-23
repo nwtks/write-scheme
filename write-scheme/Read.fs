@@ -54,13 +54,13 @@ module Read =
 
     let pPeculiarIdentifier =
         choice
-            [ attempt (pipe3 pExplicitSign pSignSubsequent (pSubsequent |> manyStrings) (sprintf "%c%s%s"))
+            [ attempt (pipe3 pExplicitSign pSignSubsequent (pSubsequent |> manyStrings) (fun c s1 s2 -> $"{c}{s1}{s2}"))
               attempt (
                   pipe4 pExplicitSign (pchar '.') pDotSubsequent (pSubsequent |> manyStrings) (fun c1 _ s3 s4 ->
-                      sprintf "%c.%s%s" c1 s3 s4)
+                      $"{c1}.{s3}{s4}")
               )
               pExplicitSign |>> string
-              pipe3 (pchar '.') pDotSubsequent (pSubsequent |> manyStrings) (fun _ s2 s3 -> sprintf ".%s%s" s2 s3) ]
+              pipe3 (pchar '.') pDotSubsequent (pSubsequent |> manyStrings) (fun _ s2 s3 -> $".{s2}{s3}") ]
 
     let pSymbolElement =
         choice
@@ -156,7 +156,7 @@ module Read =
             | Result.Error msg -> fail msg
 
     let pDecimalSuffix =
-        anyOf "Ee" >>. pipe2 pSign (pDigit |> many1Chars) (sprintf "E%c%s")
+        anyOf "Ee" >>. pipe2 pSign (pDigit |> many1Chars) (fun c s -> $"E{c}{s}")
 
     let pDecimalSuffixOpt = pDecimalSuffix |> opt |>> Option.defaultValue ""
 
@@ -169,19 +169,19 @@ module Read =
                       (pchar '.')
                       (pDigit |> many1Chars)
                       pDecimalSuffixOpt
-                      (fun c1 s2 _ s4 s5 -> sprintf "%c%s.%s%s" c1 s2 s4 s5 |> System.Double.Parse)
+                      (fun c1 s2 _ s4 s5 -> $"{c1}{s2}.{s4}{s5}" |> System.Double.Parse)
               )
               attempt (
                   pipe4 pSign (pDigit |> many1Chars) (pchar '.') pDecimalSuffixOpt (fun c1 s2 _ s4 ->
-                      sprintf "%c%s%s" c1 s2 s4 |> System.Double.Parse)
+                      $"{c1}{s2}{s4}" |> System.Double.Parse)
               )
               attempt (
                   pipe4 pSign (pchar '.') (pDigit |> many1Chars) pDecimalSuffixOpt (fun c1 _ s3 s4 ->
-                      sprintf "%c0.%s%s" c1 s3 s4 |> System.Double.Parse)
+                      $"{c1}0.{s3}{s4}" |> System.Double.Parse)
               )
               attempt (
                   pipe3 pSign (pDigit |> many1Chars) pDecimalSuffix (fun c1 s2 s3 ->
-                      sprintf "%c%s%s" c1 s2 s3 |> System.Double.Parse)
+                      $"{c1}{s2}{s3}" |> System.Double.Parse)
               ) ]
 
     let pRealDouble =

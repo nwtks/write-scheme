@@ -11,7 +11,7 @@ module Print =
         elif System.Double.IsNegativeInfinity x then
             "-inf.0"
         else if isImaginary then
-            x |> sprintf (if x >= 0.0 then "+%g" else "%g")
+            if x >= 0.0 then $"+{x:g}" else $"{x:g}"
         else
             string x
 
@@ -36,7 +36,7 @@ module Print =
 
     let formatString data =
         let content = data.runes |> runesToChars |> Seq.map escapeChar |> String.concat ""
-        sprintf "\"%s\"" content
+        $"\"{content}\""
 
     let namedCharNames =
         Map.ofList
@@ -53,7 +53,7 @@ module Print =
     let formatChar (c: System.Text.Rune) =
         match namedCharNames |> Map.tryFind c.Value with
         | Some name -> name
-        | None when System.Text.Rune.IsControl c -> c.Value |> sprintf "#\\x%x"
+        | None when System.Text.Rune.IsControl c -> $"#\\x{c.Value:x}"
         | _ -> c |> string |> sprintf "#\\%s"
 
     let isInitial c =
@@ -87,8 +87,7 @@ module Print =
 
     let formatBool b = if b then "#t" else "#f"
 
-    let formatRational n d =
-        if d = 1I then string n else sprintf "%A/%A" n d
+    let formatRational n d = if d = 1I then string n else $"{n}/{d}"
 
     let formatByteVector (xs: byte array) =
         xs |> Array.map string |> String.concat " " |> sprintf "#u8(%s)"
@@ -109,8 +108,8 @@ module Print =
 
     let formatOpaqueDescriptor =
         function
-        | SRecord(_, typeName, _), _ -> sprintf "#<%s>" typeName
-        | SDatumRef n, _ -> sprintf "#%d#" n
+        | SRecord(_, typeName, _), _ -> $"#<{typeName}>"
+        | SDatumRef n, _ -> $"#{n}#"
         | SPromise _, _ -> "#<promise>"
         | SParameter _, _ -> "#<parameter>"
         | SSyntax _, _ -> "#<syntax>"
@@ -124,7 +123,7 @@ module Print =
         | SQuasiquote x, _ -> "`", x
         | SUnquote x, _ -> ",", x
         | SUnquoteSplicing x, _ -> ",@", x
-        | SDatumLabel(n, d), _ -> sprintf "#%d=" n, d
+        | SDatumLabel(n, d), _ -> $"#{n}=", d
         | _ -> failwith "unreachable."
 
     let isSimpleValueKind =
@@ -174,17 +173,20 @@ module Print =
         if isVisited visited pair then
             match acc with
             | [] -> "..." |> next
-            | _ -> acc |> List.rev |> formatList (sprintf "(%s ...)" >> next)
+            | _ -> acc |> List.rev |> formatList (fun s -> $"({s} ...)" |> next)
         else
             let visited' = (pair :> obj) :: visited
 
             match pair.cdr with
-            | SEmpty, _ -> (visited', pair.car) :: acc |> List.rev |> formatList (sprintf "(%s)" >> next)
+            | SEmpty, _ ->
+                (visited', pair.car) :: acc
+                |> List.rev
+                |> formatList (fun s -> $"({s})" |> next)
             | SPair p, _ -> p |> formatPair visited' next ((visited', pair.car) :: acc)
             | _ ->
                 (visited', pair.car) :: acc
                 |> List.rev
-                |> formatList (fun s1 -> pair.cdr |> printCPS visited' (fun s2 -> sprintf "(%s . %s)" s1 s2 |> next))
+                |> formatList (fun s1 -> pair.cdr |> printCPS visited' (fun s2 -> $"({s1} . {s2})" |> next))
 
     and [<TailCall>] formatError visited next message irritants =
         let prefix = message.runes |> runesToString |> sprintf "#<error \"%s\""
@@ -204,7 +206,7 @@ module Print =
             xs
             |> Array.toList
             |> List.map (fun e -> (xs :> obj) :: visited, e)
-            |> formatList (sprintf "#(%s)" >> next)
+            |> formatList (fun s -> $"#({s})" |> next)
 
     and [<TailCall>] formatValues visited next (xs: SExpression list) =
         if isVisited visited xs then
@@ -212,7 +214,7 @@ module Print =
         else
             xs
             |> List.map (fun e -> (xs :> obj) :: visited, e)
-            |> formatList (fun s -> (if s = "" then "(values)" else sprintf "(values %s)" s) |> next)
+            |> formatList (fun s -> (if s = "" then "(values)" else $"(values {s})") |> next)
 
     and [<TailCall>] printCPS visited next =
         function
@@ -227,7 +229,7 @@ module Print =
                 formatOpaqueDescriptor expr |> next
             elif isQuoteLikeKind x then
                 let prefix, inner = getWrapperPrefixAndInner expr
-                inner |> printCPS visited (sprintf "%s%s" prefix >> next)
+                inner |> printCPS visited (fun s -> $"{prefix}{s}" |> next)
             else
                 failwith "unreachable."
 

@@ -230,9 +230,7 @@ module Math =
 
     let extremum pred1 pred2 pred3 name context pos cont args =
         if args |> List.isEmpty then
-            args
-            |> invalidParameter pos (sprintf "'%%s' invalid %s parameter." name)
-            |> cont
+            args |> invalidParameter pos ($"'%%s' invalid {name} parameter.") |> cont
         else
             let h = args.Head
 
@@ -266,7 +264,7 @@ module Math =
             | Ok a ->
                 match SNumber.ofExpr (x, elPos) with
                 | Error _ ->
-                    let msg = sprintf "'%s' is not a number." ((x, elPos) |> Print.print)
+                    let msg = $"'{(x, elPos) |> Print.print}' is not a number."
                     EvalError(msg, pos) |> Error |> cont
                 | Ok b ->
                     match op a b with
@@ -279,7 +277,7 @@ module Math =
         | (x, elPos) :: xs ->
             match SNumber.ofExpr (x, elPos) with
             | Error _ ->
-                let msg = sprintf "'%s' is not a number." ((x, elPos) |> Print.print)
+                let msg = $"'{(x, elPos) |> Print.print}' is not a number."
                 EvalError(msg, pos) |> Error |> cont
             | Ok a ->
                 match xs with
@@ -323,7 +321,7 @@ module Math =
             else
                 let q, r = divFn n1 n2
                 Ok(SValues [ newInteger q, pos; newInteger r, pos ], pos) |> cont
-        | x -> x |> invalidParameter pos (sprintf "'%%s' invalid %s parameter." name) |> cont
+        | x -> x |> invalidParameter pos $"'%%s' invalid {name} parameter." |> cont
 
     let sFloorDiv context =
         checkedBigintDivOp "floor/" floorDiv context
@@ -426,7 +424,7 @@ module Math =
                 | SRational(n, d) -> SReal(float (projectField n d))
                 | _ -> defaultResult r
                 |> Ok
-            | x -> x |> invalid (snd x) (sprintf "'%%s' invalid %s parameter." name))
+            | x -> x |> invalid (snd x) ($"'%%s' invalid {name} parameter."))
             context
             pos
             cont
@@ -443,7 +441,7 @@ module Math =
             (function
             | SRational(n, d), _ -> adjust n d |> newInteger |> Ok
             | SReal r, _ -> floatRound r |> SReal |> Ok
-            | x -> x |> invalid (snd x) (sprintf "'%%s' invalid %s parameter." name))
+            | x -> x |> invalid (snd x) $"'%%s' invalid {name} parameter.")
             context
             pos
             cont
@@ -687,7 +685,7 @@ module Math =
         | 8 -> System.Convert.ToString(int64 n, 8) |> Ok
         | 10 -> string n |> Ok
         | 16 -> System.Convert.ToString(int64 n, 16) |> Ok
-        | x -> EvalError(sprintf "'%d' unsupported radix in number->string." x, pos) |> Error
+        | x -> EvalError($"'{x}' unsupported radix in number->string.", pos) |> Error
 
     let sNumberToString context pos cont =
         function
@@ -695,7 +693,7 @@ module Math =
         | [ n; SRational(radix, d), _ ] when d = 1I ->
             match n with
             | SRational(n', d'), _ when d' = 1I -> radixToString pos radix n'
-            | SRational(n', d'), _ -> Ok(sprintf "%A/%A" n' d')
+            | SRational(n', d'), _ -> Ok $"{n'}/{d'}"
             | _ -> Ok(n |> Print.print)
             |> Result.map (fun s -> s |> newSString true, pos)
             |> cont

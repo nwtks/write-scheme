@@ -68,6 +68,10 @@ let ``set!`` () =
     "(set!)" |> rep |> should startWith "'()' invalid set! parameter"
 
 [<Fact>]
+let ``include error paths`` () =
+    "(include 1)" |> rep |> should startWith "'(1)' invalid include parameter"
+
+[<Fact>]
 let ``begin`` () =
     let rep = newRep ()
 

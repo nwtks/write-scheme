@@ -25,7 +25,7 @@ module Helper =
     let mapResult f = loopMapResult f []
 
     let wrapUnary name fn =
-        let fmt = sprintf "'%%s' invalid %s parameter." name
+        let fmt = $"'%%s' invalid {name} parameter."
 
         fun context pos cont ->
             function
@@ -160,8 +160,8 @@ module Helper =
         try
             path |> System.IO.File.ReadAllText |> Read.readAll foldCase
         with
-        | :? System.IO.FileNotFoundException -> EvalError(sprintf "File not found: %s." path, pos) |> Error
-        | ex -> EvalError(sprintf "Error reading file %s: %s." path ex.Message, pos) |> Error
+        | :? System.IO.FileNotFoundException -> EvalError($"File not found: {path}.", pos) |> Error
+        | ex -> EvalError($"Error reading file {path}: {ex.Message}.", pos) |> Error
 
     let readAndResolveInclude foldCase filename pos =
         tryReadAll foldCase filename pos

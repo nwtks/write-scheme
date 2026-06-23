@@ -27,7 +27,7 @@ module DatumLabel =
         function
         | [] -> Ok labels
         | (SDatumLabel(n, _), pos) :: _ when labels |> Map.containsKey n ->
-            EvalError(sprintf "Duplicate datum label definition: #%d=" n, pos) |> Error
+            EvalError($"Duplicate datum label definition: #{n}=", pos) |> Error
         | (SDatumLabel(n, d), pos) :: rest ->
             let labels' = labels |> Map.add n (unwrapDatumLabel d, pos)
             d :: rest |> collectDatum labels'
@@ -41,20 +41,18 @@ module DatumLabel =
     [<TailCall>]
     let rec resolveLabel n pos labels visited =
         if visited |> Set.contains n then
-            EvalError(sprintf "Invalid circular reference for datum label: #%d#" n, pos)
-            |> Error
+            EvalError($"Invalid circular reference for datum label: #{n}#", pos) |> Error
         else
             labels
             |> Map.tryFind n
             |> function
                 | Some(_, defPos) when isBefore (pos, defPos) ->
-                    EvalError(sprintf "Invalid forward reference for datum label: #%d#" n, pos)
-                    |> Error
+                    EvalError($"Invalid forward reference for datum label: #{n}#", pos) |> Error
                 | Some(v, _) ->
                     match v with
                     | SDatumRef m, refPos -> resolveLabel m refPos labels (visited |> Set.add n)
                     | _ -> Ok v
-                | None -> EvalError(sprintf "Undefined datum label: #%d#" n, pos) |> Error
+                | None -> EvalError($"Undefined datum label: #{n}#", pos) |> Error
 
     [<TailCall>]
     let rec resolveDatumRef labels next =

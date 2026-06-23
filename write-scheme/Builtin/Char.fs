@@ -14,7 +14,7 @@ module Char =
     let compareCharsBase transformer pred name pos cont =
         mapResult (function
             | SChar c, _ -> Ok(transformer c)
-            | x -> x |> invalid (snd x) (sprintf "'%%s' is not a char in %s." name))
+            | x -> x |> invalid (snd x) $"'%%s' is not a char in {name}.")
         >> Result.map (
             List.pairwise
             >> List.forall (fun (a, b) -> pred a b)
@@ -42,7 +42,7 @@ module Char =
     let checkCharProp pred name pos cont =
         function
         | [ SChar c, _ ] -> Ok(c |> pred |> toSBool, pos) |> cont
-        | x -> x |> invalidParameter pos (sprintf "'%%s' invalid %s parameter." name) |> cont
+        | x -> x |> invalidParameter pos $"'%%s' invalid {name} parameter." |> cont
 
     let sCharAlphabetic context =
         checkCharProp System.Text.Rune.IsLetter "char-alphabetic?"

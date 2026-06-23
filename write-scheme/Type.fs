@@ -157,7 +157,7 @@ module Type =
         if System.Double.IsInfinity r || System.Double.IsNaN r then
             SReal r
         else
-            let s = sprintf "%.17g" r
+            let s = $"{r:g17}"
 
             let res =
                 if s.Contains '.' || s.Contains 'e' || s.Contains 'E' then

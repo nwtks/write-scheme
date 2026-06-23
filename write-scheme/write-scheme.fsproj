@@ -14,7 +14,6 @@
     <Compile Include="Eval.fs" />
     <Compile Include="Builtin/Helper.fs" />
     <Compile Include="Builtin/SpecialForm.fs" />
-    <Compile Include="Builtin/Inclusion.fs" />
     <Compile Include="Builtin/Binding.fs" />
     <Compile Include="Builtin/Conditional.fs" />
     <Compile Include="Builtin/Lazy.fs" />

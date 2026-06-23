@@ -78,9 +78,11 @@ All code — including test code — must work on **both Windows and Linux**.
 
 ## Builtin Module Structure
 
+All Builtin files use `[<AutoOpen>]` modules to avoid explicit import boilerplate in `Builtin.fs`. See [`docs/trade-off.md#14-autoopen-modules-in-builtin-vs-explicit-imports`](docs/trade-off.md#14-autoopen-modules-in-builtin-vs-explicit-imports).
+
 1. **Choose (or create) an implementation file** — pick the appropriate `Builtin/*.fs` for the feature.
-2. **Implement the function** — follow the existing patterns in other Builtin files for the function signature, `open` statements, and module declaration.
-3. **Register it** in the builtin bindings list in `Builtin.fs`.
+2. **Implement the function** — follow the existing patterns: `[<AutoOpen>]` module, `open WriteScheme`, `open Type`, and the `SProcedureKind` signature (`context -> pos -> cont -> args`).
+3. **Register it** in the `builtinBindings` list in `Builtin.fs`.
 4. **Add the new file to `write-scheme.fsproj`** **before** `Builtin.fs` (the aggregator), following the existing dependency order.
 5. **Add tests** — add test cases to the appropriate test file.
 

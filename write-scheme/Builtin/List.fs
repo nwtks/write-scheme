@@ -105,7 +105,7 @@ module List =
         | [ list ] ->
             match computeLength list with
             | Ok len -> Ok(newInteger len, pos)
-            | Error msg -> EvalError(sprintf "'%s' %s" (list |> Print.print) msg, snd list) |> Error
+            | Error msg -> EvalError($"'{list |> Print.print}' {msg}", snd list) |> Error
             |> cont
         | x -> x |> invalidParameter pos "'%s' invalid length parameter." |> cont
 

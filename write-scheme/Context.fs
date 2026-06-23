@@ -49,7 +49,7 @@ module Context =
         |> tryLookupEnvironments context
         |> function
             | Some x -> Ok x
-            | None -> EvalError(sprintf "No binding for '%s'." symbol, pos) |> Error
+            | None -> EvalError($"No binding for '{symbol}'.", pos) |> Error
 
     let registerLibrary context name libEnvironment exports =
         let libName = name |> Print.print
@@ -66,7 +66,7 @@ module Context =
 
         match context.libraries.Value |> Map.tryFind libName with
         | Some lib -> Ok lib
-        | None -> EvalError(sprintf "Library '%s' not found." libName, pos) |> Error
+        | None -> EvalError($"Library '{libName}' not found.", pos) |> Error
 
     let getNextExpansionId context =
         context.nextExpansionId <- context.nextExpansionId + 1

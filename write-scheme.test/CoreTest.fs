@@ -143,7 +143,7 @@ let ``load`` () =
     try
         System.IO.File.WriteAllText(tmp, "(define x 42) (+ x 1)")
         let rep = newRep ()
-        let result = sprintf "(load \"%s\")" tmp |> rep
+        let result = $"(load \"{tmp}\")" |> rep
         result |> should haveSubstring "Loaded"
         "(+ x 1)" |> rep |> should equal "43"
     finally
@@ -159,7 +159,7 @@ let ``load file not found`` () =
     try
         System.IO.File.Delete tmp
         let rep = newRep ()
-        let result = sprintf "(load \"%s\")" tmp |> rep
+        let result = $"(load \"{tmp}\")" |> rep
         result |> should startWith "File not found:"
     finally
         ()

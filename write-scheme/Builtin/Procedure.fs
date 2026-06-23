@@ -17,17 +17,17 @@ module Procedure =
         function
         | SEmpty, _ -> Ok []
         | list when list |> isProperList -> list |> toList
-        | x -> x |> invalid (snd x) (sprintf "'%%s' invalid %s parameter." name)
+        | x -> x |> invalid (snd x) ($"'%%s' invalid {name} parameter.")
 
     let coerceString pos name =
         function
         | SString s, _ -> s.runes |> Array.map (fun c -> SChar c, pos) |> Array.toList |> Ok
-        | x -> x |> invalid (snd x) (sprintf "'%%s' invalid %s parameter." name)
+        | x -> x |> invalid (snd x) ($"'%%s' invalid {name} parameter.")
 
     let coerceVector name =
         function
         | SVector vector, _ -> Array.toList vector |> Ok
-        | x -> x |> invalid (snd x) (sprintf "'%%s' invalid %s parameter." name)
+        | x -> x |> invalid (snd x) ($"'%%s' invalid {name} parameter.")
 
     [<TailCall>]
     let rec foldApply pos args =

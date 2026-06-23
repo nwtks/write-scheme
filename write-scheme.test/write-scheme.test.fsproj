@@ -10,7 +10,6 @@
   <ItemGroup>
     <Compile Include="LiteralTest.fs" />
     <Compile Include="SpecialFormTest.fs" />
-    <Compile Include="InclusionTest.fs" />
     <Compile Include="BindingTest.fs" />
     <Compile Include="ConditionalTest.fs" />
     <Compile Include="LazyTest.fs" />

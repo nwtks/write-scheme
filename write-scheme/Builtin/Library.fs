@@ -13,7 +13,7 @@ module Library =
     let resolveImportOnlyId bindings id pos =
         match bindings |> Map.tryFind id with
         | Some r -> Ok(Some(id, r))
-        | None -> EvalError(sprintf "only: identifier '%s' not exported." id, pos) |> Error
+        | None -> EvalError($"only: identifier '{id}' not exported.", pos) |> Error
 
     let collectImportOnlyIds bindings ids =
         ids
@@ -32,7 +32,7 @@ module Library =
         if bindings |> Map.containsKey id then
             Ok id
         else
-            EvalError(sprintf "except: identifier '%s' not exported." id, pos) |> Error
+            EvalError($"except: identifier '{id}' not exported.", pos) |> Error
 
     let collectImportExceptIds bindings ids =
         ids
@@ -67,7 +67,7 @@ module Library =
           pos ->
             match bindings |> Map.tryFind fromId with
             | Some r -> Ok(fromId, toId, r)
-            | None -> EvalError(sprintf "rename: identifier '%s' not exported." fromId, pos) |> Error
+            | None -> EvalError($"rename: identifier '{fromId}' not exported.", pos) |> Error
         | x -> EvalError("rename: invalid rename clause.", snd x) |> Error
 
     let applyRename bindings (fromId, toId, r) =
@@ -159,7 +159,7 @@ module Library =
             | Ok expressions -> rest |> readLibraryDeclarations pos foldCase (List.rev expressions @ acc)
             | Error e -> Error e
         | x :: _ ->
-            EvalError(sprintf "'%s' invalid include-library-declarations parameter." (x |> Print.print), pos)
+            EvalError($"'{x |> Print.print}' invalid include-library-declarations parameter.", pos)
             |> Error
 
     type LibDecl =

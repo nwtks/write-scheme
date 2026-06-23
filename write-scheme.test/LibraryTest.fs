@@ -64,22 +64,18 @@ let ``define-library handles include, include-ci, include-library-declarations, 
     System.IO.File.WriteAllText(tempFile3, "(export helper1 helper2 cond-val)")
 
     let input =
-        sprintf
-            """
+        $"""
     (define-library (example complex)
         (import (scheme base))
-        (include "%s")
-        (include-ci "%s")
-        (include-library-declarations "%s")
+        (include "{tempFile1}")
+        (include-ci "{tempFile2}")
+        (include-library-declarations "{tempFile3}")
         (cond-expand
             (r7rs (begin (define cond-val 12)))
             (else (begin (define cond-val 0)))))
     (import (example complex))
     (+ (helper1) (+ (helper2) cond-val))
     """
-            tempFile1
-            tempFile2
-            tempFile3
 
     try
         match evalAll input with
@@ -152,19 +148,19 @@ let ``import sets: error cases`` () =
     let lib =
         "(define-library (lib) (export a) (import (scheme base)) (begin (define a 1)))"
 
-    sprintf "%s (import (only (lib) b))" lib
+    $"{lib} (import (only (lib) b))"
     |> evalAll
     |> function
         | Error(WriteScheme.Type.EvalError(msg, _)) -> msg |> should startWith "only: identifier 'b' not exported."
         | _ -> failwith "Expected error"
 
-    sprintf "%s (import (except (lib) b))" lib
+    $"{lib} (import (except (lib) b))"
     |> evalAll
     |> function
         | Error(WriteScheme.Type.EvalError(msg, _)) -> msg |> should startWith "except: identifier 'b' not exported."
         | _ -> failwith "Expected error"
 
-    sprintf "%s (import (rename (lib) (b x)))" lib
+    $"{lib} (import (rename (lib) (b x)))"
     |> evalAll
     |> function
         | Error(WriteScheme.Type.EvalError(msg, _)) -> msg |> should startWith "rename: identifier 'b' not exported."

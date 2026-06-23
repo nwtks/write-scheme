@@ -646,7 +646,7 @@ The converter function passed to `make-parameter` is applied whenever the parame
 
 ### Root Cause
 
-In `Builtin/SavedParameter.fs`, the converter is stored alongside the parameter's current value. When `parameterize` sets a new value, it applies the converter. When the parameter value is read (via `applyParameter` in Eval.fs), the raw value is returned directly.
+In `Builtin/DynamicBinding.fs`, the converter is stored alongside the parameter's current value. When `parameterize` sets a new value, it applies the converter. When the parameter value is read (via `applyParameter` in Eval.fs), the raw value is returned directly.
 
 ```fsharp
 let sMakeParameter context pos cont =

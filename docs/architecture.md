@@ -34,23 +34,28 @@ write-scheme/                     # Interpreter core (F# executable)
 ├── Context.fs                    # Execution context: environments, libraries, winders, handlers
 ├── Eval.fs                       # CPS evaluator: eval / apply / eachEval
 ├── Builtin/
-│   ├── Helper.fs                 # Shared helpers: invalid, mapResult, doWind, getRange, eqv
+│   ├── Helper.fs                 # Shared helpers: invalid, mapResult, eqv
 │   ├── SpecialForm.fs            # All special forms: lambda, if, cond, let, define, ...
+│   ├── Binding.fs                # let/let*/letrec/let-values binding helpers
+│   ├── Conditional.fs            # cond/case helper functions (isElseClause, normalizeCaseClause)
+│   ├── Lazy.fs                   # delay / delay-force / force / make-promise
+│   ├── DynamicBinding.fs         # make-parameter / parameterize
+│   ├── Exception.fs              # with-exception-handler, raise, guard
+│   ├── Quasiquote.fs             # QqKeyword DU and quasiquote expansion helpers
 │   ├── Macro.fs                  # syntax-rules hygienic macro engine
-│   ├── Procedure.fs              # apply, map, for-each, call/cc, dynamic-wind
-│   ├── Core.fs                   # eqv?, equal?
+│   ├── Record.fs                 # define-record-type implementation
+│   ├── Library.fs                # define-library / import set operations
+│   ├── Core.fs                   # eqv?, equal?, display, load
 │   ├── Number.fs                 # SNumber type (NRational|NReal|NComplex) and unified arithmetic
 │   ├── Math.fs                   # Numeric tower operations
+│   ├── Bool.fs                   # Boolean operations
 │   ├── List.fs                   # Pair/list operations
-│   ├── Str.fs                    # String operations
+│   ├── Symbol.fs                 # Symbol operations
 │   ├── Char.fs                   # Character operations
+│   ├── Str.fs                    # String operations
 │   ├── Vector.fs                 # Vector operations
 │   ├── ByteVector.fs             # Bytevector operations
-│   ├── Bool.fs                   # Boolean operations
-│   ├── Symbol.fs                 # Symbol operations
-│   ├── Promise.fs                # delay / force
-│   ├── SavedParameter.fs         # make-parameter / parameterize
-│   └── Exception.fs              # with-exception-handler, raise, guard
+│   └── Procedure.fs              # apply, map, for-each, call/cc, dynamic-wind
 ├── Builtin.fs                    # builtinBindings registry + builtinContext
 ├── Repl.fs                       # rep function + REPL loop
 ├── Program.fs                    # Entry point
@@ -64,12 +69,13 @@ Compilation order is declared in `write-scheme.fsproj`:
 
 ```
 Type.fs → Print.fs → Read.fs → DatumLabel.fs → Context.fs → Eval.fs
-→ Builtin/Helper.fs → Builtin/Promise.fs → Builtin/SavedParameter.fs
-→ Builtin/SpecialForm.fs → Builtin/Procedure.fs → Builtin/Macro.fs
-→ Builtin/Core.fs → Builtin/Number.fs → Builtin/Math.fs
-→ Builtin/Bool.fs → Builtin/List.fs → Builtin/Symbol.fs
-→ Builtin/Char.fs → Builtin/Str.fs → Builtin/Vector.fs
-→ Builtin/ByteVector.fs → Builtin/Exception.fs → Builtin.fs → Repl.fs → Program.fs
+→ Builtin/Helper.fs → Builtin/SpecialForm.fs → Builtin/Binding.fs
+→ Builtin/Conditional.fs → Builtin/Lazy.fs → Builtin/DynamicBinding.fs
+→ Builtin/Exception.fs → Builtin/Quasiquote.fs → Builtin/Macro.fs
+→ Builtin/Record.fs → Builtin/Library.fs → Builtin/Core.fs
+→ Builtin/Number.fs → Builtin/Math.fs → Builtin/Bool.fs → Builtin/List.fs
+→ Builtin/Symbol.fs → Builtin/Char.fs → Builtin/Str.fs → Builtin/Vector.fs
+→ Builtin/ByteVector.fs → Builtin/Procedure.fs → Builtin.fs → Repl.fs → Program.fs
 ```
 
 ---
@@ -471,7 +477,7 @@ The largest file containing the implementation of all special forms:
 | `do` | `sDo` | Iteration with variable updates |
 | `delay` | `sDelay` | Lazy promise creation |
 | `delay-force` | `sDelayForce` | Lazy promise (thunk returns promise) |
-| `parameterize` | `sParameterize` | Dynamic binding (delegates to SavedParameter.fs) |
+| `parameterize` | `sParameterize` | Dynamic binding (delegates to DynamicBinding.fs) |
 | `guard` | `sGuard` | Exception with condition matching |
 | `quasiquote` | `sQuasiquote` | Template with unquote/unquote-splicing; uses `QqKeyword` DU, `normalizeQqKeyword`, `consQq`, `joinQq` (supports nested quasiquotation) |
 | `case-lambda` | `sCaseLambda` | Arity-based dispatch |
@@ -502,8 +508,8 @@ The largest file containing the implementation of all special forms:
 | Bytevector | `ByteVector.fs` | `bytevector?`, `bytevector-u8-ref` |
 | Higher-order | `Procedure.fs` | `apply`, `map`, `for-each`, `call/cc`, `dynamic-wind` |
 | Exception | `Exception.fs` | `with-exception-handler`, `raise`, `error` |
-| Promise | `Promise.fs` | `force`, `promise?`, `make-promise` |
-| Parameter | `SavedParameter.fs` | `make-parameter` |
+| Lazy evaluation | `Lazy.fs` | `force`, `promise?`, `make-promise` |
+| Dynamic binding | `DynamicBinding.fs` | `make-parameter`, `parameterize` |
 
 ### 9.4 Implementation Pattern
 

@@ -98,6 +98,6 @@ module Core =
         function
         | [ SString f, p ] ->
             readAndEvalFile context f p
-            |> Result.map (fun _ -> f.runes |> runesToString |> sprintf "Loaded '%s'." |> SSymbol, pos)
+            |> Result.map (fun _ -> f.runes |> runesToString |> (fun s -> $"Loaded '{s}'.") |> SSymbol, pos)
             |> cont
         | x -> x |> invalidParameter pos "'%s' invalid load parameter." |> cont

@@ -13,7 +13,7 @@ module Eval =
             match args with
             | [ arg ] -> Ok arg |> fn
             | _ -> (SValues args, pos) |> Ok |> fn
-        | x -> EvalError(sprintf "'%s' not operator." (x |> Print.print), snd x) |> Error
+        | x -> EvalError($"'{x |> Print.print}' not operator.", snd x) |> Error
 
     and [<TailCall>] applyParameter context cont (param: SExpression ref) converterOpt pos =
         function
@@ -33,7 +33,7 @@ module Eval =
                 param.Value <- v
                 v |> Ok |> cont
         | x ->
-            EvalError(sprintf "'%s' invalid parameter object call." (x |> toSPair |> Print.print), pos)
+            EvalError($"'{x |> toSPair |> Print.print}' invalid parameter object call.", pos)
             |> Error
 
     let evalSyntaxArgs context pos cont fn =

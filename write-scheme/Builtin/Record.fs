@@ -31,10 +31,7 @@ module Record =
         (args: SExpression list)
         =
         if args.Length <> constructorFields.Length then
-            EvalError(
-                sprintf "%s requires %d arguments, but got %d." constructorName constructorFields.Length args.Length,
-                pos
-            )
+            EvalError($"{constructorName} requires {constructorFields.Length} arguments, but got {args.Length}.", pos)
             |> Error
             |> cont
         else
@@ -68,13 +65,10 @@ module Record =
         function
         | [ SRecord(tid, _, fs), _ ] when tid = typeId -> Ok fs.[idx].Value |> cont
         | [ x ] ->
-            EvalError(sprintf "Accessor %s expected %s, but got %s." accessorName name (x |> Print.print), x |> snd)
+            EvalError($"Accessor {accessorName} expected {name}, but got {x |> Print.print}.", x |> snd)
             |> Error
             |> cont
-        | _ ->
-            EvalError(sprintf "Accessor %s requires 1 argument." accessorName, pos)
-            |> Error
-            |> cont
+        | _ -> EvalError($"Accessor {accessorName} requires 1 argument.", pos) |> Error |> cont
 
     let recordFieldModifierProc typeId name idx modifierName context pos cont =
         function
@@ -82,11 +76,11 @@ module Record =
             fs.[idx].Value <- v
             Ok(SUnspecified, pos) |> cont
         | [ x; _ ] ->
-            EvalError(sprintf "Modifier %s expected %s, but got %s." modifierName name (x |> Print.print), x |> snd)
+            EvalError($"Modifier {modifierName} expected {name}, but got {x |> Print.print}.", x |> snd)
             |> Error
             |> cont
         | _ ->
-            EvalError(sprintf "Modifier %s requires 2 arguments." modifierName, pos)
+            EvalError($"Modifier {modifierName} requires 2 arguments.", pos)
             |> Error
             |> cont
 

@@ -145,7 +145,7 @@ module Binding =
             | value -> [ value ]
 
         if List.length variables <> List.length values then
-            EvalError(sprintf "Values count mismatch in %s." name, pos) |> Error |> cont
+            EvalError($"Values count mismatch in {name}.", pos) |> Error |> cont
         else
             List.zip variables values
             |> List.map (fun (variable, value) -> variable, ref value)

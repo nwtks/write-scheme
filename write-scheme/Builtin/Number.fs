@@ -82,7 +82,7 @@ module SNumber =
         pos
         cont
         =
-        let fmt = sprintf "'%%s' invalid %s parameter." name
+        let fmt = $"'%%s' invalid {name} parameter."
 
         function
         | [ SReal r, _ ] -> Ok(fReal r, pos) |> cont
@@ -99,7 +99,7 @@ module SNumber =
         pos
         cont
         =
-        let fmt = sprintf "'%%s' invalid %s parameter." name
+        let fmt = $"'%%s' invalid {name} parameter."
 
         function
         | [ SReal r, _ ] when inDomain r -> Ok(fReal r, pos) |> cont

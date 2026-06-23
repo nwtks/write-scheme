@@ -620,8 +620,6 @@ Local macro bindings.
 
 | Procedure | Description |
 |-----------|-------------|
-| `(delay expr)` | Create a promise |
-| `(delay-force expr)` | Create a promise (expr returns a promise) |
 | `(force promise)` | Evaluate and cache promise |
 | `(promise? obj)` | Is `obj` a promise? |
 | `(make-promise obj)` | Create a promise from a value |

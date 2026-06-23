@@ -79,6 +79,27 @@ module SpecialForm =
             expression |> Eval.eval context (Result.bind setVariable) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid set! parameter." |> cont
 
+    [<TailCall>]
+    let rec sIncludeFiles foldCase context pos cont acc =
+        function
+        | [] ->
+            match acc |> List.rev with
+            | [] -> Ok(SUnspecified, pos) |> cont
+            | expressions -> expressions |> Eval.eachEval context cont (Ok(SUnspecified, pos))
+        | (SString f, p) :: rest ->
+            match readAndResolveInclude foldCase f p with
+            | Ok resolvedExpressions ->
+                rest
+                |> sIncludeFiles foldCase context pos cont (List.rev resolvedExpressions @ acc)
+            | Error e -> Error e |> cont
+        | x :: _ -> [ x ] |> invalidParameter pos "'%s' invalid include parameter." |> cont
+
+    let sInclude context pos cont files =
+        files |> sIncludeFiles false context pos cont []
+
+    let sIncludeCi context pos cont files =
+        files |> sIncludeFiles true context pos cont []
+
     let sBegin context pos cont =
         Eval.eachEval context cont (Ok(SUnspecified, pos))
 

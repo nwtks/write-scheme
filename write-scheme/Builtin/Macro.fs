@@ -416,7 +416,7 @@ module Macro =
 
     let buildRenameContext defContext useContext templateVars =
         let expansionId = Context.getNextExpansionId useContext
-        let rename s = sprintf "%s#%d" s expansionId
+        let rename s = $"{s}#{expansionId}"
         let renameMap = templateVars |> List.map (fun s -> s, rename s) |> Map.ofList
 
         let extendedContext =

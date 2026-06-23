@@ -66,7 +66,7 @@ module Str =
     let compareStringsBase transformer pred name pos cont =
         mapResult (function
             | SString s, _ -> Ok(s.runes |> runesToString |> transformer)
-            | x -> x |> invalid (snd x) (sprintf "'%%s' is not a string in %s." name))
+            | x -> x |> invalid (snd x) ($"'%%s' is not a string in {name}."))
         >> Result.map (
             List.pairwise
             >> List.forall (fun (a, b) -> pred a b)
@@ -94,7 +94,7 @@ module Str =
     let mapStringCase transformer name pos cont =
         function
         | [ SString s, _ ] -> Ok(s.runes |> runesToString |> transformer |> newSString false, pos) |> cont
-        | x -> x |> invalidParameter pos (sprintf "'%%s' invalid %s parameter." name) |> cont
+        | x -> x |> invalidParameter pos ($"'%%s' invalid {name} parameter.") |> cont
 
     let sStringUpcase context pos cont =
         mapStringCase (fun s -> s.ToUpperInvariant()) "string-upcase" pos cont
