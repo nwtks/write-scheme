@@ -139,6 +139,10 @@ Error objects are created by `raise` and `error`. They carry a message and irrit
 
 The `SUnspecified` value represents an unspecified return value. It is printed as `#<unspecified>`.
 
+### 1.16 End-of-File Object
+
+The end-of-file object (`SEof`) is returned by input operations when no more data is available. It is printed as `#!eof` and may be written literally as `#!eof`. Test it with `eof-object?`.
+
 ---
 
 ## 2. Literal Syntax
@@ -633,9 +637,106 @@ Local macro bindings.
 
 ### 4.15 I/O
 
+#### Port Predicates
+
 | Procedure | Description |
 |-----------|-------------|
-| `(display obj)` | Print an object |
+| `(port? x)` | Returns `#t` if x is a port |
+| `(input-port? x)` | Returns `#t` if x is an input port |
+| `(output-port? x)` | Returns `#t` if x is an output port |
+| `(textual-port? x)` | Returns `#t` if x is a textual port |
+| `(binary-port? x)` | Returns `#t` if x is a binary port |
+| `(input-port-open? x)` | Returns `#t` if x is an open input port |
+| `(output-port-open? x)` | Returns `#t` if x is an open output port |
+
+#### Current Ports
+
+| Procedure | Description |
+|-----------|-------------|
+| `(current-input-port)` | Returns the current input port |
+| `(current-output-port)` | Returns the current output port |
+| `(current-error-port)` | Returns the current error port |
+
+#### String Ports
+
+| Procedure | Description |
+|-----------|-------------|
+| `(open-input-string string)` | Creates a textual input port from a string |
+| `(open-output-string)` | Creates a textual output port |
+| `(get-output-string port)` | Returns the accumulated output string |
+
+#### Bytevector Ports
+
+| Procedure | Description |
+|-----------|-------------|
+| `(open-input-bytevector bytevector)` | Creates a binary input port from a bytevector |
+| `(open-output-bytevector)` | Creates a binary output port |
+| `(get-output-bytevector port)` | Returns the accumulated output bytevector |
+
+#### Input Operations
+
+| Procedure | Description |
+|-----------|-------------|
+| `(read)` | Read a datum from the current input port |
+| `(read port)` | Read a datum from a specific port |
+| `(read-char)` | Read a character from the current input port |
+| `(read-char port)` | Read a character from a specific port |
+| `(peek-char)` | Peek the next character without consuming it |
+| `(peek-char port)` | Peek from a specific port |
+| `(read-line)` | Read a line from the current input port |
+| `(read-line port)` | Read a line from a specific port |
+| `(read-string k)` | Read up to k characters |
+| `(read-string k port)` | Read up to k characters from a specific port |
+| `(read-u8)` | Read a byte from the current binary input port |
+| `(read-u8 port)` | Read a byte from a specific binary port |
+| `(read-bytevector k)` | Read up to k bytes |
+| `(read-bytevector k port)` | Read up to k bytes from a specific port |
+| `(char-ready?)` | Returns `#t` if a character is ready |
+| `(char-ready? port)` | Returns `#t` if a character is ready on port |
+| `(u8-ready?)` | Returns `#t` if a byte is ready |
+| `(u8-ready? port)` | Returns `#t` if a byte is ready on port |
+
+#### Output Operations
+
+| Procedure | Description |
+|-----------|-------------|
+| `(write obj)` | Write an object in machine-readable form |
+| `(display obj)` | Print an object for human consumption |
+| `(write-char char)` | Write a character |
+| `(write-char char port)` | Write a character to a specific port |
+| `(write-string string)` | Write a string |
+| `(write-string string port)` | Write a string to a specific port |
+| `(write-u8 byte)` | Write a byte |
+| `(write-u8 byte port)` | Write a byte to a specific port |
+| `(write-bytevector bytevector)` | Write a bytevector |
+| `(write-bytevector bytevector port)` | Write a bytevector to a specific port |
+| `(newline)` | Write a newline |
+| `(newline port)` | Write a newline to a specific port |
+| `(flush-output-port)` | Flush the output port |
+| `(flush-output-port port)` | Flush a specific port |
+
+#### File Ports
+
+| Procedure | Description |
+|-----------|-------------|
+| `(open-input-file filename)` | Open a file for textual input |
+| `(open-output-file filename)` | Open a file for textual output |
+| `(close-input-port port)` | Close an input port |
+| `(close-output-port port)` | Close an output port |
+| `(close-port port)` | Close a port |
+| `(call-with-input-file filename proc)` | Open a file, call proc with it, close |
+| `(call-with-output-file filename proc)` | Open a file, call proc with it, close |
+
+#### Special Values
+
+| Procedure | Description |
+|-----------|-------------|
+| `(eof-object)` | Returns the end-of-file object |
+| `(eof-object? x)` | Returns `#t` if x is the EOF object |
+| `#!eof` | Literal EOF object syntax |
+
+| Procedure | Description |
+|-----------|-------------|
 | `(load filename)` | Load and evaluate a file |
 
 ---
@@ -702,5 +803,13 @@ R7RS library system with `define-library` and `import`.
 
 ## 7. Known Limitations
 
-- **I/O**: File I/O procedures beyond `load` and `display` are not yet fully implemented.
-- **Full R7RS conformance**: Some edge cases of the specification are still being addressed.
+Most R7RS (Small) features are implemented. Known deviations and simplifications:
+
+- **`char-ready?` / `u8-ready?`**: Always return `#t`. R7RS permits this when readiness cannot be determined, so it is conformant, but the result does not reflect actual port state.
+- **`string-upcase` / `string-downcase` / `string-foldcase` (and character variants)**: Use `ToUpperInvariant` / `ToLowerInvariant`, which is culture-invariant ASCII-safe but differs from full Unicode Default Case Conversion in some edge cases (e.g., Turkish dotted/dotless `i`).
+- **`inexact->exact` on reals**: `realToRational` formats the double with `"%.17g"` before parsing, which is sufficient for round-trip-printability of IEEE 754 doubles but is not the formal rational representation required for arbitrary floats.
+- **`eqv?` on signed zeros**: `(eqv? +0.0 -0.0)` returns `#t` (matches R7RS `=` semantics).
+- **Block comments and datum labels**: Standard R7RS syntax is supported; exotic reader edge cases (e.g., interleaving with `#;` datum comments and nested labels in unusual positions) may not all be exercised.
+- **Tail-call guarantees in the printer / macros**: The evaluator, `evalArgs`, and `loopListInfo` are explicitly `[<TailCall>]`; CPS helpers elsewhere rely on tail-position discipline but are not uniformly annotated.
+
+For full details and reproduction cases, see [Recurring Gotchas](gotchas.md).

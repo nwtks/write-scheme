@@ -77,19 +77,6 @@ module Core =
         | [ x; y ] -> Ok([ x, y ] |> loopEqual [] |> toSBool, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid equal? parameter." |> cont
 
-    let getDisplayString =
-        function
-        | SString x, _ -> x.runes |> runesToString
-        | SChar x, _ -> x |> string
-        | expr -> expr |> Print.print
-
-    let sDisplay context pos cont =
-        function
-        | [ arg ] ->
-            arg |> getDisplayString |> printf "%s"
-            Ok(SUnspecified, pos) |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid display parameter." |> cont
-
     let readAndEvalFile context f p =
         readAndResolveInclude false f p
         |> Result.bind (fun exprs' -> exprs' |> mapResult (Eval.eval context id))

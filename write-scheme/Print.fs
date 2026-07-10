@@ -94,6 +94,7 @@ module Print =
 
     let formatSimpleValue =
         function
+        | SEof, _ -> "#!eof"
         | SUnspecified, _ -> "#<unspecified>"
         | SEmpty, _ -> "()"
         | SBool b, _ -> formatBool b
@@ -106,12 +107,23 @@ module Print =
         | SByteVector xs, _ -> formatByteVector xs
         | _ -> failwith "unreachable."
 
+    let formatPort p =
+        let dir =
+            match p.direction with
+            | Input -> "input"
+            | Output -> "output"
+
+        let mode = if p.isTextual then "textual" else "binary"
+        let status = if p.isOpen then "open" else "closed"
+        $"#<{dir} {mode} port {status}>"
+
     let formatOpaqueDescriptor =
         function
         | SRecord(_, typeName, _), _ -> $"#<{typeName}>"
         | SDatumRef n, _ -> $"#{n}#"
         | SPromise _, _ -> "#<promise>"
         | SParameter _, _ -> "#<parameter>"
+        | SPort p, _ -> formatPort p
         | SSyntax _, _ -> "#<syntax>"
         | SProcedure _, _ -> "#<procedure>"
         | SContinuation _, _ -> "#<continuation>"
@@ -128,6 +140,7 @@ module Print =
 
     let isSimpleValueKind =
         function
+        | SEof
         | SUnspecified
         | SEmpty
         | SBool _
@@ -146,6 +159,7 @@ module Print =
         | SDatumRef _
         | SPromise _
         | SParameter _
+        | SPort _
         | SSyntax _
         | SProcedure _
         | SContinuation _ -> true

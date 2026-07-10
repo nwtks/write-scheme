@@ -36,6 +36,10 @@ This document records common mistakes, subtle pitfalls, and non-obvious behavior
 - [28. `make-parameter` with Converter Applies on Every Call](#28-make-parameter-with-converter-applies-on-every-call)
 - [29. CPS Continuations Are Incompatible with Ref Cells](#29-cps-continuations-are-incompatible-with-ref-cells)
 - [30. Cobertura Cyclomatic Complexity May Not Reflect Structural Improvements](#30-cobertura-cyclomatic-complexity-may-not-reflect-structural-improvements)
+- [31. `char-ready?` and `u8-ready?` Always Return `#t`](#31-char-ready-and-u8-ready-always-return-t)
+- [32. `peek-char` Uses `StringReader.Peek()` for Textual Ports](#32-peek-char-uses-stringreaderpeek-for-textual-ports)
+- [33. `get-output-bytevector` Requires `MemoryStream` Cast](#33-get-output-bytevector-requires-memorystream-cast)
+- [34. `SContinuation` Name Collision with `SExpressionKind` Constructor](#34-scontinuation-name-collision-with-sexpressionkind-constructor)
 
 ---
 
@@ -345,11 +349,11 @@ If a datum label definition is embedded inside a `SPromise`, `SParameter`, or ot
 
 ---
 
-## 14. `Context.reset` After Errors Clears Winders and Handlers
+## 14. `Context.reset` After Errors Clears Winders, Handlers, and Ports
 
 ### Symptom
 
-After a Scheme error in the REPL, `dynamic-wind` guards and exception handlers are reset.
+After a Scheme error in the REPL, `dynamic-wind` guards, exception handlers, and the current ports are reset.
 
 ### Root Cause
 
@@ -361,11 +365,11 @@ After a Scheme error in the REPL, `dynamic-wind` guards and exception handlers a
     ...)
 ```
 
-`Context.reset` clears winders and restores the default exception handlers. This prevents accumulated state from leaking between REPL inputs.
+`Context.reset` replaces `winders` with `[]`, restores `handlers` to `initialHandlers`, and replaces `ports` with `defaultPorts` (the console input/output/error ports). This prevents accumulated state from leaking between REPL inputs.
 
 ### Pitfall
 
-If you're using the `rep` function programmatically (e.g., in tests), a Scheme error **also** resets the context. This means subsequent calls to `rep` start with a clean state. If your test depends on state surviving an error, it will fail.
+If you're using the `rep` function programmatically (e.g., in tests), a Scheme error **also** resets the context — including any ports the program installed via `(current-input-port)` / `(current-output-port)` overrides. Subsequent calls to `rep` start with the console ports, not the ports that were active when the error was raised. If your test depends on state surviving an error, it will fail.
 
 ---
 
@@ -717,3 +721,73 @@ Use Coverlet complexity as a **guide** rather than an absolute quality metric. T
 - **Target**: ≤ 10 for most functions
 
 Focus on functions above the error threshold (15) for meaningful reductions. Improvements that bring a function from 61 to 50 are still progress — break down large match expressions incrementally, one helper at a time.
+
+---
+
+## 31. `char-ready?` and `u8-ready?` Always Return `#t`
+
+### Symptom
+
+```scheme
+(char-ready?)  ;; always #t
+(u8-ready?)    ;; always #t
+```
+
+### Root Cause
+
+The current implementation always returns `#t` because the input ports (`StringReader`, `Stream`) do not provide a reliable non-blocking readiness check. R7RS permits this behavior (returning `#t` when readiness cannot be determined), so this is conformant.
+
+### Prevention
+
+Do not rely on `char-ready?` / `u8-ready?` for flow control that depends on actual port readiness. They are functionally equivalent to constants in the current implementation.
+
+---
+
+## 32. `peek-char` Uses `StringReader.Peek()` for Textual Ports
+
+### Symptom
+
+`peek-char` works correctly on textual ports but has limited support for binary ports.
+
+### Root Cause
+
+For textual ports (`StringReader`), `peek-char` uses `Peek()`, which returns the next character without consuming it. For binary ports (`MemoryStream`), it reads a byte and then seeks back one position (`Seek(-1, Current)`).
+
+### Prevention
+
+Use `peek-char` primarily on textual string ports. For binary ports, use `read-u8` and manage your own lookahead if needed.
+
+---
+
+## 33. `get-output-bytevector` Requires `MemoryStream` Cast
+
+### Symptom
+
+`get-output-bytevector` works correctly but the implementation uses a type cast (`:?>`) on the `Stream` field.
+
+### Root Cause
+
+`SPortData.fileStream` is typed as `Stream option` to accommodate both `MemoryStream` (bytevector ports) and `FileStream` (file ports). The bytevector getter casts the stream to `MemoryStream` to call `ToArray()`.
+
+### Prevention
+
+This is safe because only `open-output-bytevector` creates ports with `MemoryStream` in the `fileStream` field. The cast is guarded by checking the port's binary/textual flags.
+
+---
+
+## 34. `SContinuation` Name Collision with `SExpressionKind` Constructor
+
+### Symptom
+
+Port procedures that use `SContinuation` as a type annotation may fail to compile with confusing errors like `This expression was expected to have type 'SExpression' but here has type 'SExpressionKind'`.
+
+### Root Cause
+
+`SContinuation` is both a type alias (`SContinuation = Result<SExpression, SkipResult> -> Result<SExpression, SkipResult>`) and an `SExpressionKind` constructor (`SContinuation of SContinuation`). In certain contexts, F# resolves `SContinuation` as the constructor rather than the type alias.
+
+### Prevention
+
+When adding new port procedures that use `cont` parameters, avoid using `function` keyword with `[]` patterns. Instead:
+1. Define a helper function like `okResult` that explicitly returns `Result<SExpression, SkipResult>`
+2. Use explicit type annotations on all parameters including `cont`
+3. Use `match` with explicit `args` parameter instead of `function` keyword

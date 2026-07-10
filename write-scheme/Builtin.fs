@@ -4,7 +4,7 @@ open Type
 open WriteScheme.Builtins
 
 module Builtin =
-    let builtinBindings =
+    let builtinBindings: (string * SExpression ref) list =
         [ "quote", (SSyntax sQuote, None) |> ref
           "lambda", (SSyntax sLambda, None) |> ref
           "if", (SSyntax sIf, None) |> ref
@@ -244,7 +244,48 @@ module Builtin =
           "promise?", (SProcedure isPromise, None) |> ref
           "make-promise", (SProcedure sMakePromise, None) |> ref
           "make-parameter", (SProcedure sMakeParameter, None) |> ref
+          "call-with-input-file", (SProcedure sCallWithInputFile, None) |> ref
+          "call-with-output-file", (SProcedure sCallWithOutputFile, None) |> ref
+          "input-port?", (SProcedure isInputPort, None) |> ref
+          "output-port?", (SProcedure isOutputPort, None) |> ref
+          "textual-port?", (SProcedure isTextualPort, None) |> ref
+          "binary-port?", (SProcedure isBinaryPort, None) |> ref
+          "port?", (SProcedure isPort, None) |> ref
+          "input-port-open?", (SProcedure isInputPortOpen, None) |> ref
+          "output-port-open?", (SProcedure isOutputPortOpen, None) |> ref
+          "current-input-port", (SProcedure sCurrentInputPort, None) |> ref
+          "current-output-port", (SProcedure sCurrentOutputPort, None) |> ref
+          "current-error-port", (SProcedure sCurrentErrorPort, None) |> ref
+          "open-input-file", (SProcedure sOpenInputFile, None) |> ref
+          "open-output-file", (SProcedure sOpenOutputFile, None) |> ref
+          "close-port", (SProcedure sClosePort, None) |> ref
+          "close-input-port", (SProcedure sCloseInputPort, None) |> ref
+          "close-output-port", (SProcedure sCloseOutputPort, None) |> ref
+          "open-input-string", (SProcedure sOpenInputString, None) |> ref
+          "open-output-string", (SProcedure sOpenOutputString, None) |> ref
+          "get-output-string", (SProcedure sGetOutputString, None) |> ref
+          "open-input-bytevector", (SProcedure sOpenInputBytevector, None) |> ref
+          "open-output-bytevector", (SProcedure sOpenOutputBytevector, None) |> ref
+          "get-output-bytevector", (SProcedure sGetOutputBytevector, None) |> ref
+          "read", (SProcedure sRead, None) |> ref
+          "read-char", (SProcedure sReadChar, None) |> ref
+          "peek-char", (SProcedure sPeekChar, None) |> ref
+          "read-line", (SProcedure sReadLine, None) |> ref
+          "eof-object?", (SProcedure isEofObject, None) |> ref
+          "eof-object", (SProcedure sEofObject, None) |> ref
+          "char-ready?", (SProcedure isCharReady, None) |> ref
+          "read-string", (SProcedure sReadString, None) |> ref
+          "read-u8", (SProcedure sReadU8, None) |> ref
+          "u8-ready?", (SProcedure isU8Ready, None) |> ref
+          "read-bytevector", (SProcedure sReadBytevector, None) |> ref
+          "write", (SProcedure sWrite, None) |> ref
           "display", (SProcedure sDisplay, None) |> ref
+          "newline", (SProcedure sNewline, None) |> ref
+          "write-char", (SProcedure sWriteChar, None) |> ref
+          "write-string", (SProcedure sWriteString, None) |> ref
+          "write-u8", (SProcedure sWriteU8, None) |> ref
+          "write-bytevector", (SProcedure sWriteBytevector, None) |> ref
+          "flush-output-port", (SProcedure sFlushOutputPort, None) |> ref
           "load", (SProcedure sLoad, None) |> ref ]
 
     let builtinContext =

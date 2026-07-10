@@ -385,7 +385,8 @@ module Read =
               parseUnquoteSplicing
               parseUnquoted
               parseDatumLabelDef
-              parseDatumLabelRef ]
+              parseDatumLabelRef
+              pstring "#!eof" >>% SEof |> parseWithPos ]
 
     let runParse parser foldCase input =
         match

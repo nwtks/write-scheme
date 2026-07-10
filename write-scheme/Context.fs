@@ -10,11 +10,44 @@ module Context =
               | _ -> failwith "unreachable."),
           None ]
 
+    let consoleInputPort =
+        { direction = Input
+          isTextual = true
+          isOpen = true
+          inputReader = Some(new System.IO.StringReader(""))
+          outputWriter = None
+          fileStream = None
+          filePath = None }
+
+    let consoleOutputPort =
+        { direction = Output
+          isTextual = true
+          isOpen = true
+          inputReader = None
+          outputWriter = Some(new System.IO.StringWriter())
+          fileStream = None
+          filePath = None }
+
+    let consoleErrorPort =
+        { direction = Output
+          isTextual = true
+          isOpen = true
+          inputReader = None
+          outputWriter = Some(new System.IO.StringWriter())
+          fileStream = None
+          filePath = None }
+
+    let defaultPorts =
+        { input = consoleInputPort
+          output = consoleOutputPort
+          error = consoleErrorPort }
+
     let empty =
         { environments = []
           libraries = ref Map.empty
           nextExpansionId = 0
           nextRecordTypeId = 0
+          ports = defaultPorts
           winders = ref []
           nextWinderId = ref 0
           handlers = ref initialHandlers }
@@ -22,6 +55,7 @@ module Context =
     let reset context =
         context.winders.Value <- []
         context.handlers.Value <- initialHandlers
+        context.ports <- defaultPorts
 
     let extendEnvironments context bindings =
         { context with

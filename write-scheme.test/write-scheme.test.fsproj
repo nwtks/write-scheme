@@ -29,6 +29,7 @@
     <Compile Include="VectorTest.fs" />
     <Compile Include="ByteVectorTest.fs" />
     <Compile Include="ProcedureTest.fs" />
+    <Compile Include="PortTest.fs" />
     <Compile Include="DynamicWindTest.fs" />
   </ItemGroup>
 

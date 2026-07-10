@@ -26,6 +26,7 @@ This document records design decisions, trade-offs, and their rationale.
 - [18. QqKeyword DU vs Raw Symbol Matching in Quasiquote Expansion](#18-qqkeyword-du-vs-raw-symbol-matching-in-quasiquote-expansion)
 - [19. CPS Incompatibility with Ref Cells for Accumulation](#19-cps-incompatibility-with-ref-cells-for-accumulation)
 - [20. Option List Accumulator vs Plain List in `loopListInfo`](#20-option-list-accumulator-vs-plain-list-in-looplistinfo)
+- [21. StringReader/StringWriter Ports vs Class Hierarchy](#21-stringreaderstringwriter-ports-vs-class-hierarchy)
 
 ---
 
@@ -548,3 +549,45 @@ This was discovered empirically — replacing `cont` calls with ref cell assignm
 ### Rationale
 
 The `Option` was eliminated because the complexity overhead (wrapping/unwrapping `Option` cases in the loop) was not justified by the micro-optimization of skipping list construction for `isProperList`. All callers now unconditionally build the list, and `isProperList` discards it with pattern matching (the compiler may optimize this away). The elimination simplified the function signature and removed the `failwith "unreachable."` branch.
+
+---
+
+## 21. StringReader/StringWriter Ports vs Class Hierarchy
+
+### Context
+
+Every value of kind `SPort` wraps an `SPortData` record, and strings of ports are grouped in a `PortSet` inside `Context`:
+
+```fsharp
+and [<ReferenceEquality>] SPortData =
+    { direction: PortDirection
+      isTextual: bool
+      mutable isOpen: bool
+      inputReader: System.IO.StringReader option
+      outputWriter: System.IO.StringWriter option
+      fileStream: System.IO.Stream option
+      filePath: string option }
+
+and PortSet =
+    { input: SPortData
+      output: SPortData
+      error: SPortData }
+```
+
+Textual string ports back onto `System.IO.StringReader`/`StringWriter`, binary bytevector ports onto `System.IO.MemoryStream`, and file ports onto `System.IO.FileStream`. There is no class hierarchy — `SPortData` is a record with optional fields and is referenced directly from the `SPort` `SExpressionKind` case.
+
+### Trade-off
+
+| Aspect | Record with optional fields | Class hierarchy |
+|--------|---------------------------|-----------------|
+| Extensibility | ❌ Adding new port types requires modifying `SPortData` | ✅ Easy to add new subclasses |
+| Pattern matching | ✅ Simple `match p.inputReader with` | ❌ Requires downcasting or visitor pattern |
+| Port closure | ✅ `isOpen` field, manually set on close | ✅ Could be built into Dispose pattern |
+| Code footprint | ✅ Single record type, simple | ❌ Interface/class boilerplate |
+| State management | ⚠️ `isOpen` mutable flag | ✅ Encapsulation possible |
+
+### Rationale
+
+A single record type with optional fields keeps the implementation simple and avoids inheritance complexity. The interpreter has a finite set of port types (string, bytevector, file), so extensibility is not a concern. Using `Option` fields cleanly represents that each port type uses only the resources it needs. Port close is explicit per R7RS.
+
+The `#t` / `#f` return values of `char-ready?` and `u8-ready?` are not truly accurate (the implementation always returns `#t`); R7RS permits this fallback, so it is conformant — see [Recurring Gotchas](gotchas.md) for the relevant entry.

@@ -11,6 +11,7 @@ module Type =
     type SExpressionKind =
         | SUnspecified
         | SEmpty
+        | SEof
         | SBool of bool
         | SRational of bigint * bigint
         | SReal of float
@@ -32,11 +33,30 @@ module Type =
         | SDatumRef of int
         | SPromise of (bool * SExpression) ref
         | SParameter of SExpression ref * SExpression option
+        | SPort of SPortData
         | SSyntax of SProcedureKind
         | SProcedure of SProcedureKind
         | SContinuation of SContinuation
 
     and SExpression = SExpressionKind * Position option
+
+    and PortDirection =
+        | Input
+        | Output
+
+    and [<ReferenceEquality>] SPortData =
+        { direction: PortDirection
+          isTextual: bool
+          mutable isOpen: bool
+          inputReader: System.IO.StringReader option
+          outputWriter: System.IO.StringWriter option
+          fileStream: System.IO.Stream option
+          filePath: string option }
+
+    and PortSet =
+        { input: SPortData
+          output: SPortData
+          error: SPortData }
 
     and [<ReferenceEquality>] SPairData =
         { mutable car: SExpression
@@ -52,6 +72,7 @@ module Type =
           libraries: Map<string, Library> ref
           mutable nextExpansionId: int
           mutable nextRecordTypeId: int
+          mutable ports: PortSet
           winders: Winder list ref
           nextWinderId: int ref
           handlers: SExpression list ref }

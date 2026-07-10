@@ -1,4 +1,4 @@
-module WriteScheme.Test.LibraryTest
+module WriteScheme.Tests.LibraryTest
 
 open Xunit
 open FsUnit.Xunit

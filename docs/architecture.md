@@ -46,6 +46,7 @@ write-scheme/                     # Interpreter core (F# executable)
 │   ├── Record.fs                 # define-record-type implementation
 │   ├── Library.fs                # define-library / import set operations
 │   ├── Core.fs                   # eqv?, equal?, display, load
+│   ├── Port.fs                   # String / bytevector / file ports; read/write/display I/O
 │   ├── Number.fs                 # SNumber type (NRational|NReal|NComplex) and unified arithmetic
 │   ├── Math.fs                   # Numeric tower operations
 │   ├── Bool.fs                   # Boolean operations
@@ -72,7 +73,7 @@ Type.fs → Print.fs → Read.fs → DatumLabel.fs → Context.fs → Eval.fs
 → Builtin/Helper.fs → Builtin/SpecialForm.fs → Builtin/Binding.fs
 → Builtin/Conditional.fs → Builtin/Lazy.fs → Builtin/DynamicBinding.fs
 → Builtin/Exception.fs → Builtin/Quasiquote.fs → Builtin/Macro.fs
-→ Builtin/Record.fs → Builtin/Library.fs → Builtin/Core.fs
+→ Builtin/Record.fs → Builtin/Library.fs → Builtin/Core.fs → Builtin/Port.fs
 → Builtin/Number.fs → Builtin/Math.fs → Builtin/Bool.fs → Builtin/List.fs
 → Builtin/Symbol.fs → Builtin/Char.fs → Builtin/Str.fs → Builtin/Vector.fs
 → Builtin/ByteVector.fs → Builtin/Procedure.fs → Builtin.fs → Repl.fs → Program.fs
@@ -153,6 +154,7 @@ The `Position option` carries source location information for error messages.
 |------|-------------|---------|
 | `SUnspecified` | Unspecified return value | — |
 | `SEmpty` | The empty list `()` | — |
+| `SEof` | End-of-file object | — |
 | `SBool of bool` | Boolean | `true` / `false` |
 | `SRational of bigint * bigint` | Integer or rational | numerator, denominator |
 | `SReal of float` | Floating-point number | IEEE 754 double |
@@ -174,6 +176,7 @@ The `Position option` carries source location information for error messages.
 | `SDatumRef of int` | Back-reference (reader) | label ID |
 | `SPromise of (bool * SExpression) ref` | Promise | evaluated flag, value/thunk |
 | `SParameter of SExpression ref * SExpression option` | Parameter | current value, optional converter |
+| `SPort of SPortData` | I/O port | `{ direction; isTextual; isOpen; inputReader; outputWriter; fileStream; filePath }` |
 | `SSyntax of SProcedureKind` | Special form | procedure |
 | `SProcedure of SProcedureKind` | Procedure | procedure |
 | `SContinuation of SContinuation` | First-class continuation | continuation function |
@@ -188,10 +191,13 @@ type Context =
       libraries: Map<string, Library> ref   // registered libraries
       mutable nextExpansionId: int          // counter for macro expansion
       mutable nextRecordTypeId: int         // counter for record types
+      mutable ports: PortSet                // current input/output/error ports
       winders: Winder list ref              // dynamic-wind stack
       nextWinderId: int ref                 // counter for winder IDs
       handlers: SExpression list ref }      // exception handler stack
 ```
+
+`PortSet` groups three ports (`input`, `output`, `error`), each an `SPortData` record (`direction`, `isTextual`, mutable `isOpen`, optional `inputReader`/`outputWriter`/`fileStream`/`filePath`). String ports back onto `System.IO.StringReader`/`StringWriter`, bytevector ports onto `MemoryStream`, and file ports onto `FileStream`. See [`docs/trade-off.md`](docs/trade-off.md) for the record-vs-class-hierarchy trade-off.
 
 ### 3.4 Environment
 
@@ -437,7 +443,7 @@ popHandler context            // restore previous handler
 
 ### 8.5 Context Reset
 
-`Context.reset` clears winders and restores the default exception handlers. This is called after an error in the REPL to ensure a clean state for the next input.
+`Context.reset` clears winders, restores the default exception handlers, and resets `ports` back to the console ports. This is called after an error in the REPL to ensure a clean state for the next input.
 
 ---
 
@@ -510,6 +516,7 @@ The largest file containing the implementation of all special forms:
 | Exception | `Exception.fs` | `with-exception-handler`, `raise`, `error` |
 | Lazy evaluation | `Lazy.fs` | `force`, `promise?`, `make-promise` |
 | Dynamic binding | `DynamicBinding.fs` | `make-parameter`, `parameterize` |
+| I/O ports | `Port.fs` | `read`, `write`, `display`, `open-input-string`, `open-input-file`, `current-input-port`, `eof-object` |
 
 ### 9.4 Implementation Pattern
 
@@ -616,22 +623,27 @@ let isVisited visited x =
 
 ```fsharp
 // Program.fs — entry point
-main = "Welcome" |> repl (newContext ())
+"Welcome" |> repl (Repl.newContext ())
 
-// Repl.fs — REPL loop
-repl context output =
-    printf "%s\n> " output    // print previous result
-    readLine ()               // read input
-    |> rep context            // evaluate
-    |> repl context           // recurse
+// Repl.fs — recursive REPL loop
+let rec repl context output =
+    printf "%s\n> " output
+    let line = System.Console.ReadLine()
+    if isNull line then ()
+    else line |> rep context |> repl context   // tail call
 
 // Repl.fs — single expression pipeline
-rep context =
-    Read.read               → parse
-    >> DatumLabel.resolve   → resolve datum labels
-    >> Eval.eval context id → evaluate
-    >> Print.print          → serialize
-    >> error formatting     → handle errors
+let rep context =
+    Read.read false                                      // parse
+    >> Result.bind DatumLabel.resolveLabels              // resolve datum labels
+    >> Result.bind (Eval.eval context id)                // evaluate (id continuation)
+    >> Result.map Print.print                            // serialize
+    >> Result.defaultWith (fun e ->
+        context |> Context.reset
+        match e with
+        | ParseError(msg, pos) -> ...
+        | EvalError(msg, pos) -> ...
+        | SchemeRaise(expr, pos) -> ...)
 ```
 
 ### 12.2 Context Freshness
@@ -648,11 +660,11 @@ let newContext () =
         nextWinderId = ref 0 }
 ```
 
-This starts with a fresh user environment on top of the built-in bindings.
+This starts with a fresh user environment on top of the built-in bindings. Note that `libraries` is **not** copied — it is inherited from `builtinContext` (which already has `(scheme base)` registered) and shared via the same `ref` cell.
 
 ### 12.3 Error Recovery
 
-When an error occurs (`ParseError`, `EvalError`, or `SchemeRaise`), `Context.reset` is called to clean up winders and handlers before printing the error message and continuing the REPL.
+When an error occurs (`ParseError`, `EvalError`, or `SchemeRaise`), `Context.reset` is called to clear winders, restore the default exception handlers, and reset `ports` back to the console ports, before formatting the error message (with source position appended) and continuing the REPL.
 
 ---
 

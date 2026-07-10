@@ -24,6 +24,7 @@
     <Compile Include="Builtin/Record.fs" />
     <Compile Include="Builtin/Library.fs" />
     <Compile Include="Builtin/Core.fs" />
+    <Compile Include="Builtin/Port.fs" />
     <Compile Include="Builtin/Number.fs" />
     <Compile Include="Builtin/Math.fs" />
     <Compile Include="Builtin/Bool.fs" />

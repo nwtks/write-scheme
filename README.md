@@ -14,6 +14,8 @@ A R7RS (Small) Scheme interpreter written in F#. Features a Continuation-Passing
 - **Exception system**: `raise`, `raise-continuable`, `with-exception-handler`, `guard`, `error`
 - **Lazy evaluation**: `delay`, `delay-force`, `force`, `make-promise`
 - **Datum labels**: `#N=` / `#N#` for cyclic and shared structure
+- **I/O ports**: string ports, bytevector ports, file ports; R7RS I/O primitives (`read`, `write`, `display`, `read-char`, `peek-char`, `read-line`, `write-char`, `write-string`, `eof-object`, etc.)
+- **Port predicates**: `port?`, `input-port?`, `output-port?`, `textual-port?`, `binary-port?`
 
 ## Requirements
 
