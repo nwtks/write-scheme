@@ -283,6 +283,7 @@ module Builtin =
           "read-u8", (SProcedure sReadU8, None) |> ref
           "u8-ready?", (SProcedure isU8Ready, None) |> ref
           "read-bytevector", (SProcedure sReadBytevector, None) |> ref
+          "read-bytevector!", (SProcedure sReadBytevectorBang, None) |> ref
           "write", (SProcedure sWrite, None) |> ref
           "display", (SProcedure sDisplay, None) |> ref
           "newline", (SProcedure sNewline, None) |> ref

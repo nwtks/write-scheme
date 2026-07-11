@@ -610,6 +610,65 @@ module Port =
             | _ -> (SEof, pos) |> Ok |> cont
         | x -> x |> invalidParameter pos "'%s' invalid read-bytevector parameter." |> cont
 
+    let readBytevectorBangFromPort bv p startIdx endIdx pos cont =
+        match p.fileStream with
+        | Some s when not p.isTextual ->
+            let count = s.Read(bv, startIdx, endIdx - startIdx)
+
+            if count = 0 then
+                (SEof, pos) |> Ok |> cont
+            else
+                (SRational(bigint count, 1I), pos) |> Ok |> cont
+        | _ -> (SEof, pos) |> Ok |> cont
+
+    let sReadBytevectorBang context pos cont =
+        function
+        | [ SByteVector bv, _ ] -> readBytevectorBangFromPort bv context.ports.input 0 bv.Length pos cont
+        | [ SByteVector bv, _; SPort p, _ ] -> readBytevectorBangFromPort bv p 0 bv.Length pos cont
+        | [ SByteVector bv, _; SPort p, _; SRational(startN, _), _ ] ->
+            let startIdx = int startN
+
+            if startIdx < 0 || startIdx > bv.Length then
+                EvalError(
+                    $"read-bytevector!: start index {startIdx} out of range for bytevector of length {bv.Length}.",
+                    pos
+                )
+                |> Error
+                |> cont
+            else
+                readBytevectorBangFromPort bv p startIdx bv.Length pos cont
+        | [ SByteVector bv, _; SPort p, _; SRational(startN, _), _; SRational(endN, _), _ ] ->
+            let startIdx = int startN
+            let endIdx = int endN
+
+            if startIdx < 0 || startIdx > bv.Length then
+                EvalError(
+                    $"read-bytevector!: start index {startIdx} out of range for bytevector of length {bv.Length}.",
+                    pos
+                )
+                |> Error
+                |> cont
+            elif endIdx < 0 || endIdx > bv.Length then
+                EvalError(
+                    $"read-bytevector!: end index {endIdx} out of range for bytevector of length {bv.Length}.",
+                    pos
+                )
+                |> Error
+                |> cont
+            elif startIdx > endIdx then
+                EvalError($"read-bytevector!: start index {startIdx} is greater than end index {endIdx}.", pos)
+                |> Error
+                |> cont
+            else
+                readBytevectorBangFromPort bv p startIdx endIdx pos cont
+        | (SByteVector _, _) :: rest ->
+            let msg = rest |> List.map (fun arg -> Print.print arg) |> String.concat " "
+
+            EvalError($"read-bytevector!: invalid argument(s) '{msg}'.", pos)
+            |> Error
+            |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid read-bytevector! parameter." |> cont
+
     let sWrite context pos cont =
         function
         | [ arg ] ->

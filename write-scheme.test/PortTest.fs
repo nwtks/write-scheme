@@ -427,6 +427,32 @@ let ``read-bytevector`` () =
     |> should equal "#!eof"
 
 [<Fact>]
+let ``read-bytevector!`` () =
+    "(let ((bv (bytevector 0 0 0)) (p (open-input-bytevector #u8(65 66 67)))) (read-bytevector! bv p) bv)"
+    |> rep
+    |> should equal "#u8(65 66 67)"
+
+    "(let ((bv (bytevector 0 0)) (p (open-input-bytevector #u8(65 66 67)))) (read-bytevector! bv p) bv)"
+    |> rep
+    |> should equal "#u8(65 66)"
+
+    "(let ((bv (bytevector 0 0 0)) (p (open-input-bytevector #u8()))) (read-bytevector! bv p))"
+    |> rep
+    |> should equal "#!eof"
+
+    "(let ((bv (bytevector 0 0 0 0)) (p (open-input-bytevector #u8(65 66 67)))) (read-bytevector! bv p 1) bv)"
+    |> rep
+    |> should equal "#u8(0 65 66 67)"
+
+    "(let ((bv (bytevector 0 0 0 0 0)) (p (open-input-bytevector #u8(65 66 67 68 69)))) (read-bytevector! bv p 1 4) bv)"
+    |> rep
+    |> should equal "#u8(0 65 66 67 0)"
+
+    "(let ((bv (bytevector 0 0 0)) (p (open-input-bytevector #u8(65 66 67)))) (read-bytevector! bv p))"
+    |> rep
+    |> should equal "3"
+
+[<Fact>]
 let ``newline`` () =
     "(let ((p (open-output-string))) (newline p) (string-length (get-output-string p)))"
     |> rep
