@@ -74,14 +74,7 @@ module SNumber =
             | NReal r1, NReal r2 -> NReal(r1 / r2) |> Ok
             | _, _ -> NComplex(promoteToComplex a / promoteToComplex b) |> Ok
 
-    let unaryMath
-        name
-        (fReal: float -> SExpressionKind)
-        (fComplex: System.Numerics.Complex -> SExpressionKind)
-        context
-        pos
-        cont
-        =
+    let unaryMath name fReal fComplex pos cont =
         let fmt = $"'%%s' invalid {name} parameter."
 
         function
@@ -90,15 +83,7 @@ module SNumber =
         | [ SRational(n, d), _ ] -> Ok(fReal (toFloat n d), pos) |> cont
         | x -> x |> invalidParameter pos fmt |> cont
 
-    let unaryMathDomain
-        name
-        (inDomain: float -> bool)
-        (fReal: float -> SExpressionKind)
-        (fComplex: System.Numerics.Complex -> SExpressionKind)
-        context
-        pos
-        cont
-        =
+    let unaryMathDomain name inDomain fReal fComplex pos cont =
         let fmt = $"'%%s' invalid {name} parameter."
 
         function
@@ -125,18 +110,18 @@ module SNumber =
 
     let noFractionFloat (d: float) = d = System.Math.Truncate d
 
-    let isWholeReal (d: float) = finiteFloat d && noFractionFloat d
+    let isWholeReal d = finiteFloat d && noFractionFloat d
 
     let isRealInteger (c: System.Numerics.Complex) = c.Imaginary = 0.0 && isWholeReal c.Real
 
-    let tryGetExactIntegerValue (x: SExpression) =
+    let tryGetExactIntegerValue x =
         match fst x with
         | SRational(n, d) when d = 1I -> Some n
         | SReal r when isWholeReal r -> Some(bigint r)
         | SComplex c when isRealInteger c -> Some(bigint c.Real)
         | _ -> None
 
-    let tryGetFiniteRealValue (x: SExpression) =
+    let tryGetFiniteRealValue x =
         match fst x with
         | SRational(n, d) -> Some(float n / float d)
         | SReal r when finiteFloat r -> Some r

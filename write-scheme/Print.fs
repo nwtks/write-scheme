@@ -10,14 +10,16 @@ module Print =
             "+inf.0"
         elif System.Double.IsNegativeInfinity x then
             "-inf.0"
-        else if isImaginary then
-            if x >= 0.0 then $"+{x:g}" else $"{x:g}"
+        elif isImaginary then
+            let s = x.ToString("g", System.Globalization.CultureInfo.InvariantCulture)
+            if System.Double.IsNegative x then s else "+" + s
         else
-            string x
+            let s = x.ToString("g", System.Globalization.CultureInfo.InvariantCulture)
+            if System.Double.IsNegative x && x = 0.0 then "-" + s else s
 
     let formatComplex (x: System.Numerics.Complex) =
         let real =
-            if x.Real = 0.0 && x.Imaginary <> 0.0 then
+            if not (System.Double.IsNegative x.Real) && x.Real = 0.0 && x.Imaginary <> 0.0 then
                 "0"
             else
                 formatFloat x.Real false
@@ -25,18 +27,19 @@ module Print =
         let imag = formatFloat x.Imaginary true + "i"
         real + imag
 
-    let escapeChar c =
-        match c with
-        | '"' -> "\\\""
-        | '\\' -> "\\\\"
-        | c -> string c
-
-    let runesToChars (runes: System.Text.Rune array) =
-        runes |> Seq.collect (fun r -> (string r).ToCharArray())
-
     let formatString data =
-        let content = data.runes |> runesToChars |> Seq.map escapeChar |> String.concat ""
-        $"\"{content}\""
+        let sb = System.Text.StringBuilder "\""
+
+        for r in data.runes do
+            for c in (string r).ToCharArray() do
+                match c with
+                | '"' -> sb.Append "\\\""
+                | '\\' -> sb.Append "\\\\"
+                | c -> sb.Append c
+                |> ignore
+
+        sb.Append "\"" |> ignore
+        sb.ToString()
 
     let namedCharNames =
         Map.ofList
@@ -54,7 +57,7 @@ module Print =
         match namedCharNames |> Map.tryFind c.Value with
         | Some name -> name
         | None when System.Text.Rune.IsControl c -> $"#\\x{c.Value:x}"
-        | _ -> c |> string |> sprintf "#\\%s"
+        | _ -> $"#\\{c}"
 
     let isInitial c =
         System.Char.IsLetter c || "!$%&*/:<=>?^_~".Contains c
@@ -66,11 +69,13 @@ module Print =
         if s = "" || s = "+" || s = "-" || s = "..." then
             false
         else
-            not (isInitial s.[0])
-            && not (s.[0] = '+' || s.[0] = '-')
-            && not (s.Length > 1 && s.[0] = '.' && (isInitial s.[1] || "+-.@".Contains(s.[1])))
-            && not (s.StartsWith "...")
-            || s |> Seq.exists (not << isSubsequent)
+            let startsWithInvalid =
+                not (isInitial s.[0])
+                && not (s.[0] = '+' || s.[0] = '-')
+                && not (s.Length > 1 && s.[0] = '.' && (isInitial s.[1] || "+-.@".Contains(s.[1])))
+                && not (s.StartsWith "...")
+
+            startsWithInvalid || s |> Seq.exists (not << isSubsequent)
 
     let formatSymbol s =
         if s = "" then
@@ -90,7 +95,16 @@ module Print =
     let formatRational n d = if d = 1I then string n else $"{n}/{d}"
 
     let formatByteVector (xs: byte array) =
-        xs |> Array.map string |> String.concat " " |> sprintf "#u8(%s)"
+        let sb = System.Text.StringBuilder "#u8("
+
+        for i = 0 to xs.Length - 1 do
+            if i > 0 then
+                sb.Append ' ' |> ignore
+
+            sb.Append(string xs.[i]) |> ignore
+
+        sb.Append ')' |> ignore
+        sb.ToString()
 
     let formatSimpleValue =
         function
@@ -173,81 +187,6 @@ module Print =
         | SUnquoteSplicing _
         | SDatumLabel _ -> true
         | _ -> false
-
-    [<TailCall>]
-    let rec formatList next =
-        function
-        | [] -> "" |> next
-        | [ visited, x ] -> x |> printCPS visited next
-        | (visited, x) :: xs ->
-            x
-            |> printCPS visited (fun s1 -> xs |> formatList (fun s2 -> s1 + " " + s2 |> next))
-
-    and [<TailCall>] formatPair visited next acc pair =
-        if isVisited visited pair then
-            match acc with
-            | [] -> "..." |> next
-            | _ -> acc |> List.rev |> formatList (fun s -> $"({s} ...)" |> next)
-        else
-            let visited' = (pair :> obj) :: visited
-
-            match pair.cdr with
-            | SEmpty, _ ->
-                (visited', pair.car) :: acc
-                |> List.rev
-                |> formatList (fun s -> $"({s})" |> next)
-            | SPair p, _ -> p |> formatPair visited' next ((visited', pair.car) :: acc)
-            | _ ->
-                (visited', pair.car) :: acc
-                |> List.rev
-                |> formatList (fun s1 -> pair.cdr |> printCPS visited' (fun s2 -> $"({s1} . {s2})" |> next))
-
-    and [<TailCall>] formatError visited next message irritants =
-        let prefix = message.runes |> runesToString |> sprintf "#<error \"%s\""
-
-        match irritants with
-        | [] -> prefix + ">" |> next
-        | _ when isVisited visited irritants -> "..." |> next
-        | _ ->
-            irritants
-            |> List.map (fun e -> (irritants :> obj) :: visited, e)
-            |> formatList (fun s -> prefix + " " + s + ">" |> next)
-
-    and [<TailCall>] formatVector visited next (xs: SExpression array) =
-        if isVisited visited xs then
-            "..." |> next
-        else
-            xs
-            |> Array.toList
-            |> List.map (fun e -> (xs :> obj) :: visited, e)
-            |> formatList (fun s -> $"#({s})" |> next)
-
-    and [<TailCall>] formatValues visited next (xs: SExpression list) =
-        if isVisited visited xs then
-            "..." |> next
-        else
-            xs
-            |> List.map (fun e -> (xs :> obj) :: visited, e)
-            |> formatList (fun s -> (if s = "" then "(values)" else $"(values {s})") |> next)
-
-    and [<TailCall>] printCPS visited next =
-        function
-        | SPair p, _ -> p |> formatPair visited next []
-        | SVector xs, _ -> xs |> formatVector visited next
-        | SValues xs, _ -> xs |> formatValues visited next
-        | SError(msg, irritants), _ -> formatError visited next msg irritants
-        | x, _ as expr ->
-            if isSimpleValueKind x then
-                formatSimpleValue expr |> next
-            elif isOpaqueDescriptorKind x then
-                formatOpaqueDescriptor expr |> next
-            elif isQuoteLikeKind x then
-                let prefix, inner = getWrapperPrefixAndInner expr
-                inner |> printCPS visited (fun s -> $"{prefix}{s}" |> next)
-            else
-                failwith "unreachable."
-
-    let print x = x |> printCPS [] id
 
     let tryGetObjRef =
         function
@@ -342,36 +281,46 @@ module Print =
 
     let emitLabel emitted labelMap objRef =
         match tryGetLabel labelMap objRef with
-        | Some n when not (emitted |> Set.contains n) -> Some(sprintf "#%d=" n, n), emitted |> Set.add n
-        | Some n -> Some(sprintf "#%d#" n, n), emitted
+        | Some n when not (emitted |> Set.contains n) -> Some(sprintf "#%d=" n), emitted |> Set.add n
+        | Some n -> Some(sprintf "#%d#" n), emitted
         | None -> None, emitted
 
     let emitLabelDispatch labelMap emitted next objRef withFirst withNone =
         let result, emitted' = emitLabel emitted labelMap objRef
 
         match result with
-        | Some(label, _) when not (label.EndsWith "#") -> withFirst label emitted'
-        | Some(label, _) -> next label emitted'
+        | Some label when not (label.EndsWith "#") -> withFirst label emitted'
+        | Some label -> next label emitted'
         | None -> withNone () emitted'
 
+    let withLabel label outerNext emitted' s =
+        match label with
+        | Some l -> outerNext $"{l}{s}" emitted'
+        | None -> outerNext s emitted'
 
     [<TailCall>]
-    let rec formatListShared labelMap emitted next =
+    let rec formatList labelMap emitted next =
         function
         | [] -> next "" emitted
-        | [ visited, x ] -> x |> printSharedCPS labelMap emitted visited next
+        | [ visited, x ] -> x |> printCPS labelMap emitted visited next
         | (visited, x) :: xs ->
             x
-            |> printSharedCPS labelMap emitted visited (fun s1 emitted' ->
+            |> printCPS labelMap emitted visited (fun s1 emitted' ->
                 xs
-                |> formatListShared labelMap emitted' (fun s2 emitted'' -> next (s1 + " " + s2) emitted''))
+                |> formatList labelMap emitted' (fun s2 emitted'' -> next (s1 + " " + s2) emitted''))
 
-    and [<TailCall>] formatPairShared labelMap emitted visited outerNext label acc pair =
+    and [<TailCall>] formatPair labelMap emitted visited outerNext label acc pair =
         if isVisited visited pair then
             match tryGetLabel labelMap (pair :> obj) with
             | Some n when emitted |> Set.contains n -> outerNext $"#{n}#" emitted
             | Some n -> outerNext $"#{n}= ..." (emitted |> Set.add n)
-            | _ -> outerNext "..." emitted
+            | _ ->
+                match acc with
+                | [] -> outerNext "..." emitted
+                | _ ->
+                    acc
+                    |> List.rev
+                    |> formatList labelMap emitted (fun s emitted' -> outerNext $"({s} ...)" emitted')
         else
             let visited' = (pair :> obj) :: visited
 
@@ -379,28 +328,19 @@ module Print =
             | SEmpty, _ ->
                 (visited', pair.car) :: acc
                 |> List.rev
-                |> formatListShared labelMap emitted (fun s emitted' ->
-                    let content = $"({s})"
-
-                    match label with
-                    | Some l -> outerNext $"{l}{content}" emitted'
-                    | None -> outerNext content emitted')
+                |> formatList labelMap emitted (fun s emitted' -> $"({s})" |> withLabel label outerNext emitted')
             | SPair p, _ ->
                 p
-                |> formatPairShared labelMap emitted visited' outerNext label ((visited', pair.car) :: acc)
+                |> formatPair labelMap emitted visited' outerNext label ((visited', pair.car) :: acc)
             | _ ->
                 (visited', pair.car) :: acc
                 |> List.rev
-                |> formatListShared labelMap emitted (fun s1 emitted' ->
+                |> formatList labelMap emitted (fun s1 emitted' ->
                     pair.cdr
-                    |> printSharedCPS labelMap emitted' visited' (fun s2 emitted'' ->
-                        let content = $"({s1} . {s2})"
+                    |> printCPS labelMap emitted' visited' (fun s2 emitted'' ->
+                        $"({s1} . {s2})" |> withLabel label outerNext emitted''))
 
-                        match label with
-                        | Some l -> outerNext $"{l}{content}" emitted''
-                        | None -> outerNext content emitted''))
-
-    and [<TailCall>] formatVectorShared labelMap emitted visited outerNext label xs =
+    and [<TailCall>] formatVector labelMap emitted visited outerNext label xs =
         if isVisited visited xs then
             match tryGetLabel labelMap (xs :> obj) with
             | Some n when emitted |> Set.contains n -> outerNext $"#{n}#" emitted
@@ -410,14 +350,9 @@ module Print =
             xs
             |> Array.toList
             |> List.map (fun e -> (xs :> obj) :: visited, e)
-            |> formatListShared labelMap emitted (fun s emitted' ->
-                let content = $"#({s})"
+            |> formatList labelMap emitted (fun s emitted' -> $"#({s})" |> withLabel label outerNext emitted')
 
-                match label with
-                | Some l -> outerNext $"{l}{content}" emitted'
-                | None -> outerNext content emitted')
-
-    and [<TailCall>] formatValuesShared labelMap emitted visited outerNext label xs =
+    and [<TailCall>] formatValues labelMap emitted visited outerNext label xs =
         if isVisited visited xs then
             match tryGetLabel labelMap (xs :> obj) with
             | Some n when emitted |> Set.contains n -> outerNext $"#{n}#" emitted
@@ -426,48 +361,23 @@ module Print =
         else
             xs
             |> List.map (fun e -> (xs :> obj) :: visited, e)
-            |> formatListShared labelMap emitted (fun s emitted' ->
-                let content = if s = "" then "(values)" else $"(values {s})"
+            |> formatList labelMap emitted (fun s emitted' ->
+                (if s = "" then "(values)" else $"(values {s})")
+                |> withLabel label outerNext emitted')
 
-                match label with
-                | Some l -> outerNext $"{l}{content}" emitted'
-                | None -> outerNext content emitted')
-
-    and [<TailCall>] formatErrorShared labelMap emitted visited outerNext label msg irritants =
+    and [<TailCall>] formatError labelMap emitted visited outerNext label msg irritants =
         let prefix = msg.runes |> runesToString |> sprintf "#<error \"%s\""
 
         if isVisited visited irritants then
-            match tryGetLabel labelMap (irritants :> obj) with
-            | Some n when emitted |> Set.contains n -> outerNext $"{prefix} #{n}#>" emitted
-            | Some n -> outerNext $"{prefix} #{n}= ...>" (emitted |> Set.add n)
-            | _ -> outerNext $"{prefix} ...>" emitted
+            $"{prefix} ...>" |> withLabel label outerNext emitted
         else
-            match tryGetLabel labelMap (irritants :> obj) with
-            | Some n when emitted |> Set.contains n -> outerNext $"{prefix} #{n}#>" emitted
-            | Some n ->
-                let visited' = (irritants :> obj) :: visited
+            let visited' = (irritants :> obj) :: visited
 
-                irritants
-                |> List.map (fun e -> (irritants :> obj) :: visited', e)
-                |> formatListShared labelMap (emitted |> Set.add n) (fun s emitted' ->
-                    let content = $"{prefix} {s}>"
+            irritants
+            |> List.map (fun e -> (irritants :> obj) :: visited', e)
+            |> formatList labelMap emitted (fun s emitted' -> $"{prefix} {s}>" |> withLabel label outerNext emitted')
 
-                    match label with
-                    | Some l -> outerNext $"{l}{content}" emitted'
-                    | None -> outerNext content emitted')
-            | _ ->
-                let visited' = (irritants :> obj) :: visited
-
-                irritants
-                |> List.map (fun e -> (irritants :> obj) :: visited', e)
-                |> formatListShared labelMap emitted (fun s emitted' ->
-                    let content = $"{prefix} {s}>"
-
-                    match label with
-                    | Some l -> outerNext $"{l}{content}" emitted'
-                    | None -> outerNext content emitted')
-
-    and [<TailCall>] printSharedCPS labelMap emitted visited next =
+    and [<TailCall>] printCPS labelMap emitted visited next =
         function
         | SPair p, _ ->
             emitLabelDispatch
@@ -475,41 +385,32 @@ module Print =
                 emitted
                 next
                 (p :> obj)
-                (fun label emitted' -> p |> formatPairShared labelMap emitted' visited next (Some label) [])
-                (fun () emitted' -> p |> formatPairShared labelMap emitted' visited next None [])
+                (fun label emitted' -> p |> formatPair labelMap emitted' visited next (Some label) [])
+                (fun () emitted' -> p |> formatPair labelMap emitted' visited next None [])
         | SVector xs, _ ->
             emitLabelDispatch
                 labelMap
                 emitted
                 next
                 (xs :> obj)
-                (fun label emitted' -> xs |> formatVectorShared labelMap emitted' visited next (Some label))
-                (fun () emitted' -> xs |> formatVectorShared labelMap emitted' visited next None)
+                (fun label emitted' -> xs |> formatVector labelMap emitted' visited next (Some label))
+                (fun () emitted' -> xs |> formatVector labelMap emitted' visited next None)
         | SValues xs, _ ->
             emitLabelDispatch
                 labelMap
                 emitted
                 next
                 (xs :> obj)
-                (fun label emitted' -> xs |> formatValuesShared labelMap emitted' visited next (Some label))
-                (fun () emitted' -> xs |> formatValuesShared labelMap emitted' visited next None)
+                (fun label emitted' -> xs |> formatValues labelMap emitted' visited next (Some label))
+                (fun () emitted' -> xs |> formatValues labelMap emitted' visited next None)
         | SError(msg, irritants), _ ->
             emitLabelDispatch
                 labelMap
                 emitted
                 next
                 (irritants :> obj)
-                (fun label emitted' ->
-                    let prefix = msg.runes |> runesToString |> sprintf "#<error \"%s\""
-
-                    if isVisited visited irritants then
-                        next $"{label}{prefix} ...>" emitted'
-                    else
-                        irritants
-                        |> List.map (fun e -> (irritants :> obj) :: visited, e)
-                        |> formatListShared labelMap emitted' (fun s emitted'' ->
-                            next $"{label}{prefix} {s}>" emitted''))
-                (fun () emitted' -> formatErrorShared labelMap emitted' visited next None msg irritants)
+                (fun label emitted' -> formatError labelMap emitted' visited next (Some label) msg irritants)
+                (fun () emitted' -> formatError labelMap emitted' visited next None msg irritants)
         | x, _ as expr ->
             if isSimpleValueKind x then
                 next (formatSimpleValue expr) emitted
@@ -519,10 +420,14 @@ module Print =
                 let prefix, inner = getWrapperPrefixAndInner expr
 
                 inner
-                |> printSharedCPS labelMap emitted visited (fun s emitted' -> next $"{prefix}{s}" emitted')
+                |> printCPS labelMap emitted visited (fun s emitted' -> next $"{prefix}{s}" emitted')
             else
                 failwith "unreachable."
 
+    let print x =
+        x
+        |> printCPS (System.Collections.Generic.Dictionary<obj, int>()) Set.empty<int> [] (fun s _ -> s)
+
     let printShared x =
         let labelMap = buildSharedLabelMap x
-        x |> printSharedCPS labelMap Set.empty<int> [] (fun s _ -> s)
+        x |> printCPS labelMap Set.empty<int> [] (fun s _ -> s)

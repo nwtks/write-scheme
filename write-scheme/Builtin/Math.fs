@@ -230,7 +230,7 @@ module Math =
 
     let extremum pred1 pred2 pred3 name context pos cont args =
         if args |> List.isEmpty then
-            args |> invalidParameter pos ($"'%%s' invalid {name} parameter.") |> cont
+            args |> invalidParameter pos $"'%%s' invalid {name} parameter." |> cont
         else
             let h = args.Head
 
@@ -424,7 +424,7 @@ module Math =
                 | SRational(n, d) -> SReal(float (projectField n d))
                 | _ -> defaultResult r
                 |> Ok
-            | x -> x |> invalid (snd x) ($"'%%s' invalid {name} parameter."))
+            | x -> x |> invalid (snd x) $"'%%s' invalid {name} parameter.")
             context
             pos
             cont
@@ -509,13 +509,13 @@ module Math =
             |> cont
         | x -> x |> invalidParameter pos "'%s' invalid rationalize parameter." |> cont
 
-    let sExp context pos cont =
-        SNumber.unaryMath "exp" (exp >> SReal) (System.Numerics.Complex.Exp >> SComplex) context pos cont
+    let sExp context =
+        SNumber.unaryMath "exp" (exp >> SReal) (System.Numerics.Complex.Exp >> SComplex)
 
     let sLog context pos cont =
         function
         | [ _ ] as args ->
-            SNumber.unaryMath "log" (log >> SReal) (System.Numerics.Complex.Log >> SComplex) context pos cont args
+            SNumber.unaryMath "log" (log >> SReal) (System.Numerics.Complex.Log >> SComplex) pos cont args
         | [ x; y ] ->
             match bothOk (toComplex x) (toComplex y) with
             | Ok(c1, c2) ->
@@ -524,39 +524,33 @@ module Math =
             | Error e -> Error e |> cont
         | x -> x |> invalidParameter pos "'%s' invalid log parameter." |> cont
 
-    let sSin context pos cont =
-        SNumber.unaryMath "sin" (sin >> SReal) (System.Numerics.Complex.Sin >> SComplex) context pos cont
+    let sSin context =
+        SNumber.unaryMath "sin" (sin >> SReal) (System.Numerics.Complex.Sin >> SComplex)
 
-    let sCos context pos cont =
-        SNumber.unaryMath "cos" (cos >> SReal) (System.Numerics.Complex.Cos >> SComplex) context pos cont
+    let sCos context =
+        SNumber.unaryMath "cos" (cos >> SReal) (System.Numerics.Complex.Cos >> SComplex)
 
-    let sTan context pos cont =
-        SNumber.unaryMath "tan" (tan >> SReal) (System.Numerics.Complex.Tan >> SComplex) context pos cont
+    let sTan context =
+        SNumber.unaryMath "tan" (tan >> SReal) (System.Numerics.Complex.Tan >> SComplex)
 
-    let sAsin context pos cont =
+    let sAsin context =
         SNumber.unaryMathDomain
             "asin"
             (fun r -> r >= -1.0 && r <= 1.0)
             (asin >> SReal)
             (System.Numerics.Complex.Asin >> SComplex)
-            context
-            pos
-            cont
 
-    let sAcos context pos cont =
+    let sAcos context =
         SNumber.unaryMathDomain
             "acos"
             (fun r -> r >= -1.0 && r <= 1.0)
             (acos >> SReal)
             (System.Numerics.Complex.Acos >> SComplex)
-            context
-            pos
-            cont
 
     let sAtan context pos cont =
         function
         | [ _ ] as args ->
-            SNumber.unaryMath "atan" (atan >> SReal) (System.Numerics.Complex.Atan >> SComplex) context pos cont args
+            SNumber.unaryMath "atan" (atan >> SReal) (System.Numerics.Complex.Atan >> SComplex) pos cont args
         | [ y; x ] ->
             let toFloat =
                 function
@@ -574,15 +568,8 @@ module Math =
         | [ x ] -> sMultiplyNumber context pos cont [ x; x ]
         | x -> x |> invalidParameter pos "'%s' invalid square parameter." |> cont
 
-    let sSqrt context pos cont =
-        SNumber.unaryMathDomain
-            "sqrt"
-            (fun r -> r >= 0.0)
-            (sqrt >> SReal)
-            (System.Numerics.Complex.Sqrt >> SComplex)
-            context
-            pos
-            cont
+    let sSqrt context =
+        SNumber.unaryMathDomain "sqrt" (fun r -> r >= 0.0) (sqrt >> SReal) (System.Numerics.Complex.Sqrt >> SComplex)
 
     [<TailCall>]
     let rec bigintSqrt low high n =
