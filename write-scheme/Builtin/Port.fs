@@ -7,8 +7,13 @@ open Type
 module Port =
     let closePort p =
         p.isOpen <- false
+
+        p.outputWriter
+        |> Option.iter (fun w ->
+            w.Flush()
+            w.Dispose())
+
         p.inputReader |> Option.iter (fun r -> r.Dispose())
-        p.outputWriter |> Option.iter (fun w -> w.Dispose())
         p.fileStream |> Option.iter (fun s -> s.Dispose())
 
     let makeFilePort direction isTextual path =
@@ -419,7 +424,7 @@ module Port =
     let rec sReadString context pos cont =
         function
         | [ SRational(_, _) as num, _ ] -> sReadString context pos cont [ num, None; SPort context.ports.input, None ]
-        | [ SRational(n, _), _; SPort p, _ ] -> readStringFromReader p.inputReader n pos cont
+        | [ SRational(n, d), _; SPort p, _ ] when d = 1I && n >= 0I -> readStringFromReader p.inputReader n pos cont
         | x -> x |> invalidParameter pos "'%s' invalid read-string parameter." |> cont
 
     let peekU8FromPort p =
@@ -472,7 +477,7 @@ module Port =
         function
         | [ SRational(_, _) as num, _ ] ->
             sReadBytevector context pos cont [ num, None; SPort context.ports.input, None ]
-        | [ SRational(n, _), _; SPort p, _ ] ->
+        | [ SRational(n, d), _; SPort p, _ ] when d = 1I && n >= 0I ->
             match p.fileStream with
             | Some s when not p.isTextual -> readBytevectorFromStream s n pos cont
             | _ -> (SEof, pos) |> Ok |> cont
@@ -518,10 +523,10 @@ module Port =
             sReadBytevectorBang context pos cont [ SByteVector bv, None; SPort context.ports.input, None ]
         | [ SByteVector bv, _; SPort p, _ ] ->
             sReadBytevectorBang context pos cont [ SByteVector bv, None; SPort p, None; SZero, None ]
-        | [ SByteVector bv, _; SPort p, _; SRational(startN, _), _ ] ->
+        | [ SByteVector bv, _; SPort p, _; SRational(startN, d), _ ] when d = 1I ->
             withValidBvRange bv.Length startN (bigint bv.Length) pos cont (fun st en ->
                 readBytevectorBangFromPort bv p st en pos cont)
-        | [ SByteVector bv, _; SPort p, _; SRational(startN, _), _; SRational(endN, _), _ ] ->
+        | [ SByteVector bv, _; SPort p, _; SRational(startN, d), _; SRational(endN, d'), _ ] when d = 1I && d' = 1I ->
             withValidBvRange bv.Length startN endN pos cont (fun st en ->
                 readBytevectorBangFromPort bv p st en pos cont)
         | (SByteVector _, _) :: rest ->
@@ -601,7 +606,7 @@ module Port =
     let rec sWriteU8 context pos cont =
         function
         | [ SRational(_, _) as num, _ ] -> sWriteU8 context pos cont [ num, None; SPort context.ports.output, None ]
-        | [ SRational(n, _), _; SPort p, _ ] when not p.isTextual ->
+        | [ SRational(n, d), _; SPort p, _ ] when d = 1I && n >= 0I && n <= 255I && not p.isTextual ->
             p.fileStream |> Option.iter (fun fs -> fs.WriteByte(byte n))
             (SUnspecified, pos) |> Ok |> cont
         | x -> x |> invalidParameter pos "'%s' invalid write-u8 parameter." |> cont
