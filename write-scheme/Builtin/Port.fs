@@ -699,6 +699,16 @@ module Port =
             (SUnspecified, pos) |> Ok |> cont
         | x -> x |> invalidParameter pos "'%s' invalid write-shared parameter." |> cont
 
+    let sWriteSimple context pos cont =
+        function
+        | [ arg ] ->
+            writeStringToPort context.ports.output (arg |> Print.print)
+            (SUnspecified, pos) |> Ok |> cont
+        | [ arg; SPort p, _ ] ->
+            writeStringToPort p (arg |> Print.print)
+            (SUnspecified, pos) |> Ok |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid write-simple parameter." |> cont
+
     let getDisplayString =
         function
         | SString x, _ -> x.runes |> runesToString

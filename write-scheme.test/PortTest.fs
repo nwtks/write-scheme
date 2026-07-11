@@ -495,6 +495,36 @@ let ``write-shared`` () =
     |> should startWith "'(1 2 3)' invalid write-shared parameter"
 
 [<Fact>]
+let ``write-simple`` () =
+    "(let ((p (open-output-string))) (write-simple 42 p) (get-output-string p))"
+    |> rep
+    |> should equal "\"42\""
+
+    "(let ((p (open-output-string))) (write-simple #t p) (get-output-string p))"
+    |> rep
+    |> should equal "\"#t\""
+
+    "(let ((p (open-output-string))) (write-simple 'symbol p) (get-output-string p))"
+    |> rep
+    |> should equal "\"symbol\""
+
+    "(let ((p (open-output-string))) (write-simple '(a b c) p) (get-output-string p))"
+    |> rep
+    |> should equal "\"(a b c)\""
+
+    "(let ((p (open-output-string))) (write-simple '#(1 2 3) p) (get-output-string p))"
+    |> rep
+    |> should equal "\"#(1 2 3)\""
+
+    "(write-simple)"
+    |> rep
+    |> should startWith "'()' invalid write-simple parameter"
+
+    "(write-simple 1 2 3)"
+    |> rep
+    |> should startWith "'(1 2 3)' invalid write-simple parameter"
+
+[<Fact>]
 let ``newline`` () =
     "(let ((p (open-output-string))) (newline p) (string-length (get-output-string p)))"
     |> rep

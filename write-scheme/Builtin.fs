@@ -286,6 +286,7 @@ module Builtin =
           "read-bytevector!", (SProcedure sReadBytevectorBang, None) |> ref
           "write", (SProcedure sWrite, None) |> ref
           "write-shared", (SProcedure sWriteShared, None) |> ref
+          "write-simple", (SProcedure sWriteSimple, None) |> ref
           "display", (SProcedure sDisplay, None) |> ref
           "newline", (SProcedure sNewline, None) |> ref
           "write-char", (SProcedure sWriteChar, None) |> ref
