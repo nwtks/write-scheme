@@ -41,6 +41,10 @@ let ``call-with-input-file`` () =
         $"(call-with-input-file \"{tmp}\" (lambda (p) (read-char p)))"
         |> rep
         |> should equal "#\\h"
+
+        $"(call-with-input-file \"{tmp}\" (lambda (p) (read-char p) (input-port-open? p)))"
+        |> rep
+        |> should equal "#t"
     finally
         System.IO.File.Delete tmp
 
@@ -52,6 +56,29 @@ let ``call-with-input-file`` () =
         |> should startWith "call-with-input-file: Could not find file"
     finally
         ()
+
+[<Fact>]
+let ``call-with-output-file`` () =
+    let tmp = System.IO.Path.GetTempFileName()
+
+    try
+        $"(call-with-output-file \"{tmp}\" (lambda (p) (write-char #\\a p)))"
+        |> rep
+        |> should equal "#<unspecified>"
+
+        System.IO.File.ReadAllText tmp |> should equal "a"
+
+        $"(call-with-output-file \"{tmp}\" (lambda (p) (write-string \"hi\" p)))"
+        |> rep
+        |> should equal "#<unspecified>"
+
+        System.IO.File.ReadAllText tmp |> should equal "hi"
+    finally
+        System.IO.File.Delete tmp
+
+    "(call-with-output-file 1 (lambda (p) #f))"
+    |> rep
+    |> should startWith "'(1 #<procedure>)' invalid call-with-output-file"
 
 [<Fact>]
 let ``input-port?`` () =

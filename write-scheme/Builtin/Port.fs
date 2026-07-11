@@ -47,7 +47,7 @@ module Port =
           fileStream = None
           filePath = Some path }
 
-    let openFileProc name direction isTextual =
+    let openFileProc name direction isTextual : SProcedureKind =
         let fmt = sprintf "'%%s' invalid %s parameter." name
 
         fun context pos cont ->
@@ -73,7 +73,12 @@ module Port =
 
                 try
                     let port = makeFilePort direction true path
-                    proc |> Eval.apply context cont [ SPort port, pos ]
+
+                    let closeAndCont result =
+                        closePort port
+                        result |> cont
+
+                    proc |> Eval.apply context closeAndCont [ SPort port, pos ]
                 with :? System.IO.IOException as ex ->
                     EvalError($"{name}: {ex.Message}", pos) |> Error |> cont
             | x -> x |> invalidParameter pos fmt |> cont
@@ -106,7 +111,7 @@ module Port =
                     EvalError($"{name}: {ex.Message}", pos) |> Error |> cont
             | x -> x |> invalidParameter pos fmt |> cont
 
-    let closePortProc name =
+    let closePortProc name : SProcedureKind =
         let fmt = sprintf "'%%s' invalid %s parameter." name
 
         fun context pos cont ->
@@ -114,6 +119,32 @@ module Port =
             | [ SPort p, _ ] ->
                 closePort p
                 (SUnspecified, pos) |> Ok |> cont
+            | x -> x |> invalidParameter pos fmt |> cont
+
+    let inputPortProc name fn : SProcedureKind =
+        let fmt = sprintf "'%%s' invalid %s parameter." name
+
+        fun context pos cont ->
+            function
+            | [] -> fn context pos cont context.ports.input
+            | [ SPort p, _ ] -> fn context pos cont p
+            | x -> x |> invalidParameter pos fmt |> cont
+
+    let outputPortProc name fn : SProcedureKind =
+        let fmt = sprintf "'%%s' invalid %s parameter." name
+
+        fun context pos cont ->
+            function
+            | [ arg ] -> fn context pos cont context.ports.output arg
+            | [ arg; SPort p, _ ] -> fn context pos cont p arg
+            | x -> x |> invalidParameter pos fmt |> cont
+
+    let wrapPortPred name pred : SProcedureKind =
+        let fmt = sprintf "'%%s' invalid %s parameter." name
+
+        fun context pos cont ->
+            function
+            | [ SPort p, _ ] -> (pred p |> toSBool, pos) |> Ok |> cont
             | x -> x |> invalidParameter pos fmt |> cont
 
     let sCallWithPort context pos cont =
@@ -130,31 +161,17 @@ module Port =
             |> cont
         | x -> x |> invalidParameter pos "'%s' invalid call-with-port parameter." |> cont
 
-    let sCallWithInputFile: SProcedureKind =
-        callWithFileProc "call-with-input-file" Input
+    let sCallWithInputFile = callWithFileProc "call-with-input-file" Input
 
-    let sCallWithOutputFile: SProcedureKind =
-        callWithFileProc "call-with-output-file" Output
+    let sCallWithOutputFile = callWithFileProc "call-with-output-file" Output
 
-    let isInputPort context pos cont =
-        function
-        | [ SPort p, _ ] -> (p.direction = Input |> toSBool, pos) |> Ok |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid input-port? parameter." |> cont
+    let isInputPort = wrapPortPred "input-port?" (fun p -> p.direction = Input)
 
-    let isOutputPort context pos cont =
-        function
-        | [ SPort p, _ ] -> (p.direction = Output |> toSBool, pos) |> Ok |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid output-port? parameter." |> cont
+    let isOutputPort = wrapPortPred "output-port?" (fun p -> p.direction = Output)
 
-    let isTextualPort context pos cont =
-        function
-        | [ SPort p, _ ] -> (p.isTextual |> toSBool, pos) |> Ok |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid textual-port? parameter." |> cont
+    let isTextualPort = wrapPortPred "textual-port?" (fun p -> p.isTextual)
 
-    let isBinaryPort context pos cont =
-        function
-        | [ SPort p, _ ] -> (not p.isTextual |> toSBool, pos) |> Ok |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid binary-port? parameter." |> cont
+    let isBinaryPort = wrapPortPred "binary-port?" (fun p -> not p.isTextual)
 
     let isPortExpr =
         function
@@ -166,52 +183,45 @@ module Port =
         | [ x ] -> (isPortExpr x |> toSBool, pos) |> Ok |> cont
         | x -> x |> invalidParameter pos "'%s' invalid port? parameter." |> cont
 
-    let isInputPortOpen context pos cont =
-        function
-        | [ SPort p, _ ] -> ((p.direction = Input && p.isOpen) |> toSBool, pos) |> Ok |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid input-port-open? parameter." |> cont
+    let isInputPortOpen =
+        wrapPortPred "input-port-open?" (fun p -> p.direction = Input && p.isOpen)
 
-    let isOutputPortOpen context pos cont =
-        function
-        | [ SPort p, _ ] -> ((p.direction = Output && p.isOpen) |> toSBool, pos) |> Ok |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid output-port-open? parameter." |> cont
+    let isOutputPortOpen =
+        wrapPortPred "output-port-open?" (fun p -> p.direction = Output && p.isOpen)
 
-    let sCurrentInputPort context pos cont =
-        function
-        | [] -> (SPort context.ports.input, pos) |> Ok |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid current-input-port parameter." |> cont
+    let currentPortProc name getPort : SProcedureKind =
+        let fmt = sprintf "'%%s' invalid %s parameter." name
 
-    let sCurrentOutputPort context pos cont =
-        function
-        | [] -> (SPort context.ports.output, pos) |> Ok |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid current-output-port parameter." |> cont
+        fun context pos cont ->
+            function
+            | [] -> (SPort(getPort context.ports), pos) |> Ok |> cont
+            | x -> x |> invalidParameter pos fmt |> cont
 
-    let sCurrentErrorPort context pos cont =
-        function
-        | [] -> (SPort context.ports.error, pos) |> Ok |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid current-error-port parameter." |> cont
+    let sCurrentInputPort = currentPortProc "current-input-port" (fun p -> p.input)
 
-    let sWithInputFromFile: SProcedureKind =
+    let sCurrentOutputPort = currentPortProc "current-output-port" (fun p -> p.output)
+
+    let sCurrentErrorPort = currentPortProc "current-error-port" (fun p -> p.error)
+
+    let sWithInputFromFile =
         withFileProc "with-input-from-file" makeInputStringPort Input
 
-    let sWithOutputToFile: SProcedureKind =
+    let sWithOutputToFile =
         withFileProc "with-output-to-file" (makeFilePort Output true) Output
 
-    let sOpenInputFile: SProcedureKind = openFileProc "open-input-file" Input true
+    let sOpenInputFile = openFileProc "open-input-file" Input true
 
-    let sOpenBinaryInputFile: SProcedureKind =
-        openFileProc "open-binary-input-file" Input false
+    let sOpenBinaryInputFile = openFileProc "open-binary-input-file" Input false
 
-    let sOpenOutputFile: SProcedureKind = openFileProc "open-output-file" Output true
+    let sOpenOutputFile = openFileProc "open-output-file" Output true
 
-    let sOpenBinaryOutputFile: SProcedureKind =
-        openFileProc "open-binary-output-file" Output false
+    let sOpenBinaryOutputFile = openFileProc "open-binary-output-file" Output false
 
-    let sClosePort: SProcedureKind = closePortProc "close-port"
+    let sClosePort = closePortProc "close-port"
 
-    let sCloseInputPort: SProcedureKind = closePortProc "close-input-port"
+    let sCloseInputPort = closePortProc "close-input-port"
 
-    let sCloseOutputPort: SProcedureKind = closePortProc "close-output-port"
+    let sCloseOutputPort = closePortProc "close-output-port"
 
     let newInputStringPort s =
         { direction = Input
@@ -316,17 +326,11 @@ module Port =
             | Error(ParseError(msg, _)) -> EvalError(msg, pos) |> Error |> cont
             | Error _ -> EvalError("read error", pos) |> Error |> cont
 
-    let sRead context pos cont =
-        function
-        | [] ->
-            match context.ports.input.inputReader with
-            | Some r -> readFromReader r pos cont
-            | None -> (SEof, pos) |> Ok |> cont
-        | [ SPort p, _ ] ->
+    let sRead =
+        inputPortProc "read" (fun _ pos cont p ->
             match p.inputReader with
             | Some r -> readFromReader r pos cont
-            | None -> (SEof, pos) |> Ok |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid read parameter." |> cont
+            | None -> (SEof, pos) |> Ok |> cont)
 
     let readCharFromPort p =
         match p.inputReader with
@@ -340,21 +344,11 @@ module Port =
                 if b = -1 then None else Some(System.Text.Rune b)
             | _ -> None
 
-    let sReadChar context pos cont =
-        function
-        | [] ->
-            let c = readCharFromPort context.ports.input
-
-            match c with
+    let sReadChar =
+        inputPortProc "read-char" (fun _ pos cont p ->
+            match readCharFromPort p with
             | Some r -> (SChar r, pos) |> Ok |> cont
-            | None -> (SEof, pos) |> Ok |> cont
-        | [ SPort p, _ ] ->
-            let c = readCharFromPort p
-
-            match c with
-            | Some r -> (SChar r, pos) |> Ok |> cont
-            | None -> (SEof, pos) |> Ok |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid read-char parameter." |> cont
+            | None -> (SEof, pos) |> Ok |> cont)
 
     let peekCharFromPort p =
         match p.inputReader with
@@ -373,35 +367,14 @@ module Port =
                     Some(System.Text.Rune b)
             | _ -> None
 
-    let sPeekChar context pos cont =
-        function
-        | [] ->
-            let c = peekCharFromPort context.ports.input
-
-            match c with
+    let sPeekChar =
+        inputPortProc "peek-char" (fun _ pos cont p ->
+            match peekCharFromPort p with
             | Some r -> (SChar r, pos) |> Ok |> cont
-            | None -> (SEof, pos) |> Ok |> cont
-        | [ SPort p, _ ] ->
-            let c = peekCharFromPort p
+            | None -> (SEof, pos) |> Ok |> cont)
 
-            match c with
-            | Some r -> (SChar r, pos) |> Ok |> cont
-            | None -> (SEof, pos) |> Ok |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid peek-char parameter." |> cont
-
-    let sReadLine context pos cont =
-        function
-        | [] ->
-            match context.ports.input.inputReader with
-            | Some r ->
-                let line = r.ReadLine()
-
-                if isNull line then
-                    (SEof, pos) |> Ok |> cont
-                else
-                    newSString false line |> fun x -> (x, pos) |> Ok |> cont
-            | None -> (SEof, pos) |> Ok |> cont
-        | [ SPort p, _ ] ->
+    let sReadLine =
+        inputPortProc "read-line" (fun _ pos cont p ->
             match p.inputReader with
             | Some r ->
                 let line = r.ReadLine()
@@ -410,8 +383,7 @@ module Port =
                     (SEof, pos) |> Ok |> cont
                 else
                     newSString false line |> fun x -> (x, pos) |> Ok |> cont
-            | None -> (SEof, pos) |> Ok |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid read-line parameter." |> cont
+            | None -> (SEof, pos) |> Ok |> cont)
 
     let isEofObject context pos cont =
         function
@@ -430,32 +402,24 @@ module Port =
         | [ SPort _, _ ] -> (STrue, pos) |> Ok |> cont
         | x -> x |> invalidParameter pos "'%s' invalid char-ready? parameter." |> cont
 
-    let sReadString context pos cont =
+    let readStringFromReader (r: System.IO.TextReader option) n pos cont =
+        match r with
+        | Some rdr ->
+            let buffer = Array.zeroCreate<char> (int n)
+            let count = rdr.Read(buffer, 0, int n)
+
+            if count = 0 then
+                (SEof, pos) |> Ok |> cont
+            else
+                newSString false (System.String(buffer, 0, count))
+                |> fun x -> (x, pos) |> Ok |> cont
+        | None -> (SEof, pos) |> Ok |> cont
+
+    [<TailCall>]
+    let rec sReadString context pos cont =
         function
-        | [ SRational(n, _), _ ] ->
-            match context.ports.input.inputReader with
-            | Some r ->
-                let buffer = Array.zeroCreate<char> (int n)
-                let count = r.Read(buffer, 0, int n)
-
-                if count = 0 then
-                    (SEof, pos) |> Ok |> cont
-                else
-                    newSString false (System.String(buffer, 0, count))
-                    |> fun x -> (x, pos) |> Ok |> cont
-            | None -> (SEof, pos) |> Ok |> cont
-        | [ SRational(n, _), _; SPort p, _ ] ->
-            match p.inputReader with
-            | Some r ->
-                let buffer = Array.zeroCreate<char> (int n)
-                let count = r.Read(buffer, 0, int n)
-
-                if count = 0 then
-                    (SEof, pos) |> Ok |> cont
-                else
-                    newSString false (System.String(buffer, 0, count))
-                    |> fun x -> (x, pos) |> Ok |> cont
-            | None -> (SEof, pos) |> Ok |> cont
+        | [ SRational(_, _) as num, _ ] -> sReadString context pos cont [ num, None; SPort context.ports.input, None ]
+        | [ SRational(n, _), _; SPort p, _ ] -> readStringFromReader p.inputReader n pos cont
         | x -> x |> invalidParameter pos "'%s' invalid read-string parameter." |> cont
 
     let peekU8FromPort p =
@@ -470,19 +434,8 @@ module Port =
                 Some b
         | _ -> None
 
-    let sReadU8 context pos cont =
-        function
-        | [] ->
-            match context.ports.input.fileStream with
-            | Some s when not context.ports.input.isTextual ->
-                let b = s.ReadByte()
-
-                if b = -1 then
-                    (SEof, pos) |> Ok |> cont
-                else
-                    (SRational(bigint b, 1I), pos) |> Ok |> cont
-            | _ -> (SEof, pos) |> Ok |> cont
-        | [ SPort p, _ ] ->
+    let sReadU8 =
+        inputPortProc "read-u8" (fun _ pos cont p ->
             match p.fileStream with
             | Some s when not p.isTextual ->
                 let b = s.ReadByte()
@@ -491,20 +444,13 @@ module Port =
                     (SEof, pos) |> Ok |> cont
                 else
                     (SRational(bigint b, 1I), pos) |> Ok |> cont
-            | _ -> (SEof, pos) |> Ok |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid read-u8 parameter." |> cont
+            | _ -> (SEof, pos) |> Ok |> cont)
 
-    let sPeekU8 context pos cont =
-        function
-        | [] ->
-            match peekU8FromPort context.ports.input with
-            | Some b -> (SRational(bigint b, 1I), pos) |> Ok |> cont
-            | None -> (SEof, pos) |> Ok |> cont
-        | [ SPort p, _ ] ->
+    let sPeekU8 =
+        inputPortProc "peek-u8" (fun _ pos cont p ->
             match peekU8FromPort p with
             | Some b -> (SRational(bigint b, 1I), pos) |> Ok |> cont
-            | None -> (SEof, pos) |> Ok |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid peek-u8 parameter." |> cont
+            | None -> (SEof, pos) |> Ok |> cont)
 
     let isU8Ready context pos cont =
         function
@@ -512,29 +458,23 @@ module Port =
         | [ SPort _, _ ] -> (STrue, pos) |> Ok |> cont
         | x -> x |> invalidParameter pos "'%s' invalid u8-ready? parameter." |> cont
 
-    let sReadBytevector context pos cont =
-        function
-        | [ SRational(n, _), _ ] ->
-            match context.ports.input.fileStream with
-            | Some s when not context.ports.input.isTextual ->
-                let buffer = Array.zeroCreate<byte> (int n)
-                let count = s.Read(buffer, 0, int n)
+    let readBytevectorFromStream (s: System.IO.Stream) n pos cont =
+        let buffer = Array.zeroCreate<byte> (int n)
+        let count = s.Read(buffer, 0, int n)
 
-                if count = 0 then
-                    (SEof, pos) |> Ok |> cont
-                else
-                    SByteVector buffer.[0 .. count - 1] |> fun x -> (x, pos) |> Ok |> cont
-            | _ -> (SEof, pos) |> Ok |> cont
+        if count = 0 then
+            (SEof, pos) |> Ok |> cont
+        else
+            SByteVector buffer.[0 .. count - 1] |> fun x -> (x, pos) |> Ok |> cont
+
+    [<TailCall>]
+    let rec sReadBytevector context pos cont =
+        function
+        | [ SRational(_, _) as num, _ ] ->
+            sReadBytevector context pos cont [ num, None; SPort context.ports.input, None ]
         | [ SRational(n, _), _; SPort p, _ ] ->
             match p.fileStream with
-            | Some s when not p.isTextual ->
-                let buffer = Array.zeroCreate<byte> (int n)
-                let count = s.Read(buffer, 0, int n)
-
-                if count = 0 then
-                    (SEof, pos) |> Ok |> cont
-                else
-                    SByteVector buffer.[0 .. count - 1] |> fun x -> (x, pos) |> Ok |> cont
+            | Some s when not p.isTextual -> readBytevectorFromStream s n pos cont
             | _ -> (SEof, pos) |> Ok |> cont
         | x -> x |> invalidParameter pos "'%s' invalid read-bytevector parameter." |> cont
 
@@ -549,46 +489,41 @@ module Port =
                 (SRational(bigint count, 1I), pos) |> Ok |> cont
         | _ -> (SEof, pos) |> Ok |> cont
 
-    let sReadBytevectorBang context pos cont =
+    let withValidBvRange bvLength startN endN pos cont f =
+        let startIdx = int startN
+        let endIdx = int endN
+
+        if startIdx < 0 || startIdx > bvLength then
+            EvalError(
+                $"read-bytevector!: start index {startIdx} out of range for bytevector of length {bvLength}.",
+                pos
+            )
+            |> Error
+            |> cont
+        elif endIdx < 0 || endIdx > bvLength then
+            EvalError($"read-bytevector!: end index {endIdx} out of range for bytevector of length {bvLength}.", pos)
+            |> Error
+            |> cont
+        elif startIdx > endIdx then
+            EvalError($"read-bytevector!: start index {startIdx} is greater than end index {endIdx}.", pos)
+            |> Error
+            |> cont
+        else
+            f startIdx endIdx
+
+    [<TailCall>]
+    let rec sReadBytevectorBang context pos cont =
         function
-        | [ SByteVector bv, _ ] -> readBytevectorBangFromPort bv context.ports.input 0 bv.Length pos cont
-        | [ SByteVector bv, _; SPort p, _ ] -> readBytevectorBangFromPort bv p 0 bv.Length pos cont
+        | [ SByteVector bv, _ ] ->
+            sReadBytevectorBang context pos cont [ SByteVector bv, None; SPort context.ports.input, None ]
+        | [ SByteVector bv, _; SPort p, _ ] ->
+            sReadBytevectorBang context pos cont [ SByteVector bv, None; SPort p, None; SZero, None ]
         | [ SByteVector bv, _; SPort p, _; SRational(startN, _), _ ] ->
-            let startIdx = int startN
-
-            if startIdx < 0 || startIdx > bv.Length then
-                EvalError(
-                    $"read-bytevector!: start index {startIdx} out of range for bytevector of length {bv.Length}.",
-                    pos
-                )
-                |> Error
-                |> cont
-            else
-                readBytevectorBangFromPort bv p startIdx bv.Length pos cont
+            withValidBvRange bv.Length startN (bigint bv.Length) pos cont (fun st en ->
+                readBytevectorBangFromPort bv p st en pos cont)
         | [ SByteVector bv, _; SPort p, _; SRational(startN, _), _; SRational(endN, _), _ ] ->
-            let startIdx = int startN
-            let endIdx = int endN
-
-            if startIdx < 0 || startIdx > bv.Length then
-                EvalError(
-                    $"read-bytevector!: start index {startIdx} out of range for bytevector of length {bv.Length}.",
-                    pos
-                )
-                |> Error
-                |> cont
-            elif endIdx < 0 || endIdx > bv.Length then
-                EvalError(
-                    $"read-bytevector!: end index {endIdx} out of range for bytevector of length {bv.Length}.",
-                    pos
-                )
-                |> Error
-                |> cont
-            elif startIdx > endIdx then
-                EvalError($"read-bytevector!: start index {startIdx} is greater than end index {endIdx}.", pos)
-                |> Error
-                |> cont
-            else
-                readBytevectorBangFromPort bv p startIdx endIdx pos cont
+            withValidBvRange bv.Length startN endN pos cont (fun st en ->
+                readBytevectorBangFromPort bv p st en pos cont)
         | (SByteVector _, _) :: rest ->
             let msg = rest |> List.map (fun arg -> Print.print arg) |> String.concat " "
 
@@ -607,35 +542,20 @@ module Port =
                 fs.Write(bytes, 0, bytes.Length)
             | _ -> ()
 
-    let sWrite context pos cont =
-        function
-        | [ arg ] ->
-            writeStringToPort context.ports.output (arg |> Print.print)
-            (SUnspecified, pos) |> Ok |> cont
-        | [ arg; SPort p, _ ] ->
-            writeStringToPort p (arg |> Print.print)
-            (SUnspecified, pos) |> Ok |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid write parameter." |> cont
+    let sWrite =
+        outputPortProc "write" (fun _ pos cont p arg ->
+            writeStringToPort p (Print.print arg)
+            (SUnspecified, pos) |> Ok |> cont)
 
-    let sWriteShared context pos cont =
-        function
-        | [ arg ] ->
-            writeStringToPort context.ports.output (arg |> Print.printShared)
-            (SUnspecified, pos) |> Ok |> cont
-        | [ arg; SPort p, _ ] ->
-            writeStringToPort p (arg |> Print.printShared)
-            (SUnspecified, pos) |> Ok |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid write-shared parameter." |> cont
+    let sWriteShared =
+        outputPortProc "write-shared" (fun _ pos cont p arg ->
+            writeStringToPort p (Print.printShared arg)
+            (SUnspecified, pos) |> Ok |> cont)
 
-    let sWriteSimple context pos cont =
-        function
-        | [ arg ] ->
-            writeStringToPort context.ports.output (arg |> Print.print)
-            (SUnspecified, pos) |> Ok |> cont
-        | [ arg; SPort p, _ ] ->
-            writeStringToPort p (arg |> Print.print)
-            (SUnspecified, pos) |> Ok |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid write-simple parameter." |> cont
+    let sWriteSimple =
+        outputPortProc "write-simple" (fun _ pos cont p arg ->
+            writeStringToPort p (Print.print arg)
+            (SUnspecified, pos) |> Ok |> cont)
 
     let getDisplayString =
         function
@@ -643,42 +563,28 @@ module Port =
         | SChar x, _ -> x |> string
         | expr -> expr |> Print.print
 
-    let sDisplay context pos cont =
-        function
-        | [ arg ] ->
-            writeStringToPort context.ports.output (arg |> getDisplayString)
-            (SUnspecified, pos) |> Ok |> cont
-        | [ arg; SPort p, _ ] ->
+    let sDisplay =
+        outputPortProc "display" (fun _ pos cont p arg ->
             writeStringToPort p (arg |> getDisplayString)
-            (SUnspecified, pos) |> Ok |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid display parameter." |> cont
+            (SUnspecified, pos) |> Ok |> cont)
 
-    let sNewline context pos cont =
-        function
-        | [] ->
-            writeStringToPort context.ports.output "\n"
-            (SUnspecified, pos) |> Ok |> cont
-        | [ SPort p, _ ] ->
+    let sNewline =
+        inputPortProc "newline" (fun _ pos cont p ->
             writeStringToPort p "\n"
-            (SUnspecified, pos) |> Ok |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid newline parameter." |> cont
+            (SUnspecified, pos) |> Ok |> cont)
 
-    let sWriteChar context pos cont =
-        function
-        | [ SChar c, _ ] ->
-            writeStringToPort context.ports.output (string c)
-            (SUnspecified, pos) |> Ok |> cont
-        | [ SChar c, _; SPort p, _ ] ->
-            writeStringToPort p (string c)
-            (SUnspecified, pos) |> Ok |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid write-char parameter." |> cont
+    let sWriteChar =
+        outputPortProc "write-char" (fun _ pos cont p arg ->
+            match arg with
+            | SChar c, _ ->
+                writeStringToPort p (string c)
+                (SUnspecified, pos) |> Ok |> cont
+            | x -> EvalError($"write-char: '{Print.print x}' is not a char.", pos) |> Error |> cont)
 
-    let sWriteString context pos cont =
+    [<TailCall>]
+    let rec sWriteString context pos cont =
         function
-        | [ SString s, _ ] ->
-            let str = s.runes |> runesToString
-            writeStringToPort context.ports.output str
-            (SUnspecified, pos) |> Ok |> cont
+        | [ SString s, _ ] -> sWriteString context pos cont [ SString s, None; SPort context.ports.output, None ]
         | (SString s, _) :: (SPort p, _) :: rest ->
             let str = s.runes |> runesToString
 
@@ -691,50 +597,26 @@ module Port =
                 EvalError($"write-string: invalid argument(s) '{args}'.", pos) |> Error |> cont
         | x -> x |> invalidParameter pos "'%s' invalid write-string parameter." |> cont
 
-    let sWriteU8 context pos cont =
+    [<TailCall>]
+    let rec sWriteU8 context pos cont =
         function
+        | [ SRational(_, _) as num, _ ] -> sWriteU8 context pos cont [ num, None; SPort context.ports.output, None ]
         | [ SRational(n, _), _; SPort p, _ ] when not p.isTextual ->
-            match p.fileStream with
-            | Some fs -> fs.WriteByte(byte n)
-            | None -> ()
-
-            (SUnspecified, pos) |> Ok |> cont
-        | [ SRational(n, _), _ ] ->
-            match context.ports.output.fileStream with
-            | Some fs when not context.ports.output.isTextual -> fs.WriteByte(byte n)
-            | _ -> ()
-
+            p.fileStream |> Option.iter (fun fs -> fs.WriteByte(byte n))
             (SUnspecified, pos) |> Ok |> cont
         | x -> x |> invalidParameter pos "'%s' invalid write-u8 parameter." |> cont
 
-    let sWriteBytevector context pos cont =
+    [<TailCall>]
+    let rec sWriteBytevector context pos cont =
         function
-        | [ SByteVector bv, _; SPort p, _ ] when not p.isTextual ->
-            match p.fileStream with
-            | Some fs -> fs.Write(bv, 0, bv.Length)
-            | None -> ()
-
-            (SUnspecified, pos) |> Ok |> cont
         | [ SByteVector bv, _ ] ->
-            match context.ports.output.fileStream with
-            | Some fs when not context.ports.output.isTextual -> fs.Write(bv, 0, bv.Length)
-            | _ -> ()
-
+            sWriteBytevector context pos cont [ SByteVector bv, None; SPort context.ports.output, None ]
+        | [ SByteVector bv, _; SPort p, _ ] when not p.isTextual ->
+            p.fileStream |> Option.iter (fun fs -> fs.Write(bv, 0, bv.Length))
             (SUnspecified, pos) |> Ok |> cont
         | x -> x |> invalidParameter pos "'%s' invalid write-bytevector parameter." |> cont
 
-    let sFlushOutputPort context pos cont =
-        function
-        | [] ->
-            match context.ports.output.outputWriter with
-            | Some w -> w.Flush()
-            | None -> ()
-
-            (SUnspecified, pos) |> Ok |> cont
-        | [ SPort p, _ ] ->
-            match p.outputWriter with
-            | Some w -> w.Flush()
-            | None -> ()
-
-            (SUnspecified, pos) |> Ok |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid flush-output-port parameter." |> cont
+    let sFlushOutputPort =
+        inputPortProc "flush-output-port" (fun _ pos cont p ->
+            p.outputWriter |> Option.iter (fun w -> w.Flush())
+            (SUnspecified, pos) |> Ok |> cont)
