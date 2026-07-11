@@ -6,6 +6,32 @@ open FsUnit.Xunit
 let rep = WriteScheme.Repl.rep WriteScheme.Builtin.builtinContext
 
 [<Fact>]
+let ``call-with-port`` () =
+    "(call-with-port (open-input-string \"hello\") (lambda (p) (read-char p)))"
+    |> rep
+    |> should equal "#\\h"
+
+    "(call-with-port (open-output-string) (lambda (p) (write-char #\\a p) (get-output-string p)))"
+    |> rep
+    |> should equal "\"a\""
+
+    "(let ((p (open-input-string \"abc\"))) (call-with-port p (lambda (p2) (read-char p2))) (input-port-open? p))"
+    |> rep
+    |> should equal "#f"
+
+    "(let ((p (open-input-string \"abc\"))) (guard (ex (else #f)) (call-with-port p (lambda (p2) (error \"oops\")))) (input-port-open? p))"
+    |> rep
+    |> should equal "#f"
+
+    "(call-with-port 1 (lambda (p) p))"
+    |> rep
+    |> should startWith "call-with-port: '1' is not a port."
+
+    "(call-with-port (current-input-port))"
+    |> rep
+    |> should startWith "'(#<input textual port open>)' invalid call-with-port parameter"
+
+[<Fact>]
 let ``input-port?`` () =
     "(input-port? (current-input-port))" |> rep |> should equal "#t"
     "(input-port? (current-output-port))" |> rep |> should equal "#f"

@@ -244,6 +244,7 @@ module Builtin =
           "promise?", (SProcedure isPromise, None) |> ref
           "make-promise", (SProcedure sMakePromise, None) |> ref
           "make-parameter", (SProcedure sMakeParameter, None) |> ref
+          "call-with-port", (SProcedure sCallWithPort, None) |> ref
           "call-with-input-file", (SProcedure sCallWithInputFile, None) |> ref
           "call-with-output-file", (SProcedure sCallWithOutputFile, None) |> ref
           "input-port?", (SProcedure isInputPort, None) |> ref

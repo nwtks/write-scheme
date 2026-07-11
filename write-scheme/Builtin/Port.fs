@@ -5,6 +5,35 @@ open Type
 
 [<AutoOpen>]
 module Port =
+    let closePort p =
+        p.isOpen <- false
+
+        match p.inputReader with
+        | Some r -> r.Dispose()
+        | None -> ()
+
+        match p.outputWriter with
+        | Some w -> w.Dispose()
+        | None -> ()
+
+        match p.fileStream with
+        | Some s -> s.Dispose()
+        | None -> ()
+
+    let sCallWithPort context pos cont =
+        function
+        | [ SPort p, _; proc ] ->
+            let closeAndCont result =
+                closePort p
+                result |> cont
+
+            proc |> Eval.apply context closeAndCont [ SPort p, pos ]
+        | [ arg; _ ] ->
+            EvalError($"call-with-port: '{Print.print arg}' is not a port.", pos)
+            |> Error
+            |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid call-with-port parameter." |> cont
+
     let sCallWithInputFile context pos cont =
         function
         | [ SString f, _; proc ] ->
@@ -148,21 +177,6 @@ module Port =
             with :? System.IO.FileNotFoundException as ex ->
                 EvalError($"open-output-file: {ex.Message}", pos) |> Error |> cont
         | x -> x |> invalidParameter pos "'%s' invalid open-output-file parameter." |> cont
-
-    let closePort p =
-        p.isOpen <- false
-
-        match p.inputReader with
-        | Some r -> r.Dispose()
-        | None -> ()
-
-        match p.outputWriter with
-        | Some w -> w.Dispose()
-        | None -> ()
-
-        match p.fileStream with
-        | Some s -> s.Dispose()
-        | None -> ()
 
     let sClosePort context pos cont =
         function
