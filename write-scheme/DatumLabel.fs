@@ -31,7 +31,7 @@ module DatumLabel =
         | (SDatumLabel(n, d), pos) :: rest ->
             let labels' = labels |> Map.add n (unwrapDatumLabel d, pos)
             d :: rest |> collectDatum labels'
-        | expression :: rest -> (collectChildren expression) @ rest |> collectDatum labels
+        | expression :: rest -> collectChildren expression @ rest |> collectDatum labels
 
     let isBefore =
         function

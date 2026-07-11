@@ -453,6 +453,48 @@ let ``read-bytevector!`` () =
     |> should equal "3"
 
 [<Fact>]
+let ``write-shared`` () =
+    "(let ((p (open-output-string))) (write-shared 42 p) (get-output-string p))"
+    |> rep
+    |> should equal "\"42\""
+
+    "(let ((p (open-output-string))) (write-shared #t p) (get-output-string p))"
+    |> rep
+    |> should equal "\"#t\""
+
+    "(let ((p (open-output-string))) (write-shared 'symbol p) (get-output-string p))"
+    |> rep
+    |> should equal "\"symbol\""
+
+    "(let ((p (open-output-string)) (x (cons 'a 'b))) (write-shared (list x x) p) (get-output-string p))"
+    |> rep
+    |> should equal "\"(#1=(a . b) #1#)\""
+
+    "(let ((p (open-output-string)) (x (vector 1 2))) (write-shared (vector x x) p) (get-output-string p))"
+    |> rep
+    |> should equal "\"#(#1=#(1 2) #1#)\""
+
+    "(let ((p (open-output-string))) (write-shared (let ((x (cons 1 2))) (vector x x)) p) (get-output-string p))"
+    |> rep
+    |> should equal "\"#(#1=(1 . 2) #1#)\""
+
+    "(let ((p (open-output-string))) (write-shared '(a b c) p) (get-output-string p))"
+    |> rep
+    |> should equal "\"(a b c)\""
+
+    "(let ((p (open-output-string))) (write-shared '#(1 2 3) p) (get-output-string p))"
+    |> rep
+    |> should equal "\"#(1 2 3)\""
+
+    "(write-shared)"
+    |> rep
+    |> should startWith "'()' invalid write-shared parameter"
+
+    "(write-shared 1 2 3)"
+    |> rep
+    |> should startWith "'(1 2 3)' invalid write-shared parameter"
+
+[<Fact>]
 let ``newline`` () =
     "(let ((p (open-output-string))) (newline p) (string-length (get-output-string p)))"
     |> rep

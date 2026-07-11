@@ -669,15 +669,35 @@ module Port =
             |> cont
         | x -> x |> invalidParameter pos "'%s' invalid read-bytevector! parameter." |> cont
 
+    let writeStringToPort p (s: string) =
+        match p.outputWriter with
+        | Some w -> w.Write s
+        | None ->
+            match p.fileStream with
+            | Some fs when p.isTextual ->
+                let bytes = System.Text.Encoding.UTF8.GetBytes s
+                fs.Write(bytes, 0, bytes.Length)
+            | _ -> ()
+
     let sWrite context pos cont =
         function
         | [ arg ] ->
-            arg |> Print.print |> printf "%s"
+            writeStringToPort context.ports.output (arg |> Print.print)
             (SUnspecified, pos) |> Ok |> cont
-        | [ arg; SPort _, _ ] ->
-            arg |> Print.print |> printf "%s"
+        | [ arg; SPort p, _ ] ->
+            writeStringToPort p (arg |> Print.print)
             (SUnspecified, pos) |> Ok |> cont
         | x -> x |> invalidParameter pos "'%s' invalid write parameter." |> cont
+
+    let sWriteShared context pos cont =
+        function
+        | [ arg ] ->
+            writeStringToPort context.ports.output (arg |> Print.printShared)
+            (SUnspecified, pos) |> Ok |> cont
+        | [ arg; SPort p, _ ] ->
+            writeStringToPort p (arg |> Print.printShared)
+            (SUnspecified, pos) |> Ok |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid write-shared parameter." |> cont
 
     let getDisplayString =
         function
@@ -691,16 +711,6 @@ module Port =
             arg |> getDisplayString |> printf "%s"
             (SUnspecified, pos) |> Ok |> cont
         | x -> x |> invalidParameter pos "'%s' invalid display parameter." |> cont
-
-    let writeStringToPort p (s: string) =
-        match p.outputWriter with
-        | Some w -> w.Write s
-        | None ->
-            match p.fileStream with
-            | Some fs when p.isTextual ->
-                let bytes = System.Text.Encoding.UTF8.GetBytes s
-                fs.Write(bytes, 0, bytes.Length)
-            | _ -> ()
 
     let sNewline context pos cont =
         function
