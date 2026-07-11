@@ -260,7 +260,9 @@ module Builtin =
           "with-input-from-file", (SProcedure sWithInputFromFile, None) |> ref
           "with-output-to-file", (SProcedure sWithOutputToFile, None) |> ref
           "open-input-file", (SProcedure sOpenInputFile, None) |> ref
+          "open-binary-input-file", (SProcedure sOpenBinaryInputFile, None) |> ref
           "open-output-file", (SProcedure sOpenOutputFile, None) |> ref
+          "open-binary-output-file", (SProcedure sOpenBinaryOutputFile, None) |> ref
           "close-port", (SProcedure sClosePort, None) |> ref
           "close-input-port", (SProcedure sCloseInputPort, None) |> ref
           "close-output-port", (SProcedure sCloseOutputPort, None) |> ref

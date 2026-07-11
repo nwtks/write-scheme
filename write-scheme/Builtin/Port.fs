@@ -220,6 +220,30 @@ module Port =
                 EvalError($"open-input-file: {ex.Message}", pos) |> Error |> cont
         | x -> x |> invalidParameter pos "'%s' invalid open-input-file parameter." |> cont
 
+    let sOpenBinaryInputFile context pos cont =
+        function
+        | [ SString f, _ ] ->
+            try
+                let path = f.runes |> runesToString
+                let stream = System.IO.File.OpenRead path
+
+                let port =
+                    { direction = Input
+                      isTextual = false
+                      isOpen = true
+                      inputReader = None
+                      outputWriter = None
+                      fileStream = Some stream
+                      filePath = Some path }
+
+                (SPort port, pos) |> Ok |> cont
+            with :? System.IO.FileNotFoundException as ex ->
+                EvalError($"open-binary-input-file: {ex.Message}", pos) |> Error |> cont
+        | x ->
+            x
+            |> invalidParameter pos "'%s' invalid open-binary-input-file parameter."
+            |> cont
+
     let sOpenOutputFile context pos cont =
         function
         | [ SString f, _ ] ->
@@ -240,6 +264,30 @@ module Port =
             with :? System.IO.FileNotFoundException as ex ->
                 EvalError($"open-output-file: {ex.Message}", pos) |> Error |> cont
         | x -> x |> invalidParameter pos "'%s' invalid open-output-file parameter." |> cont
+
+    let sOpenBinaryOutputFile context pos cont =
+        function
+        | [ SString f, _ ] ->
+            try
+                let path = f.runes |> runesToString
+                let stream = System.IO.File.Create path
+
+                let port =
+                    { direction = Output
+                      isTextual = false
+                      isOpen = true
+                      inputReader = None
+                      outputWriter = None
+                      fileStream = Some stream
+                      filePath = Some path }
+
+                (SPort port, pos) |> Ok |> cont
+            with :? System.IO.IOException as ex ->
+                EvalError($"open-binary-output-file: {ex.Message}", pos) |> Error |> cont
+        | x ->
+            x
+            |> invalidParameter pos "'%s' invalid open-binary-output-file parameter."
+            |> cont
 
     let sClosePort context pos cont =
         function

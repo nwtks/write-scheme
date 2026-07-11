@@ -88,29 +88,28 @@ let ``with-input-from-file`` () =
 
     try
         System.IO.File.WriteAllText(tmp, "hello world")
-        let rep = WriteScheme.Repl.rep WriteScheme.Builtin.builtinContext
-        let result = $"(with-input-from-file \"{tmp}\" (lambda () (read-char)))" |> rep
-        result |> should equal "#\\h"
+
+        $"(with-input-from-file \"{tmp}\" (lambda () (read-char)))"
+        |> rep
+        |> should equal "#\\h"
     finally
         System.IO.File.Delete tmp
 
     try
         System.IO.File.WriteAllText(tmp, "hello world")
-        let rep = WriteScheme.Repl.rep WriteScheme.Builtin.builtinContext
-        let result = $"(with-input-from-file \"{tmp}\" (lambda () (read-line)))" |> rep
-        result |> should equal "\"hello world\""
+
+        $"(with-input-from-file \"{tmp}\" (lambda () (read-line)))"
+        |> rep
+        |> should equal "\"hello world\""
     finally
         System.IO.File.Delete tmp
 
     try
         System.IO.File.WriteAllText(tmp, "hello")
-        let rep = WriteScheme.Repl.rep WriteScheme.Builtin.builtinContext
 
-        let result =
-            $"(begin (with-input-from-file \"{tmp}\" (lambda () (read-char))) (input-port? (current-input-port)))"
-            |> rep
-
-        result |> should equal "#t"
+        $"(begin (with-input-from-file \"{tmp}\" (lambda () (read-char))) (input-port? (current-input-port)))"
+        |> rep
+        |> should equal "#t"
     finally
         System.IO.File.Delete tmp
 
@@ -128,8 +127,6 @@ let ``with-output-to-file`` () =
     let tmp = System.IO.Path.GetTempFileName()
 
     try
-        let rep = WriteScheme.Repl.rep WriteScheme.Builtin.builtinContext
-
         $"(with-output-to-file \"{tmp}\" (lambda () (write-string \"hello\")))"
         |> rep
         |> should equal "#<unspecified>"
@@ -139,8 +136,6 @@ let ``with-output-to-file`` () =
         System.IO.File.Delete tmp
 
     try
-        let rep = WriteScheme.Repl.rep WriteScheme.Builtin.builtinContext
-
         $"(with-output-to-file \"{tmp}\" (lambda () (write-string \"world\")))"
         |> rep
         |> should equal "#<unspecified>"
@@ -150,13 +145,122 @@ let ``with-output-to-file`` () =
         System.IO.File.Delete tmp
 
     try
-        let rep = WriteScheme.Repl.rep WriteScheme.Builtin.builtinContext
-
         $"(begin (with-output-to-file \"{tmp}\" (lambda () (write-string \"hi\"))) (output-port? (current-output-port)))"
         |> rep
         |> should equal "#t"
     finally
         System.IO.File.Delete tmp
+
+[<Fact>]
+let ``open-binary-input-file`` () =
+    let tmp = System.IO.Path.GetTempFileName()
+
+    try
+        System.IO.File.WriteAllBytes(tmp, [| 0x48uy; 0x65uy; 0x6Cuy; 0x6Cuy; 0x6Fuy |])
+
+        $"(let ((p (open-binary-input-file \"{tmp}\"))) (read-u8 p))"
+        |> rep
+        |> should equal "72"
+    finally
+        System.IO.File.Delete tmp
+
+    try
+        System.IO.File.WriteAllBytes(tmp, [| 0x00uy |])
+
+        $"(let ((p (open-binary-input-file \"{tmp}\"))) (binary-port? p))"
+        |> rep
+        |> should equal "#t"
+    finally
+        System.IO.File.Delete tmp
+
+    try
+        System.IO.File.WriteAllBytes(tmp, [| 0x41uy; 0x42uy; 0x43uy |])
+
+        $"(let ((p (open-binary-input-file \"{tmp}\"))) (read-u8 p) (read-u8 p) (read-u8 p))"
+        |> rep
+        |> should equal "67"
+    finally
+        System.IO.File.Delete tmp
+
+    try
+        System.IO.File.WriteAllBytes(tmp, [| 0x41uy; 0x42uy; 0x43uy; 0x44uy |])
+
+        $"(let ((p (open-binary-input-file \"{tmp}\"))) (read-bytevector 3 p))"
+        |> rep
+        |> should equal "#u8(65 66 67)"
+    finally
+        System.IO.File.Delete tmp
+
+    try
+        System.IO.File.WriteAllBytes(tmp, [| 0x41uy |])
+
+        $"(let ((p (open-binary-input-file \"{tmp}\"))) (read-u8 p) (read-u8 p))"
+        |> rep
+        |> should equal "#!eof"
+    finally
+        System.IO.File.Delete tmp
+
+    try
+        System.IO.File.WriteAllBytes(tmp, [| 0x41uy |])
+
+        $"(let ((p (open-binary-input-file \"{tmp}\"))) (close-port p) (input-port-open? p))"
+        |> rep
+        |> should equal "#f"
+    finally
+        System.IO.File.Delete tmp
+
+    try
+        System.IO.File.Delete tmp
+
+        $"(open-binary-input-file \"{tmp}\")"
+        |> rep
+        |> should startWith "open-binary-input-file: Could not find file"
+    finally
+        ()
+
+    "(open-binary-input-file 123)"
+    |> rep
+    |> should startWith "'(123)' invalid open-binary-input-file parameter"
+
+[<Fact>]
+let ``open-binary-output-file`` () =
+    let tmp = System.IO.Path.GetTempFileName()
+
+    try
+        $"(let ((p (open-binary-output-file \"{tmp}\"))) (write-u8 65 p) (close-port p))"
+        |> rep
+        |> should equal "#<unspecified>"
+
+        System.IO.File.ReadAllBytes tmp |> should equal [| 65uy |]
+    finally
+        System.IO.File.Delete tmp
+
+    try
+        $"(binary-port? (open-binary-output-file \"{tmp}\"))"
+        |> rep
+        |> should equal "#t"
+    finally
+        System.IO.File.Delete tmp
+
+    try
+        $"(let ((p (open-binary-output-file \"{tmp}\"))) (write-bytevector #u8(65 66 67) p) (close-port p))"
+        |> rep
+        |> should equal "#<unspecified>"
+
+        System.IO.File.ReadAllBytes tmp |> should equal [| 65uy; 66uy; 67uy |]
+    finally
+        System.IO.File.Delete tmp
+
+    try
+        $"(let ((p (open-binary-output-file \"{tmp}\"))) (close-port p) (output-port-open? p))"
+        |> rep
+        |> should equal "#f"
+    finally
+        System.IO.File.Delete tmp
+
+    "(open-binary-output-file 123)"
+    |> rep
+    |> should startWith "'(123)' invalid open-binary-output-file parameter"
 
 [<Fact>]
 let ``close-port`` () =
