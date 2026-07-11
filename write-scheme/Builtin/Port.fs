@@ -17,11 +17,22 @@ module Port =
             | Input -> System.IO.File.OpenRead path
             | Output -> System.IO.File.Create path
 
+        let reader =
+            match direction, isTextual with
+            | Input, true -> Some(new System.IO.StreamReader(stream) :> System.IO.TextReader)
+            | _ -> None
+
+        let writer =
+            match direction, isTextual with
+            | Output, true ->
+                Some(new System.IO.StreamWriter(stream, System.Text.Encoding.UTF8, 1024, true) :> System.IO.TextWriter)
+            | _ -> None
+
         { direction = direction
           isTextual = isTextual
           isOpen = true
-          inputReader = None
-          outputWriter = None
+          inputReader = reader
+          outputWriter = writer
           fileStream = Some stream
           filePath = Some path }
 
@@ -239,8 +250,9 @@ module Port =
         function
         | [ SPort p, _ ] ->
             match p.outputWriter with
-            | Some w -> newSString false (w.ToString()) |> fun x -> (x, pos) |> Ok |> cont
-            | None -> EvalError("get-output-string: not an output string port.", pos) |> Error |> cont
+            | Some(:? System.IO.StringWriter as sw) ->
+                newSString false (sw.ToString()) |> fun x -> (x, pos) |> Ok |> cont
+            | _ -> EvalError("get-output-string: not an output string port.", pos) |> Error |> cont
         | x -> x |> invalidParameter pos "'%s' invalid get-output-string parameter." |> cont
 
     let newInputBytevectorPort (bv: byte array) =
@@ -293,7 +305,7 @@ module Port =
             |> invalidParameter pos "'%s' invalid get-output-bytevector parameter."
             |> cont
 
-    let readFromReader (r: System.IO.StringReader) pos cont =
+    let readFromReader (r: System.IO.TextReader) pos cont =
         let line = r.ReadLine()
 
         if isNull line then

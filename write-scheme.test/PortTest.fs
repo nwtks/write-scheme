@@ -32,6 +32,28 @@ let ``call-with-port`` () =
     |> should startWith "'(#<input textual port open>)' invalid call-with-port parameter"
 
 [<Fact>]
+let ``call-with-input-file`` () =
+    let tmp = System.IO.Path.GetTempFileName()
+
+    try
+        System.IO.File.WriteAllText(tmp, "hello world")
+
+        $"(call-with-input-file \"{tmp}\" (lambda (p) (read-char p)))"
+        |> rep
+        |> should equal "#\\h"
+    finally
+        System.IO.File.Delete tmp
+
+    try
+        System.IO.File.Delete tmp
+
+        $"(call-with-input-file \"{tmp}\" (lambda (p) (read-char p)))"
+        |> rep
+        |> should startWith "call-with-input-file: Could not find file"
+    finally
+        ()
+
+[<Fact>]
 let ``input-port?`` () =
     "(input-port? (current-input-port))" |> rep |> should equal "#t"
     "(input-port? (current-output-port))" |> rep |> should equal "#f"
@@ -150,6 +172,32 @@ let ``with-output-to-file`` () =
         |> should equal "#t"
     finally
         System.IO.File.Delete tmp
+
+[<Fact>]
+let ``open-input-file`` () =
+    let tmp = System.IO.Path.GetTempFileName()
+
+    try
+        System.IO.File.WriteAllText(tmp, "hello world")
+
+        $"(let ((p (open-input-file \"{tmp}\"))) (read-char p))"
+        |> rep
+        |> should equal "#\\h"
+
+        $"(let ((p (open-input-file \"{tmp}\"))) (read-char p) (read-char p) (read-char p))"
+        |> rep
+        |> should equal "#\\l"
+    finally
+        System.IO.File.Delete tmp
+
+    try
+        System.IO.File.Delete tmp
+
+        $"(open-input-file \"{tmp}\")"
+        |> rep
+        |> should startWith "open-input-file: Could not find file"
+    finally
+        ()
 
 [<Fact>]
 let ``open-binary-input-file`` () =

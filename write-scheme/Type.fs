@@ -48,8 +48,8 @@ module Type =
         { direction: PortDirection
           isTextual: bool
           mutable isOpen: bool
-          inputReader: System.IO.StringReader option
-          outputWriter: System.IO.StringWriter option
+          inputReader: System.IO.TextReader option
+          outputWriter: System.IO.TextWriter option
           fileStream: System.IO.Stream option
           filePath: string option }
 
