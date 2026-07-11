@@ -136,6 +136,69 @@ module Port =
         | [] -> (SPort context.ports.error, pos) |> Ok |> cont
         | x -> x |> invalidParameter pos "'%s' invalid current-error-port parameter." |> cont
 
+    let sWithInputFromFile context pos cont =
+        function
+        | [ SString f, _; proc ] ->
+            let path = f.runes |> runesToString
+
+            try
+                let content = System.IO.File.ReadAllText path
+
+                let port =
+                    { direction = Input
+                      isTextual = true
+                      isOpen = true
+                      inputReader = Some(new System.IO.StringReader(content))
+                      outputWriter = None
+                      fileStream = None
+                      filePath = Some path }
+
+                let savedPort = context.ports.input
+                context.ports <- { context.ports with input = port }
+
+                let restore cont' result =
+                    context.ports <- { context.ports with input = savedPort }
+                    closePort port
+                    cont' result
+
+                proc |> Eval.apply context (restore cont) []
+            with :? System.IO.FileNotFoundException as ex ->
+                EvalError($"with-input-from-file: {ex.Message}", pos) |> Error |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid with-input-from-file parameter." |> cont
+
+    let sWithOutputToFile context pos cont =
+        function
+        | [ SString f, _; proc ] ->
+            let path = f.runes |> runesToString
+
+            try
+                let stream = System.IO.File.Create path
+
+                let port =
+                    { direction = Output
+                      isTextual = true
+                      isOpen = true
+                      inputReader = None
+                      outputWriter = None
+                      fileStream = Some stream
+                      filePath = Some path }
+
+                let savedPort = context.ports.output
+                context.ports <- { context.ports with output = port }
+
+                let restore cont' result =
+                    context.ports <-
+                        { context.ports with
+                            output = savedPort }
+
+                    closePort port
+                    cont' result
+
+                proc |> Eval.apply context (restore cont) []
+            with :? System.IO.IOException as ex ->
+                EvalError($"with-output-to-file: {ex.Message}", pos) |> Error |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid with-output-to-file parameter." |> cont
+
     let sOpenInputFile context pos cont =
         function
         | [ SString f, _ ] ->

@@ -83,6 +83,82 @@ let ``output-port-open?`` () =
     "(output-port-open? (current-output-port))" |> rep |> should equal "#t"
 
 [<Fact>]
+let ``with-input-from-file`` () =
+    let tmp = System.IO.Path.GetTempFileName()
+
+    try
+        System.IO.File.WriteAllText(tmp, "hello world")
+        let rep = WriteScheme.Repl.rep WriteScheme.Builtin.builtinContext
+        let result = $"(with-input-from-file \"{tmp}\" (lambda () (read-char)))" |> rep
+        result |> should equal "#\\h"
+    finally
+        System.IO.File.Delete tmp
+
+    try
+        System.IO.File.WriteAllText(tmp, "hello world")
+        let rep = WriteScheme.Repl.rep WriteScheme.Builtin.builtinContext
+        let result = $"(with-input-from-file \"{tmp}\" (lambda () (read-line)))" |> rep
+        result |> should equal "\"hello world\""
+    finally
+        System.IO.File.Delete tmp
+
+    try
+        System.IO.File.WriteAllText(tmp, "hello")
+        let rep = WriteScheme.Repl.rep WriteScheme.Builtin.builtinContext
+
+        let result =
+            $"(begin (with-input-from-file \"{tmp}\" (lambda () (read-char))) (input-port? (current-input-port)))"
+            |> rep
+
+        result |> should equal "#t"
+    finally
+        System.IO.File.Delete tmp
+
+    try
+        System.IO.File.Delete tmp
+
+        $"(with-input-from-file \"{tmp}\" (lambda () #f))"
+        |> rep
+        |> should startWith "with-input-from-file: Could not find file"
+    finally
+        ()
+
+[<Fact>]
+let ``with-output-to-file`` () =
+    let tmp = System.IO.Path.GetTempFileName()
+
+    try
+        let rep = WriteScheme.Repl.rep WriteScheme.Builtin.builtinContext
+
+        $"(with-output-to-file \"{tmp}\" (lambda () (write-string \"hello\")))"
+        |> rep
+        |> should equal "#<unspecified>"
+
+        System.IO.File.ReadAllText tmp |> should equal "hello"
+    finally
+        System.IO.File.Delete tmp
+
+    try
+        let rep = WriteScheme.Repl.rep WriteScheme.Builtin.builtinContext
+
+        $"(with-output-to-file \"{tmp}\" (lambda () (write-string \"world\")))"
+        |> rep
+        |> should equal "#<unspecified>"
+
+        System.IO.File.ReadAllText tmp |> should equal "world"
+    finally
+        System.IO.File.Delete tmp
+
+    try
+        let rep = WriteScheme.Repl.rep WriteScheme.Builtin.builtinContext
+
+        $"(begin (with-output-to-file \"{tmp}\" (lambda () (write-string \"hi\"))) (output-port? (current-output-port)))"
+        |> rep
+        |> should equal "#t"
+    finally
+        System.IO.File.Delete tmp
+
+[<Fact>]
 let ``close-port`` () =
     "(let ((p (open-input-string \"a\"))) (close-port p) (input-port-open? p))"
     |> rep

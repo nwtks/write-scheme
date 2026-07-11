@@ -257,6 +257,8 @@ module Builtin =
           "current-input-port", (SProcedure sCurrentInputPort, None) |> ref
           "current-output-port", (SProcedure sCurrentOutputPort, None) |> ref
           "current-error-port", (SProcedure sCurrentErrorPort, None) |> ref
+          "with-input-from-file", (SProcedure sWithInputFromFile, None) |> ref
+          "with-output-to-file", (SProcedure sWithOutputToFile, None) |> ref
           "open-input-file", (SProcedure sOpenInputFile, None) |> ref
           "open-output-file", (SProcedure sOpenOutputFile, None) |> ref
           "close-port", (SProcedure sClosePort, None) |> ref
