@@ -34,8 +34,8 @@ write-scheme/                     # Interpreter core (F# executable)
 ├── Context.fs                    # Execution context: environments, libraries, winders, handlers
 ├── Eval.fs                       # CPS evaluator: eval / apply / eachEval
 ├── Builtin/
-│   ├── Helper.fs                 # Shared helpers: invalid, mapResult, eqv
-│   ├── SpecialForm.fs            # All special forms: lambda, if, cond, let, define, ...
+│   ├── Helper.fs                 # Shared helpers: invalid, invalidParameter, mapResult
+│   ├── SpecialForm.fs            # Special forms: quote, lambda, if, set!, begin, define, include, include-ci
 │   ├── Binding.fs                # let/let*/letrec/let-values binding helpers
 │   ├── Conditional.fs            # cond/case helper functions (isElseClause, normalizeCaseClause)
 │   ├── Lazy.fs                   # delay / delay-force / force / make-promise
@@ -45,7 +45,7 @@ write-scheme/                     # Interpreter core (F# executable)
 │   ├── Macro.fs                  # syntax-rules hygienic macro engine
 │   ├── Record.fs                 # define-record-type implementation
 │   ├── Library.fs                # define-library / import set operations
-│   ├── Core.fs                   # eqv?, equal?, display, load
+│   ├── Core.fs                   # eqv?, equal?, load
 │   ├── Port.fs                   # String / bytevector / file ports; read/write/display I/O
 │   ├── Number.fs                 # SNumber type (NRational|NReal|NComplex) and unified arithmetic
 │   ├── Math.fs                   # Numeric tower operations
@@ -197,7 +197,7 @@ type Context =
       handlers: SExpression list ref }      // exception handler stack
 ```
 
-`PortSet` groups three ports (`input`, `output`, `error`), each an `SPortData` record (`direction`, `isTextual`, mutable `isOpen`, optional `inputReader`/`outputWriter`/`fileStream`/`filePath`). String ports back onto `System.IO.StringReader`/`StringWriter`, bytevector ports onto `MemoryStream`, and file ports onto `FileStream`. See [`docs/trade-off.md`](docs/trade-off.md) for the record-vs-class-hierarchy trade-off.
+`PortSet` groups three ports (`input`, `output`, `error`), each an `SPortData` record (`direction`, `isTextual`, mutable `isOpen`, optional `inputReader: TextReader`/`outputWriter: TextWriter`/`fileStream: Stream`/`filePath`). String ports back onto `System.IO.StringReader`/`StringWriter`, bytevector ports onto `MemoryStream`, and file ports onto `FileStream`. See [`docs/trade-off.md`](docs/trade-off.md) for the record-vs-class-hierarchy trade-off.
 
 ### 3.4 Environment
 
@@ -380,7 +380,10 @@ Datum labels (`#N=expr` / `#N#`) enable representation of shared and circular st
 match proc with
 | SParameter(param, converter) → applyParameter  (read/write parameter value)
 | SSyntax fn | SProcedure fn   → fn context pos cont args  (F# function call)
-| SContinuation fn             → fn (Ok arg)  (invoke captured continuation)
+| SContinuation fn             → match args with
+                                 | [ arg ] → Ok arg |> fn
+                                 | _       → (SValues args, pos) |> Ok |> fn
+                                 // multiple values passed as a single SValues
 | _                            → error "not an operator"
 ```
 
@@ -392,10 +395,12 @@ When the evaluator encounters a symbol bound to a syntax definition (via `define
 
 `evalBody` handles the R7RS semantics for internal definitions:
 
-1. Collects all `define` / `define-values` forms at the beginning of the body.
-2. Creates a new environment with all defined variables initialized to unspecified.
-3. Evaluates the definitions in that environment (allowing recursion).
-4. Evaluates the remaining expressions in order.
+1. **`expandBeginInBody`** pre-processes the body by flattening `begin` forms before definition collection (see [`docs/gotchas.md#7-expandbegininbody-pre-processes-begin-blocks-before-definition-collection`](gotchas.md#7-expandbegininbody-pre-processes-begin-blocks-before-definition-collection)).
+2. **`collectInternalDefinitions`** classifies `define` / `define-values` forms at the beginning of the body (it no longer handles `begin` expansion itself).
+3. **`validateBodyStructure`** ensures no definitions appear after non-definition expressions, and that internal definitions are followed by at least one expression.
+4. **`prepareDefinitionContext`** creates a new environment with all defined variables initialized to `SUnspecified`.
+5. Evaluates the definitions in that environment (allowing recursion via `eachEval`).
+6. Evaluates the remaining expressions in order.
 
 ### 7.6 Stack Safety
 
@@ -412,17 +417,18 @@ When the evaluator encounters a symbol bound to a syntax definition (via `define
 ### 8.1 Environment Management
 
 ```fsharp
-extendEnvironments context bindings    // push a new lexical scope
-mergeEnvironments context capture      // merge captured closure env
-defineEnvironmentVariable context sym  // define in current scope
-lookupEnvironments context sym         // search up the chain
+extendEnvironments context bindings       // push a new lexical scope
+mergeEnvironments context captureContext // merge captured closure environments
+defineEnvironmentVariable context sym value  // define/rebind in current scope
+tryLookupEnvironments context sym         // search up the chain (returns SExpression ref option)
+lookupEnvironments context pos symbol    // search up the chain (returns Result)
 ```
 
 ### 8.2 Library Management
 
 ```fsharp
-registerLibrary context name env exports   // register a define-library
-lookupLibrary context pos name             // resolve a library import
+registerLibrary context name libEnvironment exports   // register a define-library
+lookupLibrary context pos name                       // resolve a library import
 ```
 
 ### 8.3 Dynamic Wind Management
@@ -432,7 +438,7 @@ pushWinder context winder    // enter a dynamic-wind guard
 popWinder context id         // leave a dynamic-wind guard
 ```
 
-Winders are stored as a list with unique IDs, allowing the evaluator to compute the difference between the current winder state and the saved state when invoking a continuation.
+Winders are stored as a list with unique IDs (`getNextWinderId`), allowing the evaluator to compute the difference between the current winder state and the saved state when invoking a continuation.
 
 ### 8.4 Exception Handler Stack
 
@@ -443,7 +449,7 @@ popHandler context            // restore previous handler
 
 ### 8.5 Context Reset
 
-`Context.reset` clears winders, restores the default exception handlers, and resets `ports` back to the console ports. This is called after an error in the REPL to ensure a clean state for the next input.
+`Context.reset` clears winders (`ref []`), restores `handlers` to `initialHandlers`, and resets `ports` back to `defaultPorts`. This is called after an error in the REPL to ensure a clean state for the next input.
 
 ---
 
@@ -454,13 +460,13 @@ popHandler context            // restore previous handler
 All built-ins are registered in `Builtin.fs` in the `builtinBindings` list:
 
 ```fsharp
-let builtinBindings =
-    [ "procedure-name", (SProcedure implementationFn, None) |> ref
-      "syntax-name",    (SSyntax implementationFn, None) |> ref
+let builtinBindings: (string * SExpression ref) list =
+    [ "quote", (SSyntax sQuote, None) |> ref
+      "cons", (SProcedure sCons, None) |> ref
       ... ]
 ```
 
-The second element of the tuple is an optional `SExpression option` that can hold a mutable reference for `set!` — `None` means the binding is immutable.
+The list maps symbol names to mutable `SExpression ref` cells. Each cell holds an `(SExpressionKind * Position option)` tuple — the `Position` (set to `None` for built-ins) carries source location info, while mutability for `set!` comes from the `ref` cell itself.
 
 ### 9.2 Special Forms (`Builtin/SpecialForm.fs`)
 
@@ -469,29 +475,38 @@ The largest file containing the implementation of all special forms:
 | Special Form | Implementation | Key Behavior |
 |---|---|---|
 | `quote` | `sQuote` | Returns datum as-is |
-| `lambda` | `sLambda` / `closure` | Captures lexical environment, creates procedure |
+| `lambda` | `sLambda` | Captures lexical environment, creates procedure |
 | `if` | `sIf` | Conditional with optional alternate |
 | `set!` | `sSetBang` | Mutates variable reference |
-| `cond` | `sCond` | Multi-way conditional with `=>` support |
-| `case` | `sCase` | Pattern matching with keys (`normalizeCaseClause`/`isElseClause` helpers) |
-| `and`, `or` | `sAnd`, `sOr` | Short-circuit evaluation |
-| `when`, `unless` | `sWhen`, `sUnless` | Conditional execution |
+| `include` | `sInclude` | File inclusion at expansion time |
+| `include-ci` | `sIncludeCi` | Case-insensitive file inclusion |
 | `begin` | `sBegin` | Sequential evaluation |
-| `let`, `let*` | `sLet`, `sLetStar` | Parallel/sequential bindings |
-| `letrec`, `letrec*` | `sLetRec`, `sLetRecStar` | Recursive bindings |
-| `let-values`, `let*-values` | `sLetValues`, `sLetStarValues` | Multi-value bindings |
-| `do` | `sDo` | Iteration with variable updates |
-| `delay` | `sDelay` | Lazy promise creation |
-| `delay-force` | `sDelayForce` | Lazy promise (thunk returns promise) |
-| `parameterize` | `sParameterize` | Dynamic binding (delegates to DynamicBinding.fs) |
-| `guard` | `sGuard` | Exception with condition matching |
-| `quasiquote` | `sQuasiquote` | Template with unquote/unquote-splicing; uses `QqKeyword` DU, `normalizeQqKeyword`, `consQq`, `joinQq` (supports nested quasiquotation) |
-| `case-lambda` | `sCaseLambda` | Arity-based dispatch |
-| `let-syntax`, `letrec-syntax` | `sLetSyntax`, `sLetRecSyntax` | Local macro bindings |
-| `syntax-rules` | `sSyntaxRules` | Macro pattern definition |
-| `syntax-error` | `sSyntaxError` | Expansion-time error signaling |
-| `import` | `sImport` | Library import with set operations |
 | `define` | `sDefine` | Variable/procedure definition |
+| `define-values` | `sDefineValues` | Multi-value definition |
+| `cond` | `sCond` (Conditional.fs) | Multi-way conditional with `=>` support |
+| `case` | `sCase` (Conditional.fs) | Pattern matching with keys |
+| `and` | `sAnd` (Conditional.fs) | Short-circuit AND |
+| `or` | `sOr` (Conditional.fs) | Short-circuit OR |
+| `when` | `sWhen` (Conditional.fs) | Conditional execution if truthy |
+| `unless` | `sUnless` (Conditional.fs) | Conditional execution if false |
+| `do` | `sDo` (Conditional.fs) | Iteration with variable updates |
+| `case-lambda` | `sCaseLambda` (Conditional.fs) | Arity-based dispatch |
+| `cond-expand` | `sCondExpand` (Conditional.fs) | Feature-based conditional expansion |
+| `let`, `let*` | `sLet`, `sLetStar` (Binding.fs) | Parallel/sequential bindings |
+| `letrec`, `letrec*` | `sLetRec`, `sLetRecStar` (Binding.fs) | Recursive bindings |
+| `let-values`, `let*-values` | `sLetValues`, `sLetStarValues` (Binding.fs) | Multi-value bindings |
+| `delay` | `sDelay` (Lazy.fs) | Lazy promise creation |
+| `delay-force` | `sDelayForce` (Lazy.fs) | Lazy promise (thunk returns promise) |
+| `parameterize` | `sParameterize` (DynamicBinding.fs) | Dynamic binding |
+| `guard` | `sGuard` (Exception.fs) | Exception with condition matching |
+| `quasiquote` | `sQuasiquote` (Quasiquote.fs) | Template with unquote/unquote-splicing; uses `QqKeyword` DU, `normalizeQqKeyword`, `consQq`, `joinQq` |
+| `let-syntax`, `letrec-syntax` | `sLetSyntax`, `sLetRecSyntax` (Macro.fs) | Local macro bindings |
+| `syntax-rules` | `sSyntaxRules` (Macro.fs) | Macro pattern definition |
+| `syntax-error` | `sSyntaxError` (Macro.fs) | Expansion-time error signaling |
+| `define-syntax` | `sDefineSyntax` (Macro.fs) | Macro definition |
+| `define-record-type` | `sDefineRecordType` (Record.fs) | Record type definition (R7RS) |
+| `define-library` | `sDefineLibrary` (Library.fs) | Library definition (R7RS) |
+| `import` | `sImport` (Library.fs) | Library import with set operations |
 | `define-values` | `sDefineValues` | Multi-value definition |
 | `define-syntax` | `sDefineSyntax` | Macro definition |
 | `define-record-type` | `sDefineRecordType` | Record type definition (R7RS) |
@@ -503,7 +518,7 @@ The largest file containing the implementation of all special forms:
 
 | Category | File | Examples |
 |---|---|---|
-| Equivalence | `Core.fs`, `Helper.fs` | `equal?` (Core), `eqv?` (Helper) |
+| Equivalence | `Core.fs`, `Helper.fs` | `eqv?`, `equal?` (Core); `invalid`, `mapResult` (Helper) |
 | Numeric | `Number.fs`, `Math.fs` | `SNumber` type and unified arithmetic in `Number.fs`; `+`, `-`, `*`, `/`, `sin`, `cos`, `gcd`, `quotient` in `Math.fs` |
 | Boolean | `Bool.fs` | `not`, `boolean?`, `boolean=?` |
 | List/Pair | `List.fs` | `cons`, `car`, `cdr`, `map`, `append`, `assoc` |
@@ -577,23 +592,32 @@ Supported features:
 
 ### 11.1 CPS Printer
 
-The printer itself is implemented in CPS to handle cyclic data structures safely:
+The printer is implemented in CPS to handle cyclic and shared data structures safely:
 
 ```fsharp
-printCPS visited next expr
+printCPS labelMap emitted visited next expr
 ```
 
-- `visited` tracks already-printed objects (identity comparison via `obj.ReferenceEquality`).
-- `next` is the continuation to call with the formatted string.
+- `labelMap` (`IDictionary<obj, int>`) assigns label IDs to shared objects, enabling `#N=` / `#N#` notation for shared structure (used by `printShared`).
+- `emitted` (`Set<int>`) tracks which labels have already been emitted, so the first encounter prints `#N=` and later references print `#N#`.
+- `visited` tracks already-printed objects for cycle detection (identity comparison via `obj.ReferenceEquals`).
+- `next` is the continuation to call with the formatted string and the updated `emitted` set.
+
+Two entry points:
+
+- `print` — uses an empty `labelMap`, so cycles are printed as `...` (no shared-structure labels).
+- `printShared` — pre-computes a `labelMap` via `buildSharedLabelMap`, so shared and cyclic structure is printed using `#N=` / `#N#` reader notation.
 
 ### 11.2 Cycle Detection
 
-The printer maintains a `visited` list of previously printed pair/vector objects. When it encounters a cycle, it prints `...` to avoid infinite loops.
+The `visited` list tracks previously printed objects. When a cycle is detected, the printer prints `...` (or `#N#` if a label was emitted) to avoid infinite loops:
 
 ```fsharp
 let isVisited visited x =
     visited |> List.exists (fun v -> obj.ReferenceEquals(v, x))
 ```
+
+Cycle detection covers pairs, vectors, values, and error irritants (see [`docs/gotchas.md#11-printer-cycle-detection-tracks-pairs-vectors-values-and-error-irritants`](gotchas.md#11-printer-cycle-detection-tracks-pairs-vectors-values-and-error-irritants)).
 
 ### 11.3 Formatting Rules
 
@@ -611,9 +635,14 @@ let isVisited visited x =
 | Vector | `#(1 2 3)` |
 | Bytevector | `#u8(0 10 255)` |
 | Unspecified | `#<unspecified>` |
-| Record | `#[record-type-name ...]` |
+| Record | `#<record-type-name>` |
+| Port | `#<input textual port open>`, `#<output binary port closed>` |
+| Promise | `#<promise>` |
+| Parameter | `#<parameter>` |
 | Procedure | `#<procedure>` |
+| Syntax | `#<syntax>` |
 | Continuation | `#<continuation>` |
+| EOF | `#!eof` |
 
 ---
 

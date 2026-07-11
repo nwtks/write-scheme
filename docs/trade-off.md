@@ -20,7 +20,7 @@ This document records design decisions, trade-offs, and their rationale.
 - [12. Separate Datum Label Resolution Pass vs Inline During Parsing](#12-separate-datum-label-resolution-pass-vs-inline-during-parsing)
 - [13. Centralized Builtin Binding List vs Distributed Registration](#13-centralized-builtin-binding-list-vs-distributed-registration)
 - [14. AutoOpen Modules in Builtin/ vs Explicit Imports](#14-autoopen-modules-in-builtin-vs-explicit-imports)
-- [15. CPS Printer with Visited-Set vs Simple Recursive Printer](#15-cps-printer-with-visited-set-vs-simple-recursive-printer)
+- [15. CPS Printer with Visited-Set and Shared-Structure Labels vs Simple Recursive Printer](#15-cps-printer-with-visited-set-and-shared-structure-labels-vs-simple-recursive-printer)
 - [16. Reader Macro Expansion During Parsing vs Post-Parse Transformation](#16-reader-macro-expansion-during-parsing-vs-post-parse-transformation)
 - [17. SNumber Unified Type vs Separate SExpressionKind Cases for Numeric Operations](#17-snumber-unified-type-vs-separate-sexpressionkind-cases-for-numeric-operations)
 - [18. QqKeyword DU vs Raw Symbol Matching in Quasiquote Expansion](#18-qqkeyword-du-vs-raw-symbol-matching-in-quasiquote-expansion)
@@ -198,14 +198,14 @@ All value types are represented in a single discriminated union:
 
 ```fsharp
 type SExpressionKind =
+    | SUnspecified | SEmpty | SEof
     | SBool | SRational | SReal | SComplex | SString | SChar
     | SSymbol | SPair | SVector | SByteVector
     | SValues | SRecord | SError
     | SQuote | SQuasiquote | SUnquote | SUnquoteSplicing
     | SDatumLabel | SDatumRef
-    | SPromise | SParameter
+    | SPromise | SParameter | SPort
     | SSyntax | SProcedure | SContinuation
-    | SUnspecified | SEmpty
 ```
 
 rather than having separate types for each category.
@@ -409,27 +409,28 @@ module SpecialForm =
 
 ### Rationale
 
-Since all Builtin functions are assembled in `Builtin.fs` and referenced by name in `builtinBindings`, `[<AutoOpen>]` avoids the boilerplate of opening 17 modules. The names are relatively unique (prefixed with `s` for procedures like `sCons`, `sCar`, or descriptive like `isPair`), so name collisions are rare. New contributors can see the module name in the file path when needed.
+Since all Builtin functions are assembled in `Builtin.fs` and referenced by name in `builtinBindings`, `[<AutoOpen>]` avoids the boilerplate of opening each module individually. All 22 Builtin files except `Number.fs` use `[<AutoOpen>]` — `Number.fs` defines the `SNumber` DU type at namespace level without `[<AutoOpen>]` because it needs to expose the type to other modules that open `WriteScheme.Builtins`. The names are relatively unique (prefixed with `s` for procedures like `sCons`, `sCar`, or descriptive like `isPair`), so name collisions are rare. New contributors can see the module name in the file path when needed.
 
 ---
 
-## 15. CPS Printer with Visited-Set vs Simple Recursive Printer
+## 15. CPS Printer with Visited-Set and Shared-Structure Labels vs Simple Recursive Printer
 
 ### Context
 
-The printer (`Print.fs`) is implemented in CPS with a visited-set for cycle detection, rather than as a simple recursive function.
+The printer (`Print.fs`) is implemented in CPS with a visited-set for cycle detection *and* a label map for shared-structure printing (`#N=` / `#N#`), rather than as a simple recursive function. Two entry points are provided: `print` (an empty label map — cycles print as `...`) and `printShared` (a pre-computed `labelMap` — shared/cyclic structure prints with `#N=` / `#N#` reader notation).
 
 ### Trade-off
 
-| Aspect | CPS + Visited-Set | Simple Recursive |
-|--------|------------------|------------------|
-| Cycle handling | ✅ Detects and prints `...` for cycles | ❌ Infinite recursion on cyclic structures |
+| Aspect | CPS + Visited-Set + Labels | Simple Recursive |
+|--------|--------------------------|------------------|
+| Cycle handling | ✅ Detects and prints `...` (or `#N#`) for cycles | ❌ Infinite recursion on cyclic structures |
+| Shared-structure printing | ✅ `printShared` emits `#N=` / `#N#` via `buildSharedLabelMap` | ❌ Cannot represent shared structure |
 | Stack safety | ✅ Tail-recursive, no stack overflow | ❌ Deeply nested structures overflow stack |
-| Implementation complexity | ❌ Continuations + visited tracking | ✅ Simple, direct recursion |
+| Implementation complexity | ❌ Continuations + visited + label tracking | ✅ Simple, direct recursion |
 
 ### Rationale
 
-Cycle handling is essential because Scheme programs can create cyclic lists via `set-cdr!`. With a simple recursive printer, `(let ((x '(a b c))) (set-cdr! (cddr x) x) x)` would hang forever. The CPS form also prevents stack overflow on deeply nested expressions (the continuation chain is heap-allocated rather than stack-allocated).
+Cycle handling is essential because Scheme programs can create cyclic lists via `set-cdr!`. With a simple recursive printer, `(let ((x '(a b c))) (set-cdr! (cddr x) x) x)` would hang forever. The CPS form also prevents stack overflow on deeply nested expressions (the continuation chain is heap-allocated rather than stack-allocated). The label-map mechanism gives the printer an additional capability: faithful reproduction of shared and cyclic structure via datum-label notation, used by `printShared`.
 
 ---
 
@@ -563,8 +564,8 @@ and [<ReferenceEquality>] SPortData =
     { direction: PortDirection
       isTextual: bool
       mutable isOpen: bool
-      inputReader: System.IO.StringReader option
-      outputWriter: System.IO.StringWriter option
+      inputReader: System.IO.TextReader option
+      outputWriter: System.IO.TextWriter option
       fileStream: System.IO.Stream option
       filePath: string option }
 
@@ -574,7 +575,7 @@ and PortSet =
       error: SPortData }
 ```
 
-Textual string ports back onto `System.IO.StringReader`/`StringWriter`, binary bytevector ports onto `System.IO.MemoryStream`, and file ports onto `System.IO.FileStream`. There is no class hierarchy — `SPortData` is a record with optional fields and is referenced directly from the `SPort` `SExpressionKind` case.
+Textual string ports back onto `System.IO.StringReader` (a `TextReader`) / `StringWriter` (a `TextWriter`), binary bytevector ports onto `System.IO.MemoryStream`, and file ports onto `System.IO.FileStream` (both stored under the `fileStream` field typed as `Stream`). There is no class hierarchy — `SPortData` is a record with optional fields and is referenced directly from the `SPort` `SExpressionKind` case.
 
 ### Trade-off
 

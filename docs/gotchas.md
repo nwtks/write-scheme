@@ -12,11 +12,11 @@ This document records common mistakes, subtle pitfalls, and non-obvious behavior
 - [4. String Mutability: Immutable Strings from `symbol->string`](#4-string-mutability-immutable-strings-from-symbol-string)
 - [5. `evalArgs` Rejects Multiple Values in Single-Value Context](#5-evalargs-rejects-multiple-values-in-single-value-context)
 - [6. The `eachEval` Accumulator Pattern](#6-the-eacheval-accumulator-pattern)
-- [7. `collectInternalDefinitions` Destructures `begin` Blocks](#7-collectinternaldefinitions-destructures-begin-blocks)
+- [7. `expandBeginInBody` Pre-processes `begin` Blocks Before Definition Collection](#7-expandbegininbody-pre-processes-begin-blocks-before-definition-collection)
 - [8. `toList` Returns Error for Improper Lists](#8-tolist-returns-error-for-improper-lists)
 - [9. Floyd's Algorithm in `loopListInfo` Skips Every Other Element](#9-floyds-algorithm-in-looplistinfo-skips-every-other-element)
 - [10. Printer Visited-Set Uses Identity Comparison](#10-printer-visited-set-uses-identity-comparison)
-- [11. Printer Cycle Detection Only Tracks Pairs, Vectors, and Values](#11-printer-cycle-detection-only-tracks-pairs-vectors-and-values)
+- [11. Printer Cycle Detection Tracks Pairs, Vectors, Values, and Error Irritants](#11-printer-cycle-detection-tracks-pairs-vectors-values-and-error-irritants)
 - [12. `resolveDatumRefPair` Mutates Pair Fields In-Place](#12-resolvedatumrefpair-mutates-pair-fields-in-place)
 - [13. `collectDatum` Does Not Descend into `SSymbol`, `SString`, etc.](#13-collectdatum-does-not-descend-into-ssymbol-sstring-etc)
 - [14. `Context.reset` After Errors Clears Winders and Handlers](#14-contextreset-after-errors-clears-winders-and-handlers)
@@ -33,7 +33,7 @@ This document records common mistakes, subtle pitfalls, and non-obvious behavior
 - [25. `realToRational` Float-to-Rational Conversion Precision](#25-realtorational-float-to-rational-conversion-precision)
 - [26. `SUnspecified` Is a Valid Return Value but Prints Distinctively](#26-sunspecified-is-a-valid-return-value-but-prints-distinctively)
 - [27. `eqv?` on Numbers Does Not Distinguish `+0.0`/`-0.0`](#27-eqv-on-numbers-does-not-distinguish-00-00)
-- [28. `make-parameter` with Converter Applies on Every Call](#28-make-parameter-with-converter-applies-on-every-call)
+- [28. `make-parameter` with Converter Applies Only on Writes](#28-make-parameter-with-converter-applies-only-on-writes)
 - [29. CPS Continuations Are Incompatible with Ref Cells](#29-cps-continuations-are-incompatible-with-ref-cells)
 - [30. Cobertura Cyclomatic Complexity May Not Reflect Structural Improvements](#30-cobertura-cyclomatic-complexity-may-not-reflect-structural-improvements)
 - [31. `char-ready?` and `u8-ready?` Always Return `#t`](#31-char-ready-and-u8-ready-always-return-t)
@@ -291,17 +291,17 @@ When the printer encounters `SVector` or `SValues` and detects a cycle, it print
 
 ---
 
-## 11. Printer Cycle Detection Only Tracks Pairs, Vectors, and Values
+## 11. Printer Cycle Detection Tracks Pairs, Vectors, Values, and Error Irritants
 
 ### Symptom
 
-The visited-set in `formatPair` only adds the current pair to visited:
+The visited-set in `formatPair` adds the current pair to visited:
 
 ```fsharp
 let visited' = (pair :> obj) :: visited
 ```
 
-But `formatError` also tracks whether the irritants list itself is visited. Other objects like records and datums are not tracked.
+Similarly, `formatVector` and `formatValues` add themselves to visited, and `formatError` adds the irritants list to visited.
 
 ### Pitfall
 
@@ -580,16 +580,12 @@ The `libraries` field is a `Map<string, Library> ref` and is **not** replaced â€
 
 ### Symptom
 
-String case conversion uses `ToUpperInvariant()` / `ToLowerInvariant()`:
+String case conversion uses `ToUpperInvariant()` / `ToLowerInvariant()` via the `mapStringCase` helper:
 
 ```fsharp
 let sStringUpcase context pos cont =
-    function
-    | [ SString s, _ ] ->
-        Ok((s.runes |> runesToString).ToUpperInvariant() |> newSString false, pos)
+    mapStringCase (fun s -> s.ToUpperInvariant()) "string-upcase" pos cont
 ```
-
-### Pitfall
 
 In Scheme, `string-upcase` should follow Unicode's Default Case Conversion, which is **culture-invariant** but does differ from `ToUpperInvariant()` in some edge cases (e.g., Turkish `i`/`I` handling, which `ToUpperInvariant` handles in a culture-invariant way that differs from ICU). For most ASCII and common Unicode text this is fine, but for full R7RS conformance, ICU-based case conversion would be needed.
 
@@ -599,10 +595,10 @@ In Scheme, `string-upcase` should follow Unicode's Default Case Conversion, whic
 
 ### Symptom
 
-`realToRational` (Type.fs) converts a float to the nearest exact rational by formatting it with `%.17g` and parsing the decimal representation:
+`realToRational` (Type.fs) converts a float to the nearest exact rational by formatting it with the `g17` format specifier and parsing the decimal representation:
 
 ```fsharp
-let s = sprintf "%.17g" r
+let s = $"{r:g17}"
 ```
 
 ### Pitfall
@@ -642,30 +638,43 @@ R7RS says `eqv?` on reals should behave like `=` (which also treats `+0.0` and `
 
 ---
 
-## 28. `make-parameter` with Converter Applies on Every Call
+## 28. `make-parameter` with Converter Applies Only on Writes
 
 ### Symptom
 
-The converter function passed to `make-parameter` is applied whenever the parameter is **set**, not when it's read.
+The converter function passed to `make-parameter` is applied **only when the parameter is written**, never when it's read.
 
 ### Root Cause
 
-In `Builtin/DynamicBinding.fs`, the converter is stored alongside the parameter's current value. When `parameterize` sets a new value, it applies the converter. When the parameter value is read (via `applyParameter` in Eval.fs), the raw value is returned directly.
+In `Eval.applyParameter`:
+
+- **Read** (zero args): `param.Value` is returned directly â€” the converter is **not** invoked.
+- **Write** (one arg with converter): the converter is invoked via `Eval.apply` and the converted value is stored in `param.Value`.
 
 ```fsharp
-let sMakeParameter context pos cont =
+and [<TailCall>] applyParameter context cont (param: SExpression ref) converterOpt pos =
     function
-    | [ init ] -> Ok(ref init |> SParameter, None) |> Ok |> cont
-    | [ init; converter ] ->
-        converter
-        |> Eval.apply context (Result.map (fun conv ->
-            ref init |> fun p -> SParameter(p, Some conv)) >> cont) [ init ]
-    | x -> x |> invalidParameter pos "'%s' invalid make-parameter parameter." |> cont
+    | [] -> param.Value |> Ok |> cont
+    | [ v ] ->
+        match converterOpt with
+        | Some converter ->
+            converter
+            |> Eval.apply
+                context
+                (Result.map (fun converted ->
+                    param.Value <- converted
+                    converted)
+                 >> cont)
+                [ v ]
+        | None ->
+            param.Value <- v
+            v |> Ok |> cont
+    | x -> EvalError(...) |> Error
 ```
 
 ### Pitfall
 
-The converter is applied at `parameterize` time (not at read time). This means if you mutate the parameter value directly via `set!` on the underlying reference, the converter is **not** applied. This matches R7RS semantics, but it's a subtle distinction.
+The converter is applied at write time (`parameterize`, or calling the parameter with one argument), not at read time. This means if you mutate the parameter value directly via `set!` on the underlying reference, the converter is **not** applied. This matches R7RS semantics, but it's a subtle distinction.
 
 ---
 

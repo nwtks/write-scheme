@@ -78,7 +78,9 @@ All code — including test code — must work on **both Windows and Linux**.
 
 ## Builtin Module Structure
 
-All Builtin files use `[<AutoOpen>]` modules to avoid explicit import boilerplate in `Builtin.fs`. See [`docs/trade-off.md#14-autoopen-modules-in-builtin-vs-explicit-imports`](docs/trade-off.md#14-autoopen-modules-in-builtin-vs-explicit-imports).
+All Builtin files **except `Number.fs`** use `[<AutoOpen>]` modules to avoid explicit import boilerplate in `Builtin.fs`. `Number.fs` defines the `SNumber` DU type at namespace level (without `[<AutoOpen>]`), with its arithmetic functions inside `module SNumber`.
+
+See [`docs/trade-off.md#14-autoopen-modules-in-builtin-vs-explicit-imports`](docs/trade-off.md#14-autoopen-modules-in-builtin-vs-explicit-imports).
 
 1. **Choose (or create) an implementation file** — pick the appropriate `Builtin/*.fs` for the feature.
 2. **Implement the function** — follow the existing patterns: `[<AutoOpen>]` module, `open WriteScheme`, `open Type`, and the `SProcedureKind` signature (`context -> pos -> cont -> args`).

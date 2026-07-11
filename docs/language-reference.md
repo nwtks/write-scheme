@@ -53,14 +53,21 @@ Radix prefixes:
 
 ### 1.3 Characters
 
-Written as `#\` followed by the character.
+Written as `#\` followed by the character or a named character.
 
 | Example | Meaning |
 |---------|---------|
 | `#\a` | The character `a` |
 | `#\x3071` | Character by Unicode code point (`ぱ`) |
-| `#\space` | Space character |
-| `#\newline` | Newline character |
+| `#\alarm` | Bell (`U+0007`) |
+| `#\backspace` | Backspace (`U+0008`) |
+| `#\delete` | Delete (`U+007F`) |
+| `#\escape` | Escape (`U+001B`) |
+| `#\newline` | Newline (`U+000A`) |
+| `#\null` | Null (`U+0000`) |
+| `#\return` | Carriage return (`U+000D`) |
+| `#\space` | Space (`U+0020`) |
+| `#\tab` | Tab (`U+0009`) |
 
 ### 1.4 Strings
 
@@ -70,9 +77,16 @@ Written in double quotes. Supports escape sequences:
 |--------|---------|
 | `\"` | Double quote |
 | `\\` | Backslash |
-| `\n` | Newline |
-| `\t` | Tab |
-| `\xNN;` | Character by hexadecimal code point |
+| `\|` | Vertical bar (for use inside strings) |
+| `\a` | Bell (`U+0007`) |
+| `\b` | Backspace (`U+0008`) |
+| `\t` | Tab (`U+0009`) |
+| `\n` | Newline (`U+000A`) |
+| `\v` | Vertical tab (`U+000B`) |
+| `\f` | Form feed (`U+000C`) |
+| `\r` | Carriage return (`U+000D`) |
+| `\x<hex>;` | Unicode code point (hexadecimal) |
+| `\<newline>` | Line continuation (newline and following intraline whitespace are ignored) |
 
 Strings are stored as arrays of Unicode scalar values (`System.Text.Rune`), making them code-point-aware.
 
@@ -111,37 +125,9 @@ Written as `#u8(byte1 byte2 ...)`.
 #u8(0 10 255)       → bytevector of three bytes
 ```
 
-### 1.9 Procedures and Special Forms
+### 1.9 End-of-File Object
 
-Procedures and special forms are first-class values. They are created by `lambda` and `syntax-rules` respectively.
-
-### 1.10 Record Types
-
-Records are created by `define-record-type`. They are distinct data types with named fields.
-
-### 1.11 Promises
-
-Promises are created by `delay` / `delay-force` and evaluated by `force`. They implement lazy evaluation.
-
-### 1.12 Parameters
-
-Parameters are dynamic binding containers created by `make-parameter`.
-
-### 1.13 Continuations
-
-First-class continuations are captured by `call-with-current-continuation` (`call/cc`).
-
-### 1.14 Error Objects
-
-Error objects are created by `raise` and `error`. They carry a message and irritants.
-
-### 1.15 Unspecified Values
-
-The `SUnspecified` value represents an unspecified return value. It is printed as `#<unspecified>`.
-
-### 1.16 End-of-File Object
-
-The end-of-file object (`SEof`) is returned by input operations when no more data is available. It is printed as `#!eof` and may be written literally as `#!eof`. Test it with `eof-object?`.
+The end-of-file object is returned by input operations when no more data is available. It is printed and written literally as `#!eof`. Test it with `eof-object?`.
 
 ---
 
@@ -153,6 +139,8 @@ The end-of-file object (`SEof`) is returned by input operations when no more dat
 ; line comment
 
 #| block comment |#
+
+#; datum comment (discards the following datum)
 ```
 
 ### 2.2 Boolean Literals
@@ -462,9 +450,9 @@ Local macro bindings.
 
 | Procedure | Description |
 |-----------|-------------|
-| `(eqv? a b)` | Equivalent objects |
-| `(eq? a b)` | Object identity |
-| `(equal? a b)` | Structural equality |
+| `(eqv? a b)` | Equivalent objects (natively uses physical equality for pairs, vectors, bytevectors, continuations, and procedures)
+| `(eq? a b)` | Object identity (currently as ` `eqv?` in this implementation)
+| `(equal? a b)` | Structural equality (recursively compares pairs and vectors) |
 
 ### 4.2 Numeric Operations
 
@@ -689,18 +677,24 @@ Local macro bindings.
 | `(read-string k port)` | Read up to k characters from a specific port |
 | `(read-u8)` | Read a byte from the current binary input port |
 | `(read-u8 port)` | Read a byte from a specific binary port |
+| `(peek-u8)` | Peek the next byte without consuming it |
+| `(peek-u8 port)` | Peek from a specific port |
 | `(read-bytevector k)` | Read up to k bytes |
 | `(read-bytevector k port)` | Read up to k bytes from a specific port |
-| `(char-ready?)` | Returns `#t` if a character is ready |
-| `(char-ready? port)` | Returns `#t` if a character is ready on port |
-| `(u8-ready?)` | Returns `#t` if a byte is ready |
-| `(u8-ready? port)` | Returns `#t` if a byte is ready on port |
+| `(read-bytevector! bytevector)` | Read bytes into a bytevector |
+| `(read-bytevector! bytevector port)` | Read bytes into a bytevector from a specific port |
+| `(char-ready?)` | Returns `#t` if a character is ready (always returns `#t` in this implementation) |
+| `(char-ready? port)` | Returns `#t` if a character is ready on port (always returns `#t` in this implementation) |
+| `(u8-ready?)` | Returns `#t` if a byte is ready (always returns `#t` in this implementation) |
+| `(u8-ready? port)` | Returns `#t` if a byte is ready on port (always returns `#t` in this implementation) |
 
 #### Output Operations
 
 | Procedure | Description |
 |-----------|-------------|
 | `(write obj)` | Write an object in machine-readable form |
+| `(write-shared obj)` | Write an object with shared structure notation |
+| `(write-simple obj)` | Write an object without shared structure notation |
 | `(display obj)` | Print an object for human consumption |
 | `(write-char char)` | Write a character |
 | `(write-char char port)` | Write a character to a specific port |
@@ -720,12 +714,17 @@ Local macro bindings.
 | Procedure | Description |
 |-----------|-------------|
 | `(open-input-file filename)` | Open a file for textual input |
+| `(open-binary-input-file filename)` | Open a file for binary input |
 | `(open-output-file filename)` | Open a file for textual output |
+| `(open-binary-output-file filename)` | Open a file for binary output |
 | `(close-input-port port)` | Close an input port |
 | `(close-output-port port)` | Close an output port |
 | `(close-port port)` | Close a port |
 | `(call-with-input-file filename proc)` | Open a file, call proc with it, close |
 | `(call-with-output-file filename proc)` | Open a file, call proc with it, close |
+| `(call-with-port port proc)` | Call proc with port, then close it |
+| `(with-input-from-file filename thunk)` | Set current input port to file, call thunk, restore |
+| `(with-output-to-file filename thunk)` | Set current output port to file, call thunk, restore |
 
 #### Special Values
 
