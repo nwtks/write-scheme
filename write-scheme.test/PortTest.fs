@@ -417,6 +417,26 @@ let ``read-u8`` () =
     |> should equal "#!eof"
 
 [<Fact>]
+let ``peek-u8`` () =
+    "(let ((p (open-input-bytevector #u8(65 66 67)))) (peek-u8 p))"
+    |> rep
+    |> should equal "65"
+
+    "(let ((p (open-input-bytevector #u8(65 66 67)))) (peek-u8 p) (peek-u8 p))"
+    |> rep
+    |> should equal "65"
+
+    "(let ((p (open-input-bytevector #u8(65 66 67)))) (peek-u8 p) (read-u8 p) (peek-u8 p))"
+    |> rep
+    |> should equal "66"
+
+    "(let ((p (open-input-bytevector #u8()))) (peek-u8 p))"
+    |> rep
+    |> should equal "#!eof"
+
+    "(peek-u8 1)" |> rep |> should startWith "'(1)' invalid peek-u8 parameter"
+
+[<Fact>]
 let ``read-bytevector`` () =
     "(let ((p (open-input-bytevector #u8(65 66 67)))) (read-bytevector 2 p))"
     |> rep
@@ -525,6 +545,30 @@ let ``write-simple`` () =
     |> should startWith "'(1 2 3)' invalid write-simple parameter"
 
 [<Fact>]
+let ``display`` () =
+    "(display \"hello\")" |> rep |> should equal "#<unspecified>"
+
+    "(let ((p (open-output-string))) (display \"hello\" p) (get-output-string p))"
+    |> rep
+    |> should equal "\"hello\""
+
+    "(let ((p (open-output-string))) (display 42 p) (get-output-string p))"
+    |> rep
+    |> should equal "\"42\""
+
+    "(let ((p (open-output-string))) (display #\\a p) (get-output-string p))"
+    |> rep
+    |> should equal "\"a\""
+
+    "(let ((p (open-output-string))) (display #t p) (get-output-string p))"
+    |> rep
+    |> should equal "\"#t\""
+
+    "(display \"hello\" 1)"
+    |> rep
+    |> should startWith "'(\"hello\" 1)' invalid display parameter"
+
+[<Fact>]
 let ``newline`` () =
     "(let ((p (open-output-string))) (newline p) (string-length (get-output-string p)))"
     |> rep
@@ -549,6 +593,24 @@ let ``write-string`` () =
     "(let ((p (open-output-string))) (write-string \"\" p) (get-output-string p))"
     |> rep
     |> should equal "\"\""
+
+    "(let ((p (open-output-string))) (write-string \"hello\" p 1) (get-output-string p))"
+    |> rep
+    |> should equal "\"ello\""
+
+    "(let ((p (open-output-string))) (write-string \"hello\" p 1 4) (get-output-string p))"
+    |> rep
+    |> should equal "\"ell\""
+
+    "(let ((p (open-output-string))) (write-string \"hello\" p 0 5) (get-output-string p))"
+    |> rep
+    |> should equal "\"hello\""
+
+    "(write-string \"hello\")" |> rep |> should equal "#<unspecified>"
+
+    "(write-string \"hello\" 1)"
+    |> rep
+    |> should startWith "'(\"hello\" 1)' invalid write-string parameter"
 
 [<Fact>]
 let ``write-u8`` () =

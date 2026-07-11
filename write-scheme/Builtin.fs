@@ -281,6 +281,7 @@ module Builtin =
           "char-ready?", (SProcedure isCharReady, None) |> ref
           "read-string", (SProcedure sReadString, None) |> ref
           "read-u8", (SProcedure sReadU8, None) |> ref
+          "peek-u8", (SProcedure sPeekU8, None) |> ref
           "u8-ready?", (SProcedure isU8Ready, None) |> ref
           "read-bytevector", (SProcedure sReadBytevector, None) |> ref
           "read-bytevector!", (SProcedure sReadBytevectorBang, None) |> ref

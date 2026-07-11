@@ -7,18 +7,103 @@ open Type
 module Port =
     let closePort p =
         p.isOpen <- false
+        p.inputReader |> Option.iter (fun r -> r.Dispose())
+        p.outputWriter |> Option.iter (fun w -> w.Dispose())
+        p.fileStream |> Option.iter (fun s -> s.Dispose())
 
-        match p.inputReader with
-        | Some r -> r.Dispose()
-        | None -> ()
+    let makeFilePort direction isTextual path =
+        let stream =
+            match direction with
+            | Input -> System.IO.File.OpenRead path
+            | Output -> System.IO.File.Create path
 
-        match p.outputWriter with
-        | Some w -> w.Dispose()
-        | None -> ()
+        { direction = direction
+          isTextual = isTextual
+          isOpen = true
+          inputReader = None
+          outputWriter = None
+          fileStream = Some stream
+          filePath = Some path }
 
-        match p.fileStream with
-        | Some s -> s.Dispose()
-        | None -> ()
+    let makeInputStringPort path =
+        let content = System.IO.File.ReadAllText path
+
+        { direction = Input
+          isTextual = true
+          isOpen = true
+          inputReader = Some(new System.IO.StringReader(content))
+          outputWriter = None
+          fileStream = None
+          filePath = Some path }
+
+    let openFileProc name direction isTextual =
+        let fmt = sprintf "'%%s' invalid %s parameter." name
+
+        fun context pos cont ->
+            function
+            | [ SString f, _ ] ->
+                let path = f.runes |> runesToString
+
+                try
+                    makeFilePort direction isTextual path
+                    |> SPort
+                    |> fun p -> (p, pos) |> Ok |> cont
+                with :? System.IO.IOException as ex ->
+                    EvalError($"{name}: {ex.Message}", pos) |> Error |> cont
+            | x -> x |> invalidParameter pos fmt |> cont
+
+    let callWithFileProc name direction =
+        let fmt = sprintf "'%%s' invalid %s parameter." name
+
+        fun context pos cont ->
+            function
+            | [ SString f, _; proc ] ->
+                let path = f.runes |> runesToString
+
+                try
+                    let port = makeFilePort direction true path
+                    proc |> Eval.apply context cont [ SPort port, pos ]
+                with :? System.IO.IOException as ex ->
+                    EvalError($"{name}: {ex.Message}", pos) |> Error |> cont
+            | x -> x |> invalidParameter pos fmt |> cont
+
+    let withFileProc name makePort direction =
+        let fmt = sprintf "'%%s' invalid %s parameter." name
+
+        fun context pos cont ->
+            function
+            | [ SString f, _; proc ] ->
+                let path = f.runes |> runesToString
+
+                try
+                    let port = makePort path
+
+                    let savedPort, setPort =
+                        match direction with
+                        | Input -> context.ports.input, (fun p -> context.ports <- { context.ports with input = p })
+                        | Output -> context.ports.output, (fun p -> context.ports <- { context.ports with output = p })
+
+                    setPort port
+
+                    let restore cont' result =
+                        setPort savedPort
+                        closePort port
+                        cont' result
+
+                    proc |> Eval.apply context (restore cont) []
+                with :? System.IO.IOException as ex ->
+                    EvalError($"{name}: {ex.Message}", pos) |> Error |> cont
+            | x -> x |> invalidParameter pos fmt |> cont
+
+    let closePortProc name =
+        let fmt = sprintf "'%%s' invalid %s parameter." name
+
+        fun context pos cont ->
+            function
+            | [ SPort p, _ ] ->
+                closePort p
+                (SUnspecified, pos) |> Ok |> cont
+            | x -> x |> invalidParameter pos fmt |> cont
 
     let sCallWithPort context pos cont =
         function
@@ -34,52 +119,11 @@ module Port =
             |> cont
         | x -> x |> invalidParameter pos "'%s' invalid call-with-port parameter." |> cont
 
-    let sCallWithInputFile context pos cont =
-        function
-        | [ SString f, _; proc ] ->
-            let path = f.runes |> runesToString
+    let sCallWithInputFile: SProcedureKind =
+        callWithFileProc "call-with-input-file" Input
 
-            try
-                let stream = System.IO.File.OpenRead path
-
-                let port =
-                    { direction = Input
-                      isTextual = true
-                      isOpen = true
-                      inputReader = None
-                      outputWriter = None
-                      fileStream = Some stream
-                      filePath = Some path }
-
-                proc |> Eval.apply context cont [ SPort port, pos ]
-            with :? System.IO.FileNotFoundException as ex ->
-                EvalError($"call-with-input-file: {ex.Message}", pos) |> Error |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid call-with-input-file parameter." |> cont
-
-    let sCallWithOutputFile context pos cont =
-        function
-        | [ SString f, _; proc ] ->
-            let path = f.runes |> runesToString
-
-            try
-                let stream = System.IO.File.Create path
-
-                let port =
-                    { direction = Output
-                      isTextual = true
-                      isOpen = true
-                      inputReader = None
-                      outputWriter = None
-                      fileStream = Some stream
-                      filePath = Some path }
-
-                proc |> Eval.apply context cont [ SPort port, pos ]
-            with :? System.IO.FileNotFoundException as ex ->
-                EvalError($"call-with-output-file: {ex.Message}", pos) |> Error |> cont
-        | x ->
-            x
-            |> invalidParameter pos "'%s' invalid call-with-output-file parameter."
-            |> cont
+    let sCallWithOutputFile: SProcedureKind =
+        callWithFileProc "call-with-output-file" Output
 
     let isInputPort context pos cont =
         function
@@ -136,179 +180,27 @@ module Port =
         | [] -> (SPort context.ports.error, pos) |> Ok |> cont
         | x -> x |> invalidParameter pos "'%s' invalid current-error-port parameter." |> cont
 
-    let sWithInputFromFile context pos cont =
-        function
-        | [ SString f, _; proc ] ->
-            let path = f.runes |> runesToString
+    let sWithInputFromFile: SProcedureKind =
+        withFileProc "with-input-from-file" makeInputStringPort Input
 
-            try
-                let content = System.IO.File.ReadAllText path
+    let sWithOutputToFile: SProcedureKind =
+        withFileProc "with-output-to-file" (makeFilePort Output true) Output
 
-                let port =
-                    { direction = Input
-                      isTextual = true
-                      isOpen = true
-                      inputReader = Some(new System.IO.StringReader(content))
-                      outputWriter = None
-                      fileStream = None
-                      filePath = Some path }
+    let sOpenInputFile: SProcedureKind = openFileProc "open-input-file" Input true
 
-                let savedPort = context.ports.input
-                context.ports <- { context.ports with input = port }
+    let sOpenBinaryInputFile: SProcedureKind =
+        openFileProc "open-binary-input-file" Input false
 
-                let restore cont' result =
-                    context.ports <- { context.ports with input = savedPort }
-                    closePort port
-                    cont' result
+    let sOpenOutputFile: SProcedureKind = openFileProc "open-output-file" Output true
 
-                proc |> Eval.apply context (restore cont) []
-            with :? System.IO.FileNotFoundException as ex ->
-                EvalError($"with-input-from-file: {ex.Message}", pos) |> Error |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid with-input-from-file parameter." |> cont
+    let sOpenBinaryOutputFile: SProcedureKind =
+        openFileProc "open-binary-output-file" Output false
 
-    let sWithOutputToFile context pos cont =
-        function
-        | [ SString f, _; proc ] ->
-            let path = f.runes |> runesToString
+    let sClosePort: SProcedureKind = closePortProc "close-port"
 
-            try
-                let stream = System.IO.File.Create path
+    let sCloseInputPort: SProcedureKind = closePortProc "close-input-port"
 
-                let port =
-                    { direction = Output
-                      isTextual = true
-                      isOpen = true
-                      inputReader = None
-                      outputWriter = None
-                      fileStream = Some stream
-                      filePath = Some path }
-
-                let savedPort = context.ports.output
-                context.ports <- { context.ports with output = port }
-
-                let restore cont' result =
-                    context.ports <-
-                        { context.ports with
-                            output = savedPort }
-
-                    closePort port
-                    cont' result
-
-                proc |> Eval.apply context (restore cont) []
-            with :? System.IO.IOException as ex ->
-                EvalError($"with-output-to-file: {ex.Message}", pos) |> Error |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid with-output-to-file parameter." |> cont
-
-    let sOpenInputFile context pos cont =
-        function
-        | [ SString f, _ ] ->
-            try
-                let path = f.runes |> runesToString
-                let stream = System.IO.File.OpenRead path
-
-                let port =
-                    { direction = Input
-                      isTextual = true
-                      isOpen = true
-                      inputReader = None
-                      outputWriter = None
-                      fileStream = Some stream
-                      filePath = Some path }
-
-                (SPort port, pos) |> Ok |> cont
-            with :? System.IO.FileNotFoundException as ex ->
-                EvalError($"open-input-file: {ex.Message}", pos) |> Error |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid open-input-file parameter." |> cont
-
-    let sOpenBinaryInputFile context pos cont =
-        function
-        | [ SString f, _ ] ->
-            try
-                let path = f.runes |> runesToString
-                let stream = System.IO.File.OpenRead path
-
-                let port =
-                    { direction = Input
-                      isTextual = false
-                      isOpen = true
-                      inputReader = None
-                      outputWriter = None
-                      fileStream = Some stream
-                      filePath = Some path }
-
-                (SPort port, pos) |> Ok |> cont
-            with :? System.IO.FileNotFoundException as ex ->
-                EvalError($"open-binary-input-file: {ex.Message}", pos) |> Error |> cont
-        | x ->
-            x
-            |> invalidParameter pos "'%s' invalid open-binary-input-file parameter."
-            |> cont
-
-    let sOpenOutputFile context pos cont =
-        function
-        | [ SString f, _ ] ->
-            try
-                let path = f.runes |> runesToString
-                let stream = System.IO.File.Create path
-
-                let port =
-                    { direction = Output
-                      isTextual = true
-                      isOpen = true
-                      inputReader = None
-                      outputWriter = None
-                      fileStream = Some stream
-                      filePath = Some path }
-
-                (SPort port, pos) |> Ok |> cont
-            with :? System.IO.FileNotFoundException as ex ->
-                EvalError($"open-output-file: {ex.Message}", pos) |> Error |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid open-output-file parameter." |> cont
-
-    let sOpenBinaryOutputFile context pos cont =
-        function
-        | [ SString f, _ ] ->
-            try
-                let path = f.runes |> runesToString
-                let stream = System.IO.File.Create path
-
-                let port =
-                    { direction = Output
-                      isTextual = false
-                      isOpen = true
-                      inputReader = None
-                      outputWriter = None
-                      fileStream = Some stream
-                      filePath = Some path }
-
-                (SPort port, pos) |> Ok |> cont
-            with :? System.IO.IOException as ex ->
-                EvalError($"open-binary-output-file: {ex.Message}", pos) |> Error |> cont
-        | x ->
-            x
-            |> invalidParameter pos "'%s' invalid open-binary-output-file parameter."
-            |> cont
-
-    let sClosePort context pos cont =
-        function
-        | [ SPort p, _ ] ->
-            closePort p
-            (SUnspecified, pos) |> Ok |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid close-port parameter." |> cont
-
-    let sCloseInputPort context pos cont =
-        function
-        | [ SPort p, _ ] ->
-            closePort p
-            (SUnspecified, pos) |> Ok |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid close-input-port parameter." |> cont
-
-    let sCloseOutputPort context pos cont =
-        function
-        | [ SPort p, _ ] ->
-            closePort p
-            (SUnspecified, pos) |> Ok |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid close-output-port parameter." |> cont
+    let sCloseOutputPort: SProcedureKind = closePortProc "close-output-port"
 
     let newInputStringPort s =
         { direction = Input
@@ -554,6 +446,18 @@ module Port =
             | None -> (SEof, pos) |> Ok |> cont
         | x -> x |> invalidParameter pos "'%s' invalid read-string parameter." |> cont
 
+    let peekU8FromPort p =
+        match p.fileStream with
+        | Some s when not p.isTextual ->
+            let b = s.ReadByte()
+
+            if b = -1 then
+                None
+            else
+                s.Seek(-1L, System.IO.SeekOrigin.Current) |> ignore
+                Some b
+        | _ -> None
+
     let sReadU8 context pos cont =
         function
         | [] ->
@@ -577,6 +481,18 @@ module Port =
                     (SRational(bigint b, 1I), pos) |> Ok |> cont
             | _ -> (SEof, pos) |> Ok |> cont
         | x -> x |> invalidParameter pos "'%s' invalid read-u8 parameter." |> cont
+
+    let sPeekU8 context pos cont =
+        function
+        | [] ->
+            match peekU8FromPort context.ports.input with
+            | Some b -> (SRational(bigint b, 1I), pos) |> Ok |> cont
+            | None -> (SEof, pos) |> Ok |> cont
+        | [ SPort p, _ ] ->
+            match peekU8FromPort p with
+            | Some b -> (SRational(bigint b, 1I), pos) |> Ok |> cont
+            | None -> (SEof, pos) |> Ok |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid peek-u8 parameter." |> cont
 
     let isU8Ready context pos cont =
         function
@@ -718,7 +634,10 @@ module Port =
     let sDisplay context pos cont =
         function
         | [ arg ] ->
-            arg |> getDisplayString |> printf "%s"
+            writeStringToPort context.ports.output (arg |> getDisplayString)
+            (SUnspecified, pos) |> Ok |> cont
+        | [ arg; SPort p, _ ] ->
+            writeStringToPort p (arg |> getDisplayString)
             (SUnspecified, pos) |> Ok |> cont
         | x -> x |> invalidParameter pos "'%s' invalid display parameter." |> cont
 
@@ -745,11 +664,19 @@ module Port =
     let sWriteString context pos cont =
         function
         | [ SString s, _ ] ->
-            writeStringToPort context.ports.output (s.runes |> runesToString)
+            let str = s.runes |> runesToString
+            writeStringToPort context.ports.output str
             (SUnspecified, pos) |> Ok |> cont
-        | [ SString s, _; SPort p, _ ] ->
-            writeStringToPort p (s.runes |> runesToString)
-            (SUnspecified, pos) |> Ok |> cont
+        | (SString s, _) :: (SPort p, _) :: rest ->
+            let str = s.runes |> runesToString
+
+            match getRange str.Length rest with
+            | Some(start, stop) ->
+                writeStringToPort p str.[start .. stop - 1]
+                (SUnspecified, pos) |> Ok |> cont
+            | None ->
+                let args = rest |> List.map Print.print |> String.concat " "
+                EvalError($"write-string: invalid argument(s) '{args}'.", pos) |> Error |> cont
         | x -> x |> invalidParameter pos "'%s' invalid write-string parameter." |> cont
 
     let sWriteU8 context pos cont =
