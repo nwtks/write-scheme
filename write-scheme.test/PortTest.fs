@@ -57,6 +57,10 @@ let ``call-with-input-file`` () =
     finally
         ()
 
+    "(call-with-input-file 123 (lambda (p) #f))"
+    |> rep
+    |> should startWith "'(123 #<procedure>)' invalid call-with-input-file parameter"
+
 [<Fact>]
 let ``call-with-output-file`` () =
     let tmp = System.IO.Path.GetTempFileName()
@@ -126,10 +130,39 @@ let ``port?`` () =
 [<Fact>]
 let ``input-port-open?`` () =
     "(input-port-open? (current-input-port))" |> rep |> should equal "#t"
+    "(input-port-open? (current-output-port))" |> rep |> should equal "#f"
+    "(input-port-open? (open-input-bytevector #u8(65)))" |> rep |> should equal "#t"
+
+    "(let ((p (open-input-string \"a\"))) (close-port p) (input-port-open? p))"
+    |> rep
+    |> should equal "#f"
 
 [<Fact>]
 let ``output-port-open?`` () =
     "(output-port-open? (current-output-port))" |> rep |> should equal "#t"
+    "(output-port-open? (current-input-port))" |> rep |> should equal "#f"
+
+    "(let ((p (open-output-string))) (close-port p) (output-port-open? p))"
+    |> rep
+    |> should equal "#f"
+
+[<Fact>]
+let ``current-input-port`` () =
+    "(current-input-port 1)"
+    |> rep
+    |> should startWith "'(1)' invalid current-input-port parameter"
+
+[<Fact>]
+let ``current-output-port`` () =
+    "(current-output-port 1)"
+    |> rep
+    |> should startWith "'(1)' invalid current-output-port parameter"
+
+[<Fact>]
+let ``current-error-port`` () =
+    "(current-error-port 1)"
+    |> rep
+    |> should startWith "'(1)' invalid current-error-port parameter"
 
 [<Fact>]
 let ``with-input-from-file`` () =
@@ -171,6 +204,10 @@ let ``with-input-from-file`` () =
     finally
         ()
 
+    "(with-input-from-file 123 (lambda () #f))"
+    |> rep
+    |> should startWith "'(123 #<procedure>)' invalid with-input-from-file parameter"
+
 [<Fact>]
 let ``with-output-to-file`` () =
     let tmp = System.IO.Path.GetTempFileName()
@@ -200,6 +237,10 @@ let ``with-output-to-file`` () =
     finally
         System.IO.File.Delete tmp
 
+    "(with-output-to-file 123 (lambda () #f))"
+    |> rep
+    |> should startWith "'(123 #<procedure>)' invalid with-output-to-file parameter"
+
 [<Fact>]
 let ``open-input-file`` () =
     let tmp = System.IO.Path.GetTempFileName()
@@ -225,6 +266,10 @@ let ``open-input-file`` () =
         |> should startWith "open-input-file: Could not find file"
     finally
         ()
+
+    "(open-input-file 123)"
+    |> rep
+    |> should startWith "'(123)' invalid open-input-file parameter"
 
 [<Fact>]
 let ``open-binary-input-file`` () =
@@ -298,6 +343,12 @@ let ``open-binary-input-file`` () =
     |> should startWith "'(123)' invalid open-binary-input-file parameter"
 
 [<Fact>]
+let ``open-output-file`` () =
+    "(open-output-file 123)"
+    |> rep
+    |> should startWith "'(123)' invalid open-output-file parameter"
+
+[<Fact>]
 let ``open-binary-output-file`` () =
     let tmp = System.IO.Path.GetTempFileName()
 
@@ -342,6 +393,21 @@ let ``close-port`` () =
     "(let ((p (open-input-string \"a\"))) (close-port p) (input-port-open? p))"
     |> rep
     |> should equal "#f"
+
+    "(close-port 1)" |> rep |> should startWith "'(1)' invalid close-port parameter"
+    "(close-port)" |> rep |> should startWith "'()' invalid close-port parameter"
+
+[<Fact>]
+let ``close-input-port`` () =
+    "(close-input-port 1)"
+    |> rep
+    |> should startWith "'(1)' invalid close-input-port parameter"
+
+[<Fact>]
+let ``close-output-port`` () =
+    "(close-output-port 1)"
+    |> rep
+    |> should startWith "'(1)' invalid close-output-port parameter"
 
 [<Fact>]
 let ``open-input-string`` () =
@@ -399,6 +465,10 @@ let ``open-output-bytevector`` () =
     |> rep
     |> should startWith "#<output binary port open>"
 
+    "(open-output-bytevector 1)"
+    |> rep
+    |> should startWith "'(1)' invalid open-output-bytevector parameter"
+
 [<Fact>]
 let ``get-output-bytevector`` () =
     "(let ((p (open-output-bytevector))) (write-u8 65 p) (get-output-bytevector p))"
@@ -418,6 +488,15 @@ let ``get-output-bytevector`` () =
     |> should startWith "'(1)' invalid get-output-bytevector parameter"
 
 [<Fact>]
+let ``read`` () =
+    "(read (open-input-string \"42\"))" |> rep |> should equal "42"
+    "(read (open-input-string \"hello\"))" |> rep |> should equal "hello"
+    "(read (open-input-string \"(a b c)\"))" |> rep |> should equal "(a b c)"
+    "(read (open-input-bytevector #u8(65)))" |> rep |> should equal "#!eof"
+
+    "(read (open-input-string \")\"))" |> rep |> should startWith "Error"
+
+[<Fact>]
 let ``read-char`` () =
     "(let ((p (open-input-string \"abc\"))) (read-char p))"
     |> rep
@@ -435,6 +514,9 @@ let ``read-char`` () =
     |> rep
     |> should equal "#!eof"
 
+    "(read-char (open-input-bytevector #u8(65)))" |> rep |> should equal "#\\A"
+    "(read-char (open-input-bytevector #u8()))" |> rep |> should equal "#!eof"
+
 [<Fact>]
 let ``peek-char`` () =
     "(let ((p (open-input-string \"abc\"))) (peek-char p))"
@@ -448,6 +530,9 @@ let ``peek-char`` () =
     "(let ((p (open-input-string \"\"))) (peek-char p))"
     |> rep
     |> should equal "#!eof"
+
+    "(peek-char (open-input-bytevector #u8(65)))" |> rep |> should equal "#\\A"
+    "(peek-char (open-input-bytevector #u8()))" |> rep |> should equal "#!eof"
 
 [<Fact>]
 let ``read-line`` () =
@@ -476,6 +561,33 @@ let ``eof-object?`` () =
 [<Fact>]
 let ``eof-object`` () =
     "(eof-object)" |> rep |> should equal "#!eof"
+
+    "(eof-object 1)" |> rep |> should startWith "'(1)' invalid eof-object parameter"
+
+[<Fact>]
+let ``char-ready?`` () =
+    "(char-ready?)" |> rep |> should equal "#t"
+    "(char-ready? (open-input-string \"a\"))" |> rep |> should equal "#t"
+
+    "(char-ready? 1)"
+    |> rep
+    |> should startWith "'(1)' invalid char-ready? parameter"
+
+[<Fact>]
+let ``read-string`` () =
+    "(read-string 5 (open-input-string \"hello\"))"
+    |> rep
+    |> should equal "\"hello\""
+
+    "(read-string 3 (open-input-string \"hi\"))" |> rep |> should equal "\"hi\""
+
+    "(read-string \"abc\")"
+    |> rep
+    |> should startWith "'(\"abc\")' invalid read-string parameter"
+
+    "(read-string -1 (open-input-string \"abc\"))"
+    |> rep
+    |> should startWith "'(-1 #<input textual port open>)' invalid read-string parameter"
 
 [<Fact>]
 let ``read-u8`` () =
@@ -512,6 +624,13 @@ let ``peek-u8`` () =
     "(peek-u8 1)" |> rep |> should startWith "'(1)' invalid peek-u8 parameter"
 
 [<Fact>]
+let ``u8-ready?`` () =
+    "(u8-ready?)" |> rep |> should equal "#t"
+    "(u8-ready? (open-input-bytevector #u8(65)))" |> rep |> should equal "#t"
+
+    "(u8-ready? 1)" |> rep |> should startWith "'(1)' invalid u8-ready? parameter"
+
+[<Fact>]
 let ``read-bytevector`` () =
     "(let ((p (open-input-bytevector #u8(65 66 67)))) (read-bytevector 2 p))"
     |> rep
@@ -520,6 +639,14 @@ let ``read-bytevector`` () =
     "(let ((p (open-input-bytevector #u8(65 66 67)))) (read-bytevector 0 p))"
     |> rep
     |> should equal "#!eof"
+
+    "(read-bytevector -1 (open-input-bytevector #u8(65)))"
+    |> rep
+    |> should startWith "'(-1 #<input binary port open>)' invalid read-bytevector parameter"
+
+    "(read-bytevector \"abc\")"
+    |> rep
+    |> should startWith "'(\"abc\")' invalid read-bytevector parameter"
 
 [<Fact>]
 let ``read-bytevector!`` () =
@@ -546,6 +673,26 @@ let ``read-bytevector!`` () =
     "(let ((bv (bytevector 0 0 0)) (p (open-input-bytevector #u8(65 66 67)))) (read-bytevector! bv p))"
     |> rep
     |> should equal "3"
+
+    "(let ((bv (bytevector 0 1 2))) (read-bytevector! bv (open-input-bytevector #u8(65 66 67)) -1))"
+    |> rep
+    |> should startWith "read-bytevector!: start index -1 out of range"
+
+    "(let ((bv (bytevector 0 1 2))) (read-bytevector! bv (open-input-bytevector #u8(65 66 67)) 5))"
+    |> rep
+    |> should startWith "read-bytevector!: start index 5 out of range"
+
+    "(let ((bv (bytevector 0 1 2))) (read-bytevector! bv (open-input-bytevector #u8(65 66 67)) 0 5))"
+    |> rep
+    |> should startWith "read-bytevector!: end index 5 out of range"
+
+    "(let ((bv (bytevector 0 1 2))) (read-bytevector! bv (open-input-bytevector #u8(65 66 67)) 2 1))"
+    |> rep
+    |> should startWith "read-bytevector!: start index 2 is greater than end index 1"
+
+[<Fact>]
+let ``write`` () =
+    "(write \"hello\")" |> rep |> should equal "#<unspecified>"
 
 [<Fact>]
 let ``write-shared`` () =
@@ -659,6 +806,14 @@ let ``write-char`` () =
     |> rep
     |> should equal "\" \""
 
+    "(let ((p (open-output-bytevector))) (write-char #\\a p) (get-output-bytevector p))"
+    |> rep
+    |> should equal "#u8()"
+
+    "(write-char 123 (open-output-string))"
+    |> rep
+    |> should startWith "write-char: '123' is not a char"
+
 [<Fact>]
 let ``write-string`` () =
     "(let ((p (open-output-string))) (write-string \"hello\" p) (get-output-string p))"
@@ -693,8 +848,34 @@ let ``write-u8`` () =
     |> rep
     |> should equal "#u8(65)"
 
+    "(write-u8 300 (open-output-bytevector))"
+    |> rep
+    |> should startWith "'(300 #<output binary port open>)' invalid write-u8 parameter"
+
+    "(write-u8 65 (open-output-string))"
+    |> rep
+    |> should startWith "'(65 #<output textual port open>)' invalid write-u8 parameter"
+
 [<Fact>]
 let ``write-bytevector`` () =
     "(let ((p (open-output-bytevector))) (write-bytevector #u8(1 2 3) p) (get-output-bytevector p))"
     |> rep
     |> should equal "#u8(1 2 3)"
+
+    "(write-bytevector #u8(1 2 3) (current-output-port))"
+    |> rep
+    |> should startWith "'(#u8(1 2 3) #<output textual port open>)' invalid write-bytevector parameter"
+
+[<Fact>]
+let ``flush-output-port`` () =
+    "(flush-output-port (current-output-port))"
+    |> rep
+    |> should equal "#<unspecified>"
+
+    "(let ((p (open-output-string))) (write-char #\\a p) (flush-output-port p) (get-output-string p))"
+    |> rep
+    |> should equal "\"a\""
+
+    "(flush-output-port (current-input-port))"
+    |> rep
+    |> should equal "#<unspecified>"

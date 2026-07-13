@@ -97,7 +97,7 @@ module Eval =
 
     let getDefineVar body =
         match body with
-        | SSymbol var, _ -> [ var ]
+        | SSymbol var, _
         | SPair { car = SSymbol var, _; cdr = _ }, _ -> [ var ]
         | _ -> []
 
@@ -138,7 +138,7 @@ module Eval =
 
     let isDefinition =
         function
-        | SPair { car = SSymbol "define", _; cdr = _ }, _ -> true
+        | SPair { car = SSymbol "define", _; cdr = _ }, _
         | SPair { car = SSymbol "define-values", _
                   cdr = _ },
           _ -> true
