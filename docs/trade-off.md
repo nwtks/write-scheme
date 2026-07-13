@@ -39,7 +39,7 @@ The entire evaluator — `eval`, `apply`, `evalArgs`, `Eval.evalBody` — is wri
 ### Trade-off
 
 | Aspect | CPS | Direct Style |
-|--------|-----|-------------|
+|--------|-----|--------------|
 | Stack safety | ✅ Guaranteed via tail calls | ❌ Can overflow on deep recursion |
 | First-class continuations | ✅ `call/cc` captures the continuation chain naturally | ❌ Requires explicit stack capture/copying |
 | `dynamic-wind` | ✅ Integrated naturally into continuation invocation | ❌ Requires special handling |
@@ -127,7 +127,7 @@ Integers and rationals are stored as `SRational(bigint, bigint)` using `System.N
 ### Trade-off
 
 | Aspect | `bigint` Rationals | Native Integer Types |
-|--------|-------------------|---------------------|
+|--------|--------------------|----------------------|
 | Range | ✅ Arbitrarily large integers | ❌ Limited to 32/64 bits |
 | Exactness | ✅ Exact arithmetic per R7RS | ❌ Overflow or precision loss |
 | Performance | ❌ Heap-allocated, slower arithmetic | ✅ Stack-allocated, CPU-native |
@@ -242,7 +242,7 @@ The project is a single executable (`OutputType: Exe`) rather than a library + e
 ### Trade-off
 
 | Aspect | Single Exe | Library + Exe |
-|--------|-----------|---------------|
+|--------|------------|---------------|
 | Testability | ❌ Tests must reference the exe | ✅ Library is naturally testable |
 | Reuse | ❌ Cannot easily embed in other apps | ✅ Library can be consumed as a package |
 | Simplicity | ✅ Single project, single output | ❌ Two projects, coordination overhead |
@@ -266,7 +266,7 @@ type Environment = Map<string, SExpression ref> ref
 ### Trade-off
 
 | Aspect | Mutable (`ref` + `ref`) | Persistent (Immutable Map) |
-|--------|------------------------|----------------------------|
+|--------|-------------------------|----------------------------|
 | `set!` semantics | ✅ `ref` cells allow mutation from parent scopes | ❌ Would need to copy the environment chain |
 | `parameterize` | ✅ Parameter values are `ref` cells, easy to save/restore | ❌ Requires threading environment through `parameterize` body |
 | `define` mutation | ✅ `ref` on the outer map enables existing-define rebinding | ❌ Would need structural sharing with mutation |
@@ -290,7 +290,7 @@ Similarly, `define` at the top level rebinds existing names (but shadows in inte
 ### Trade-off
 
 | Aspect | Floyd's Algorithm | Visited-Set |
-|--------|------------------|-------------|
+|--------|-------------------|-------------|
 | Memory | ✅ O(1) — two pointers only | ❌ O(n) — stores all visited nodes |
 | Speed | ❌ Multiple traversals for large lists | ✅ Single pass |
 | Detect which node is cyclic | ❌ Only detects presence of cycle | ✅ Can identify the specific cycle point |
@@ -324,7 +324,7 @@ type SkipResult =
 ### Trade-off
 
 | Aspect | `Result<_, SkipResult>` | .NET Exceptions |
-|--------|------------------------|-----------------|
+|--------|-------------------------|-----------------|
 | CPS integration | ✅ Composes naturally with continuations | ❌ Exception handler must be installed on stack |
 | `call/cc` | ✅ Continuation captures `Ok`/`Error` state | ❌ Exception state is in the runtime, not captured |
 | `raise`/`with-exception-handler` | ✅ Handlers are explicit CPS functions | ❌ Must map to/from .NET exceptions |
@@ -348,7 +348,7 @@ Datum labels (`#N=expr` / `#N#`) are resolved in a **separate pass** (`DatumLabe
 ### Trade-off
 
 | Aspect | Separate Pass | Inline During Parsing |
-|--------|--------------|----------------------|
+|--------|---------------|-----------------------|
 | Implementation complexity | ✅ Each phase is simple and focused | ❌ Parser must manage label state and resolve on the fly |
 | Error detection | ✅ Clear phases for validation (no duplicates, no forward refs) | ❌ Errors are detected interleaved with parsing |
 | Code organization | ✅ Readable separation of concerns | ❌ Parser becomes more complex |
@@ -375,7 +375,7 @@ All built-ins are registered in a single `builtinBindings` list in `Builtin.fs`,
 ### Trade-off
 
 | Aspect | Centralized List | Distributed Registration |
-|--------|-----------------|------------------------|
+|--------|------------------|--------------------------|
 | Discoverability | ✅ All bindings visible in one place | ❌ Must search across modules |
 | Addition workflow | ❌ Must edit two places (impl + registration) | ✅ Register at definition site |
 | Conflict detection | ✅ Single file, easy to spot duplicates | ❌ Conflicts may go unnoticed |
@@ -402,7 +402,7 @@ module SpecialForm =
 ### Trade-off
 
 | Aspect | `[<AutoOpen>]` | Explicit Imports |
-|--------|---------------|------------------|
+|--------|----------------|------------------|
 | Conciseness | ✅ Functions accessible without qualification | ❌ Must open each module |
 | Namespace pollution | ❌ All function names visible everywhere | ✅ Namespace is controlled |
 | Module boundaries | ❌ Unclear which function comes from which module | ✅ Clear provenance |
@@ -422,7 +422,7 @@ The printer (`Print.fs`) is implemented in CPS with a visited-set for cycle dete
 ### Trade-off
 
 | Aspect | CPS + Visited-Set + Labels | Simple Recursive |
-|--------|--------------------------|------------------|
+|--------|----------------------------|------------------|
 | Cycle handling | ✅ Detects and prints `...` (or `#N#`) for cycles | ❌ Infinite recursion on cyclic structures |
 | Shared-structure printing | ✅ `printShared` emits `#N=` / `#N#` via `buildSharedLabelMap` | ❌ Cannot represent shared structure |
 | Stack safety | ✅ Tail-recursive, no stack overflow | ❌ Deeply nested structures overflow stack |
@@ -443,7 +443,7 @@ Reader macros (`'expr` → `(quote expr)`, `` `expr `` → `(quasiquote expr)`, 
 ### Trade-off
 
 | Aspect | During Parsing | Post-Parse Transformation |
-|--------|---------------|--------------------------|
+|--------|----------------|---------------------------|
 | Complexity | ✅ Single representation from the start | ❌ Need a separate walk to desugar |
 | Performance | ✅ No extra tree traversal | ❌ Additional pass over the tree |
 | Parser coupling | ❌ Parser knows about reader macro expansion | ✅ Parser is purely syntactic |
@@ -470,7 +470,7 @@ type SNumber = NRational of bigint * bigint | NReal of float | NComplex of Compl
 ```
 
 | Aspect | SNumber Unification | Per-Type Dispatch in SExpression |
-|--------|-------------------|---------------------------------|
+|--------|---------------------|----------------------------------|
 | Arithmetic dispatch | ✅ 3 SNumber cases, unified | ❌ 7+ SExpressionKind pair combinations |
 | Conversion overhead | ❌ Must convert SExpression → SNumber → SExpression | ✅ Direct match on SExpressionKind |
 | Code duplication | ✅ `add`/`sub`/`mul`/`div` are single functions | ❌ Repeated type-checking in each operation |
@@ -500,7 +500,7 @@ type QqKeyword = QqUnquote | QqUnquoteSplicing | QqQuasiquote | QqQuote
 ```
 
 | Aspect | QqKeyword DU | Raw Symbol Comparison |
-|--------|-------------|----------------------|
+|--------|--------------|-----------------------|
 | Keyword matching | ✅ Single `normalizeQqKeyword` function | ❌ Repeated string comparison everywhere |
 | Code duplication | ✅ `consQq`/`joinQq` build keyword-tagged pairs | ❌ Ad-hoc pair construction |
 | Complexity | ✅ `replaceQuasiquoteDatum`: 57→12, `replaceQuasiquoteList`: 59→30 | ❌ Very high per-function complexity |
@@ -521,7 +521,7 @@ During refactoring, an attempt was made to replace CPS continuation threading wi
 ### Trade-off
 
 | Aspect | CPS Continuation Threading | Mutable Ref Cell |
-|--------|---------------------------|-----------------|
+|--------|----------------------------|------------------|
 | Composition | ✅ Composes naturally with caller's continuation | ❌ Ref cell captures only the final continuation value |
 | Referential transparency | ✅ Pure data flow | ❌ Hidden mutable state |
 | Correctness | ✅ Always correct | ❌ Breaks when multiple continuations share the same ref |
@@ -542,7 +542,7 @@ This was discovered empirically — replacing `cont` calls with ref cell assignm
 ### Trade-off
 
 | Aspect | Plain List `[]` | `Option<SExpression list>` |
-|--------|----------------|---------------------------|
+|--------|-----------------|----------------------------|
 | API surface | ✅ `loopListInfo pair pair 0I []` (always accumulates) | ❌ `loopListInfo pair pair 0I None` vs `Some []` |
 | Internal complexity | ✅ 2 branches (pair continue / empty finish) | ❌ 2× branches (None vs Some for each case) |
 | Caller adaptation | ❌ `isProperList` discards the result with `|> ignore` | ✅ No extra computation |
@@ -580,7 +580,7 @@ Textual string ports back onto `System.IO.StringReader` (a `TextReader`) / `Stri
 ### Trade-off
 
 | Aspect | Record with optional fields | Class hierarchy |
-|--------|---------------------------|-----------------|
+|--------|-----------------------------|-----------------|
 | Extensibility | ❌ Adding new port types requires modifying `SPortData` | ✅ Easy to add new subclasses |
 | Pattern matching | ✅ Simple `match p.inputReader with` | ❌ Requires downcasting or visitor pattern |
 | Port closure | ✅ `isOpen` field, manually set on close | ✅ Could be built into Dispose pattern |

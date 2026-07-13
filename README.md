@@ -14,8 +14,7 @@ A R7RS (Small) Scheme interpreter written in F#. Features a Continuation-Passing
 - **Exception system**: `raise`, `raise-continuable`, `with-exception-handler`, `guard`, `error`
 - **Lazy evaluation**: `delay`, `delay-force`, `force`, `make-promise`
 - **Datum labels**: `#N=` / `#N#` for cyclic and shared structure
-- **I/O ports**: string ports, bytevector ports, file ports; R7RS I/O primitives (`read`, `write`, `display`, `read-char`, `peek-char`, `read-line`, `write-char`, `write-string`, `eof-object`, etc.)
-- **Port predicates**: `port?`, `input-port?`, `output-port?`, `textual-port?`, `binary-port?`
+- **I/O ports**: string ports, bytevector ports, file ports; R7RS I/O primitives
 
 ## Requirements
 
@@ -39,11 +38,12 @@ dotnet test
 ```
 > (+ 1 2)
 3
-> (apply map (lambda (x) (+ x 1)) '((1 2 3)))
+> (map (lambda (x) (+ x 1)) '(1 2 3))
 (2 3 4)
 > (call/cc (lambda (k) (k 42)))
 42
 > (define-syntax my-or (syntax-rules () ((my-or) #f) ((my-or a) a) ((my-or a b ...) (let ((t a)) (if t t (my-or b ...))))))
+my-or
 > (my-or #f (+ 1 2))
 3
 ```

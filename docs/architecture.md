@@ -507,13 +507,6 @@ The largest file containing the implementation of all special forms:
 | `define-record-type` | `sDefineRecordType` (Record.fs) | Record type definition (R7RS) |
 | `define-library` | `sDefineLibrary` (Library.fs) | Library definition (R7RS) |
 | `import` | `sImport` (Library.fs) | Library import with set operations |
-| `define-values` | `sDefineValues` | Multi-value definition |
-| `define-syntax` | `sDefineSyntax` | Macro definition |
-| `define-record-type` | `sDefineRecordType` | Record type definition (R7RS) |
-| `define-library` | `sDefineLibrary` | Library definition (R7RS) |
-| `include`, `include-ci` | `sInclude`, `sIncludeCi` | File inclusion |
-| `cond-expand` | `sCondExpand` | Feature-based conditional expansion |
-
 ### 9.3 Procedure Categories
 
 | Category | File | Examples |
@@ -704,38 +697,38 @@ User input (string)
     │
     ▼
 ┌──────────────────────────────────────────────────────┐
-│  Read.fs                                              │
-│  FParsec parser                                       │
-│  Output: SExpression with SDatumLabel / SDatumRef     │
-│  Reader macros expanded: ' → (quote ...)              │
+│  Read.fs                                             │
+│  FParsec parser                                      │
+│  Output: SExpression with SDatumLabel / SDatumRef    │
+│  Reader macros expanded: ' → (quote ...)             │
 └──────────────────────────────────────────────────────┘
     │
     ▼
 ┌──────────────────────────────────────────────────────┐
-│  DatumLabel.fs                                        │
-│  Resolve #N= / #N# labels                             │
-│  Output: SExpression with all labels resolved          │
+│  DatumLabel.fs                                       │
+│  Resolve #N= / #N# labels                            │
+│  Output: SExpression with all labels resolved        │
 └──────────────────────────────────────────────────────┘
     │
     ▼
 ┌──────────────────────────────────────────────────────┐
-│  Eval.fs                                               │
-│  CPS evaluator                                         │
-│  ├─ Self-evaluating? → return as-is                   │
-│  ├─ Symbol? → lookup in environment chain             │
-│  ├─ Pair? →                                            │
-│  │   ├─ car is syntax? → apply syntax (unevaled args) │
-│  │   ├─ car is procedure? → eval args → apply         │
-│  │   └─ car is macro? → expand → re-evaluate          │
-│  └─ ...                                                │
-│  Output: SExpression (evaluated result)                │
+│  Eval.fs                                             │
+│  CPS evaluator                                       │
+│  ├─ Self-evaluating? → return as-is                  │
+│  ├─ Symbol? → lookup in environment chain            │
+│  ├─ Pair? →                                          │
+│  │  ├─ car is syntax? → apply syntax (unevaled args) │
+│  │  ├─ car is procedure? → eval args → apply         │
+│  │  └─ car is macro? → expand → re-evaluate          │
+│  └─ ...                                              │
+│  Output: SExpression (evaluated result)              │
 └──────────────────────────────────────────────────────┘
     │
     ▼
 ┌──────────────────────────────────────────────────────┐
-│  Print.fs                                              │
-│  CPS printer with cycle detection                      │
-│  Output: string                                        │
+│  Print.fs                                            │
+│  CPS printer with cycle detection                    │
+│  Output: string                                      │
 └──────────────────────────────────────────────────────┘
     │
     ▼

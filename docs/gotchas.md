@@ -220,8 +220,14 @@ If `toList` fails (the `begin` body is an improper list), `expandBeginInBody` pr
 `toList` (`Type.fs`) uses `loopListInfo` which returns `Error` for improper lists:
 
 ```fsharp
-| Ok(None, _) -> failwith "unreachable."
-| Error msg -> EvalError(msg, snd pair) |> Error
+let toList =
+    function
+    | SEmpty, _ -> Ok []
+    | SPair _, _ as pair ->
+        match loopListInfo pair pair 0I [] with
+        | Ok(l, _) -> Ok l
+        | Error msg -> EvalError(msg, snd pair) |> Error
+    | _, pos -> EvalError("not a proper list.", pos) |> Error
 ```
 
 ### Pitfall
@@ -353,19 +359,11 @@ If a datum label definition is embedded inside a `SPromise`, `SParameter`, or ot
 
 ### Symptom
 
-After a Scheme error in the REPL, `dynamic-wind` guards, exception handlers, and the current ports are reset.
+After a Scheme error, `dynamic-wind` guards, exception handlers, and the current ports are reset.
 
 ### Root Cause
 
-`Repl.fs`:
-
-```fsharp
-|> Result.defaultWith (fun e ->
-    context |> Context.reset
-    ...)
-```
-
-`Context.reset` replaces `winders` with `[]`, restores `handlers` to `initialHandlers`, and replaces `ports` with `defaultPorts` (the console input/output/error ports). This prevents accumulated state from leaking between REPL inputs.
+`Context.reset` (`Context.fs`) replaces `winders` with `[]`, restores `handlers` to `initialHandlers`, and replaces `ports` with `defaultPorts` (the console input/output/error ports). This is called by built-in procedures that raise errors (e.g., `raise`, `error`) to prevent accumulated state from leaking between evaluations.
 
 ### Pitfall
 

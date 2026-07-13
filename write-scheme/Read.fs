@@ -169,19 +169,24 @@ module Read =
                       (pchar '.')
                       (pDigit |> many1Chars)
                       pDecimalSuffixOpt
-                      (fun c1 s2 _ s4 s5 -> $"{c1}{s2}.{s4}{s5}" |> System.Double.Parse)
+                      (fun c1 s2 _ s4 s5 ->
+                          $"{c1}{s2}.{s4}{s5}"
+                          |> fun s -> System.Double.Parse(s, System.Globalization.CultureInfo.InvariantCulture))
               )
               attempt (
                   pipe4 pSign (pDigit |> many1Chars) (pchar '.') pDecimalSuffixOpt (fun c1 s2 _ s4 ->
-                      $"{c1}{s2}{s4}" |> System.Double.Parse)
+                      $"{c1}{s2}{s4}"
+                      |> fun s -> System.Double.Parse(s, System.Globalization.CultureInfo.InvariantCulture))
               )
               attempt (
                   pipe4 pSign (pchar '.') (pDigit |> many1Chars) pDecimalSuffixOpt (fun c1 _ s3 s4 ->
-                      $"{c1}0.{s3}{s4}" |> System.Double.Parse)
+                      $"{c1}0.{s3}{s4}"
+                      |> fun s -> System.Double.Parse(s, System.Globalization.CultureInfo.InvariantCulture))
               )
               attempt (
                   pipe3 pSign (pDigit |> many1Chars) pDecimalSuffix (fun c1 s2 s3 ->
-                      $"{c1}{s2}{s3}" |> System.Double.Parse)
+                      $"{c1}{s2}{s3}"
+                      |> fun s -> System.Double.Parse(s, System.Globalization.CultureInfo.InvariantCulture))
               ) ]
 
     let pRealDouble =

@@ -178,7 +178,7 @@ module Type =
         if System.Double.IsInfinity r || System.Double.IsNaN r then
             SReal r
         else
-            let s = $"{r:g17}"
+            let s = r.ToString("g17", System.Globalization.CultureInfo.InvariantCulture)
 
             let res =
                 if s.Contains '.' || s.Contains 'e' || s.Contains 'E' then

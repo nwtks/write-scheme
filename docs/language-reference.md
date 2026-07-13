@@ -450,8 +450,8 @@ Local macro bindings.
 
 | Procedure | Description |
 |-----------|-------------|
-| `(eqv? a b)` | Equivalent objects (natively uses physical equality for pairs, vectors, bytevectors, continuations, and procedures)
-| `(eq? a b)` | Object identity (currently as ` `eqv?` in this implementation)
+| `(eqv? a b)` | Equivalent objects (uses physical equality for pairs, vectors, bytevectors, continuations, and procedures) |
+| `(eq? a b)` | Object identity (current alias for `eqv?` in this implementation) |
 | `(equal? a b)` | Structural equality (recursively compares pairs and vectors) |
 
 ### 4.2 Numeric Operations
@@ -791,7 +791,7 @@ R7RS library system with `define-library` and `import`.
 ### 6.2 Import Forms
 
 ```scheme
-(import (scheme base))                          ; full import
+(import (scheme base))                         ; full import
 (import (only (scheme base) car cdr))          ; selective import
 (import (except (scheme base) set!))           ; import with exclusion
 (import (prefix (scheme base) 'base:))         ; prefix all names
