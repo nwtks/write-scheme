@@ -40,6 +40,58 @@ let ``load`` () =
     |> should startWith "'(\"test.scm\" \"not-an-environment\")' invalid load parameter."
 
 [<Fact>]
+let ``file-exists?`` () =
+    let tmp = System.IO.Path.GetTempFileName()
+
+    try
+        let rep = newRep ()
+        $"(file-exists? \"{tmp}\")" |> rep |> should equal "#t"
+    finally
+        System.IO.File.Delete tmp
+
+    "(file-exists? \"/nonexistent-file-that-does-not-exist-xyz\")"
+    |> rep
+    |> should equal "#f"
+
+    "(file-exists? 1)"
+    |> rep
+    |> should startWith "'(1)' invalid file-exists? parameter"
+
+    "(file-exists?)"
+    |> rep
+    |> should startWith "'()' invalid file-exists? parameter"
+
+    "(file-exists? \"a\" \"b\")"
+    |> rep
+    |> should startWith "'(\"a\" \"b\")' invalid file-exists? parameter"
+
+[<Fact>]
+let ``delete-file`` () =
+    let tmp = System.IO.Path.GetTempFileName()
+
+    try
+        let rep = newRep ()
+        $"(delete-file \"{tmp}\")" |> rep |> should equal "#<unspecified>"
+        System.IO.File.Exists tmp |> should equal false
+    finally
+        if System.IO.File.Exists tmp then
+            System.IO.File.Delete tmp
+
+    "(delete-file \"/nonexistent-file-that-does-not-exist-xyz\")"
+    |> rep
+    |> should haveSubstring "delete-file: file not found"
+
+    "(delete-file 1)"
+    |> rep
+    |> should startWith "'(1)' invalid delete-file parameter"
+
+    "(delete-file)" |> rep |> should startWith "'()' invalid delete-file parameter"
+
+    "(delete-file \"a\" \"b\")"
+    |> rep
+    |> should startWith "'(\"a\" \"b\")' invalid delete-file parameter"
+
+[<Fact>]
 let ``command-line`` () =
     let repNoArgs = newRep ()
     "(command-line)" |> repNoArgs |> should equal "()"

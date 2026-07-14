@@ -299,6 +299,8 @@ module Builtin =
           "write-bytevector", (SProcedure sWriteBytevector, None) |> ref
           "flush-output-port", (SProcedure sFlushOutputPort, None) |> ref
           "load", (SProcedure sLoad, None) |> ref
+          "file-exists?", (SProcedure isFileExists, None) |> ref
+          "delete-file", (SProcedure sDeleteFile, None) |> ref
           "command-line", (SProcedure sCommandLine, None) |> ref
           "exit", (SProcedure sExit, None) |> ref
           "emergency-exit", (SProcedure sEmergencyExit, None) |> ref

@@ -23,6 +23,29 @@ module SystemInterface =
             |> cont
         | x -> x |> invalidParameter pos "'%s' invalid load parameter." |> cont
 
+    let isFileExists context pos cont =
+        function
+        | [ SString f, _ ] ->
+            let path = f.runes |> runesToString
+            (System.IO.File.Exists path |> toSBool, pos) |> Ok |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid file-exists? parameter." |> cont
+
+    let sDeleteFile context pos cont =
+        function
+        | [ SString f, _ ] ->
+            let path = f.runes |> runesToString
+
+            if System.IO.File.Exists path then
+                System.IO.File.Delete path
+                (SUnspecified, pos) |> Ok |> cont
+            else
+                let msg =
+                    { runes = (sprintf "delete-file: file not found: %s" path).EnumerateRunes() |> Seq.toArray
+                      isImmutable = false }
+
+                SchemeRaise((SError(FileError, msg, []), pos), pos) |> Error |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid delete-file parameter." |> cont
+
     let sCommandLine context pos cont =
         function
         | [] ->
