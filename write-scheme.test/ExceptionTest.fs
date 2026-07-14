@@ -82,6 +82,46 @@ let ``with-exception-handler`` () =
     |> should startWith "'(1)' invalid with-exception-handler parameter"
 
 [<Fact>]
+let ``raise`` () =
+    let rep = newRep ()
+
+    "(with-exception-handler
+       (lambda (e) (+ e 10))
+       (lambda () (raise 1)))"
+    |> rep
+    |> should startWith "Exception handler returned."
+
+    "(raise)" |> rep |> should startWith "'()' invalid raise parameter"
+    "(raise 1 2)" |> rep |> should startWith "'(1 2)' invalid raise parameter"
+
+[<Fact>]
+let ``raise-continuable`` () =
+    let rep = newRep ()
+
+    "(with-exception-handler
+       (lambda (e) (+ e 10))
+       (lambda () (raise-continuable 1)))"
+    |> rep
+    |> should equal "11"
+
+    "(call-with-values
+       (lambda ()
+         (with-exception-handler
+           (lambda (e) (values 'a 'b))
+           (lambda () (raise-continuable 'err))))
+       list)"
+    |> rep
+    |> should equal "(a b)"
+
+    "(raise-continuable)"
+    |> rep
+    |> should startWith "'()' invalid raise-continuable parameter"
+
+    "(raise-continuable 1 2)"
+    |> rep
+    |> should startWith "'(1 2)' invalid raise-continuable parameter"
+
+[<Fact>]
 let ``error`` () =
     let rep = newRep ()
 
@@ -123,41 +163,29 @@ let ``error-object?`` () =
     |> should startWith "'(1)' invalid error-object-irritants parameter"
 
 [<Fact>]
-let ``raise`` () =
+let ``read-error?`` () =
     let rep = newRep ()
 
-    "(with-exception-handler
-       (lambda (e) (+ e 10))
-       (lambda () (raise 1)))"
+    "(read-error? (guard (e (else e)) (read (open-input-string \")\"))))"
     |> rep
-    |> should startWith "Exception handler returned."
+    |> should equal "#t"
 
-    "(raise)" |> rep |> should startWith "'()' invalid raise parameter"
-    "(raise 1 2)" |> rep |> should startWith "'(1 2)' invalid raise parameter"
+    "(read-error? 42)" |> rep |> should equal "#f"
+
+    "(read-error? 1 2)"
+    |> rep
+    |> should startWith "'(1 2)' invalid read-error? parameter"
 
 [<Fact>]
-let ``raise-continuable`` () =
+let ``file-error?`` () =
     let rep = newRep ()
 
-    "(with-exception-handler
-       (lambda (e) (+ e 10))
-       (lambda () (raise-continuable 1)))"
+    "(file-error? (guard (e (else e)) (open-input-file \"/nonexistent/path/12345\")))"
     |> rep
-    |> should equal "11"
+    |> should equal "#t"
 
-    "(call-with-values
-       (lambda ()
-         (with-exception-handler
-           (lambda (e) (values 'a 'b))
-           (lambda () (raise-continuable 'err))))
-       list)"
-    |> rep
-    |> should equal "(a b)"
+    "(file-error? 42)" |> rep |> should equal "#f"
 
-    "(raise-continuable)"
+    "(file-error? 1 2)"
     |> rep
-    |> should startWith "'()' invalid raise-continuable parameter"
-
-    "(raise-continuable 1 2)"
-    |> rep
-    |> should startWith "'(1 2)' invalid raise-continuable parameter"
+    |> should startWith "'(1 2)' invalid file-error? parameter"

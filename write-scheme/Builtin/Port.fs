@@ -65,7 +65,11 @@ module Port =
                     |> SPort
                     |> fun p -> (p, pos) |> Ok |> cont
                 with :? System.IO.IOException as ex ->
-                    EvalError($"{name}: {ex.Message}", pos) |> Error |> cont
+                    let msg =
+                        { runes = $"{name}: {ex.Message}".EnumerateRunes() |> Seq.toArray
+                          isImmutable = false }
+
+                    SchemeRaise((SError(FileError, msg, []), pos), pos) |> Error |> cont
             | x -> x |> invalidParameter pos fmt |> cont
 
     let callWithFileProc name direction =
@@ -85,7 +89,11 @@ module Port =
 
                     proc |> Eval.apply context closeAndCont [ SPort port, pos ]
                 with :? System.IO.IOException as ex ->
-                    EvalError($"{name}: {ex.Message}", pos) |> Error |> cont
+                    let msg =
+                        { runes = $"{name}: {ex.Message}".EnumerateRunes() |> Seq.toArray
+                          isImmutable = false }
+
+                    SchemeRaise((SError(FileError, msg, []), pos), pos) |> Error |> cont
             | x -> x |> invalidParameter pos fmt |> cont
 
     let withFileProc name makePort direction =
@@ -113,7 +121,11 @@ module Port =
 
                     proc |> Eval.apply context (restore cont) []
                 with :? System.IO.IOException as ex ->
-                    EvalError($"{name}: {ex.Message}", pos) |> Error |> cont
+                    let msg =
+                        { runes = $"{name}: {ex.Message}".EnumerateRunes() |> Seq.toArray
+                          isImmutable = false }
+
+                    SchemeRaise((SError(FileError, msg, []), pos), pos) |> Error |> cont
             | x -> x |> invalidParameter pos fmt |> cont
 
     let closePortProc name : SProcedureKind =
@@ -328,8 +340,18 @@ module Port =
         else
             match Read.read false (line |> runesToString) with
             | Ok e -> e |> Ok |> cont
-            | Error(ParseError(msg, _)) -> EvalError(msg, pos) |> Error |> cont
-            | Error _ -> EvalError("read error", pos) |> Error |> cont
+            | Error(ParseError(msg, _)) ->
+                let sMsg =
+                    { runes = msg.EnumerateRunes() |> Seq.toArray
+                      isImmutable = false }
+
+                SchemeRaise((SError(ReadError, sMsg, []), pos), pos) |> Error |> cont
+            | Error _ ->
+                let sMsg =
+                    { runes = "read error".EnumerateRunes() |> Seq.toArray
+                      isImmutable = false }
+
+                SchemeRaise((SError(ReadError, sMsg, []), pos), pos) |> Error |> cont
 
     let sRead =
         inputPortProc "read" (fun _ pos cont p ->

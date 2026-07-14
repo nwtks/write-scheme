@@ -15,7 +15,7 @@ module DatumLabel =
         | SVector v, _ -> v |> Array.toList
         | SRecord(_, _, fields), _ -> fields |> Array.toList |> List.map (fun f -> f.Value)
         | SValues args, _
-        | SError(_, args), _ -> args
+        | SError(_, _, args), _ -> args
         | SQuote d, _
         | SQuasiquote d, _
         | SUnquote d, _
@@ -71,9 +71,9 @@ module DatumLabel =
                 (fun i -> fields.[i].Value)
                 (fun i r -> fields.[i].Value <- r)
                 (fun () -> Ok(SRecord(id, name, fields), pos) |> next)
-        | SError(msg, args), pos ->
+        | SError(errorType, msg, args), pos ->
             args
-            |> resolveDatumRefList labels [] (fun resolved -> Ok(SError(msg, resolved), pos) |> next)
+            |> resolveDatumRefList labels [] (fun resolved -> Ok(SError(errorType, msg, resolved), pos) |> next)
         | SValues args, pos ->
             args
             |> resolveDatumRefList labels [] (fun resolved -> Ok(SValues resolved, pos) |> next)

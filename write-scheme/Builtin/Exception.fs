@@ -96,24 +96,37 @@ module Exception =
 
     let sError context pos cont =
         function
-        | (SString message, _) :: irritants -> [ SError(message, irritants), pos ] |> sRaise context pos cont
+        | (SString message, _) :: irritants ->
+            [ SError(GenericError, message, irritants), pos ] |> sRaise context pos cont
         | x -> x |> invalidParameter pos "'%s' invalid error parameter." |> cont
 
     let isErrorObject context pos cont =
         function
-        | [ SError _, _ ] -> Ok(STrue, pos) |> cont
+        | [ SError(_, _, _), _ ] -> Ok(STrue, pos) |> cont
         | [ _ ] -> Ok(SFalse, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid error-object? parameter." |> cont
 
     let sErrorObjectMessage context pos cont =
         function
-        | [ SError(message, _), _ ] -> Ok(SString message, pos) |> cont
+        | [ SError(_, message, _), _ ] -> Ok(SString message, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid error-object-message parameter." |> cont
 
     let sErrorObjectIrritants context pos cont =
         function
-        | [ SError(_, irritants), _ ] -> irritants |> toSPair |> Ok |> cont
+        | [ SError(_, _, irritants), _ ] -> irritants |> toSPair |> Ok |> cont
         | x ->
             x
             |> invalidParameter pos "'%s' invalid error-object-irritants parameter."
             |> cont
+
+    let isReadError context pos cont =
+        function
+        | [ SError(ReadError, _, _), _ ] -> Ok(STrue, pos) |> cont
+        | [ _ ] -> Ok(SFalse, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid read-error? parameter." |> cont
+
+    let isFileError context pos cont =
+        function
+        | [ SError(FileError, _, _), _ ] -> Ok(STrue, pos) |> cont
+        | [ _ ] -> Ok(SFalse, pos) |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid file-error? parameter." |> cont

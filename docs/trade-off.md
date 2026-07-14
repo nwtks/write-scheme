@@ -553,6 +553,48 @@ The `Option` was eliminated because the complexity overhead (wrapping/unwrapping
 
 ---
 
+## 22. ErrorType Discriminator in SError
+
+### Problem
+
+`read-error?` and `file-error?` (R7RS) require distinguishing different categories of Scheme errors. Originally, `SError` had no type tag:
+
+```fsharp
+| SError of SStringData * SExpression list  // message * irritants
+```
+
+Without a discriminator, there was no way to ask "is this error a read error?" from user code.
+
+### Solution
+
+Added an `ErrorType` discriminated union:
+
+```fsharp
+type ErrorType = GenericError | ReadError | FileError
+```
+
+Changed `SError` to a 3-field variant:
+
+```fsharp
+| SError of ErrorType * SStringData * SExpression list
+```
+
+All existing error sites use `GenericError`. The `read` and file I/O procedures now construct `SError(ReadError, ...)` / `SError(FileError, ...)` and raise them through `SchemeRaise` (instead of `EvalError`/`ParseError`), so that `guard` can catch them as error objects.
+
+### Trade-off
+
+| Aspect | Type tag (this choice) | Polymorphic variants |
+|--------|----------------------|---------------------|
+| Pattern matching | ✅ Simple, exhaustive | ❌ Requires open type + match |
+| Adding new error types | ✅ Add case to `ErrorType` | ✅ Add variant |
+| Compiler exhaustiveness | ✅ F# warns on incomplete matches | ⚠️ Optional |
+| Code churn | ⚠️ Existing `SError` patterns must add `GenericError` | ⚠️ Similar |
+
+### See also
+
+- [R7RS § 9.3 (syntax)] Error predicates
+- `docs/gotchas.md` #16 for assertion patterns when testing SError-based errors
+
 ## 21. StringReader/StringWriter Ports vs Class Hierarchy
 
 ### Context

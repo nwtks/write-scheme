@@ -7,6 +7,11 @@ module Type =
         { runes: System.Text.Rune array
           isImmutable: bool }
 
+    type ErrorType =
+        | GenericError
+        | ReadError
+        | FileError
+
     [<ReferenceEquality>]
     type SExpressionKind =
         | SUnspecified
@@ -24,7 +29,7 @@ module Type =
         | SByteVector of byte array
         | SValues of SExpression list
         | SRecord of typeId: int * typeName: string * fields: SExpression ref array
-        | SError of SStringData * SExpression list
+        | SError of ErrorType * SStringData * SExpression list
         | SQuote of SExpression
         | SQuasiquote of SExpression
         | SUnquote of SExpression

@@ -566,5 +566,6 @@ module Macro =
 
     let sSyntaxError context pos cont =
         function
-        | (SString message, _) :: irritants -> Error(SchemeRaise((SError(message, irritants), pos), pos)) |> cont
+        | (SString message, _) :: irritants ->
+            Error(SchemeRaise((SError(GenericError, message, irritants), pos), pos)) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid syntax-error parameter." |> cont

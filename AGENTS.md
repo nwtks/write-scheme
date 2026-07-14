@@ -112,5 +112,6 @@ See [`docs/trade-off.md#14-autoopen-modules-in-builtin-vs-explicit-imports`](doc
 ### Assertion patterns
 
 - Use `should equal` for result comparison (string output from the printer).
-- Error messages are verified with `should startWith "..."` because source position is appended at the end.
+- **EvalError messages** are verified with `should startWith "..."` because source position is appended at the end.
+- **SError-based errors** (from `read-error?`/`file-error?` etc.) print as `#<error "...">` objects — use `should haveSubstring "..."` for these.
 - Results are always compared as strings — the REPL returns `Print.print` output.

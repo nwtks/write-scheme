@@ -198,7 +198,7 @@ module Print =
         | SRecord(_, _, fields), _ -> Some(fields :> obj)
         | SString data, _ -> Some(data :> obj)
         | SByteVector bv, _ -> Some(bv :> obj)
-        | SError(_, irritants), _ -> Some(irritants :> obj)
+        | SError(_, _, irritants), _ -> Some(irritants :> obj)
         | _ -> None
 
     let getExprChildren =
@@ -207,7 +207,7 @@ module Print =
         | SVector xs, _ -> Array.toList xs
         | SValues xs, _ -> xs
         | SRecord(_, _, fields), _ -> fields |> Array.toList |> List.map (fun f -> f.Value)
-        | SError(_, irritants), _ -> irritants
+        | SError(_, _, irritants), _ -> irritants
         | SQuote d, _
         | SQuasiquote d, _
         | SUnquote d, _
@@ -405,7 +405,7 @@ module Print =
                 (xs :> obj)
                 (fun label emitted' -> xs |> formatValues labelMap emitted' visited next (Some label))
                 (fun () emitted' -> xs |> formatValues labelMap emitted' visited next None)
-        | SError(msg, irritants), _ ->
+        | SError(_, msg, irritants), _ ->
             emitLabelDispatch
                 labelMap
                 emitted

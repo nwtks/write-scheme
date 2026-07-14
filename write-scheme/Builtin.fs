@@ -240,6 +240,8 @@ module Builtin =
           "error-object?", (SProcedure isErrorObject, None) |> ref
           "error-object-message", (SProcedure sErrorObjectMessage, None) |> ref
           "error-object-irritants", (SProcedure sErrorObjectIrritants, None) |> ref
+          "read-error?", (SProcedure isReadError, None) |> ref
+          "file-error?", (SProcedure isFileError, None) |> ref
           "force", (SProcedure sForce, None) |> ref
           "promise?", (SProcedure isPromise, None) |> ref
           "make-promise", (SProcedure sMakePromise, None) |> ref

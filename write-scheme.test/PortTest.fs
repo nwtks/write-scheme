@@ -58,7 +58,7 @@ let ``call-with-input-file`` () =
 
         $"(call-with-input-file \"{tmp}\" (lambda (p) (read-char p)))"
         |> rep
-        |> should startWith "call-with-input-file: Could not find file"
+        |> should haveSubstring "call-with-input-file: Could not find file"
     finally
         ()
 
@@ -211,7 +211,7 @@ let ``with-input-from-file`` () =
 
         $"(with-input-from-file \"{tmp}\" (lambda () #f))"
         |> rep
-        |> should startWith "with-input-from-file: Could not find file"
+        |> should haveSubstring "with-input-from-file: Could not find file"
     finally
         ()
 
@@ -282,7 +282,7 @@ let ``open-input-file`` () =
 
         $"(open-input-file \"{tmp}\")"
         |> rep
-        |> should startWith "open-input-file: Could not find file"
+        |> should haveSubstring "open-input-file: Could not find file"
     finally
         ()
 
@@ -360,7 +360,7 @@ let ``open-binary-input-file`` () =
 
         $"(open-binary-input-file \"{tmp}\")"
         |> rep
-        |> should startWith "open-binary-input-file: Could not find file"
+        |> should haveSubstring "open-binary-input-file: Could not find file"
     finally
         ()
 
@@ -528,7 +528,7 @@ let ``read`` () =
     "(read (open-input-string \"(a b c)\"))" |> rep |> should equal "(a b c)"
     "(read (open-input-bytevector #u8(65)))" |> rep |> should equal "#!eof"
 
-    "(read (open-input-string \")\"))" |> rep |> should startWith "Error"
+    "(read (open-input-string \")\"))" |> rep |> should haveSubstring "Error in Ln"
 
 [<Fact>]
 let ``read-char`` () =

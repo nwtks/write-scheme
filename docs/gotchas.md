@@ -396,7 +396,7 @@ The `| _ -> failwith "unreachable."` branch is hit only if there's a bug in `rai
 
 ---
 
-## 16. Error Message Testing Must Use `should startWith`
+## 16. Error Message Testing Must Use `should startWith` (or `should haveSubstring` for SError-based errors)
 
 ### Symptom
 
@@ -418,6 +418,28 @@ let formatPosition =
     | Some pos -> sprintf " (at line %d, column %d)" pos.line pos.column
     | None -> ""
 ```
+
+### Caveat: `SError`-based errors (read-error?, file-error?)
+
+Errors raised via `SchemeRaise` with an `SError` object (e.g., `read-error?` and `file-error?` predicates) print as formatted objects rather than plain error messages. The REPL output looks like:
+
+```
+#<error "message" irritant1 irritant2> (at line 1, column 5)
+```
+
+For these errors, use `should haveSubstring` to match a portion of the message:
+
+```fsharp
+"(read (open-input-string \")\"))" |> rep |> should haveSubstring "Error in Ln"
+"(open-input-file \"/nonexistent\")" |> rep |> should haveSubstring "Could not find file"
+```
+
+### Decision rule
+
+| Error source | Assertion pattern | Example prefix |
+|-------------|-------------------|----------------|
+| `EvalError` (most builtins) | `should startWith` | `"'()' invalid"` |
+| `SchemeRaise(SError(...))` (file/read errors) | `should haveSubstring` | `"#<error"` or `"Could not find"` |
 
 So the actual output is `"'()' invalid bad parameter (at line 1, column 4)"`.
 
