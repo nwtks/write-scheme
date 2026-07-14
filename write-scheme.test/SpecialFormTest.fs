@@ -6,7 +6,7 @@ open FsUnit.Xunit
 let rep = WriteScheme.Repl.rep WriteScheme.Builtin.builtinContext
 
 let newRep () =
-    WriteScheme.Repl.newContext () |> WriteScheme.Repl.rep
+    WriteScheme.Repl.newContext [] |> WriteScheme.Repl.rep
 
 [<Fact>]
 let quote () =

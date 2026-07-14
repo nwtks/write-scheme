@@ -76,15 +76,3 @@ module Core =
         function
         | [ x; y ] -> Ok([ x, y ] |> loopEqual [] |> toSBool, pos) |> cont
         | x -> x |> invalidParameter pos "'%s' invalid equal? parameter." |> cont
-
-    let readAndEvalFile context f p =
-        readAndResolveInclude false f p
-        |> Result.bind (fun exprs' -> exprs' |> mapResult (Eval.eval context id))
-
-    let sLoad context pos cont =
-        function
-        | [ SString f, p ] ->
-            readAndEvalFile context f p
-            |> Result.map (fun _ -> f.runes |> runesToString |> (fun s -> $"Loaded '{s}'.") |> SSymbol, pos)
-            |> cont
-        | x -> x |> invalidParameter pos "'%s' invalid load parameter." |> cont

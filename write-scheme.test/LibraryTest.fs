@@ -7,7 +7,7 @@ let evalAll input =
     match input |> WriteScheme.Read.readAll false with
     | Ok exprs ->
         exprs
-        |> WriteScheme.Eval.eachEval (WriteScheme.Repl.newContext ()) id (Ok(WriteScheme.Type.SUnspecified, None))
+        |> WriteScheme.Eval.eachEval (WriteScheme.Repl.newContext []) id (Ok(WriteScheme.Type.SUnspecified, None))
     | Error _ -> failwith "Parse failed"
 
 let check input expected =

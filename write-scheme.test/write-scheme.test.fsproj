@@ -29,7 +29,9 @@
     <Compile Include="VectorTest.fs" />
     <Compile Include="ByteVectorTest.fs" />
     <Compile Include="ProcedureTest.fs" />
+    <Compile Include="EnvironmentTest.fs" />
     <Compile Include="PortTest.fs" />
+    <Compile Include="SystemInterfaceTest.fs" />
     <Compile Include="DynamicWindTest.fs" />
   </ItemGroup>
 

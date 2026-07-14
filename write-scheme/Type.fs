@@ -37,6 +37,7 @@ module Type =
         | SSyntax of SProcedureKind
         | SProcedure of SProcedureKind
         | SContinuation of SContinuation
+        | SEnvironment of Environment
 
     and SExpression = SExpressionKind * Position option
 
@@ -75,7 +76,8 @@ module Type =
           mutable ports: PortSet
           winders: Winder list ref
           nextWinderId: int ref
-          handlers: SExpression list ref }
+          handlers: SExpression list ref
+          commandLineArgs: string list }
 
     and Environment = Map<string, SExpression ref> ref
 

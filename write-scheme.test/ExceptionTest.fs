@@ -4,7 +4,7 @@ open Xunit
 open FsUnit.Xunit
 
 let newRep () =
-    WriteScheme.Repl.newContext () |> WriteScheme.Repl.rep
+    WriteScheme.Repl.newContext [] |> WriteScheme.Repl.rep
 
 [<Fact>]
 let ``guard`` () =

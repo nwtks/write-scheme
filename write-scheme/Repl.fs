@@ -21,10 +21,11 @@ module Repl =
             | EvalError(msg, pos) -> $"{msg}{pos |> formatPosition}"
             | SchemeRaise(expr, pos) -> $"{expr |> Print.print}{pos |> formatPosition}")
 
-    let newContext () =
+    let newContext argv =
         let context = Builtin.builtinContext
 
         { context with
+            commandLineArgs = argv
             environments = (Map.empty |> ref) :: context.environments
             winders = ref []
             handlers = ref Context.initialHandlers

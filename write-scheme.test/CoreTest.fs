@@ -132,34 +132,3 @@ let ``equal?`` () =
     "(equal? (values 1 2) (values 1 2))"
     |> rep
     |> should startWith "Multiple values in single value context."
-
-[<Fact>]
-let ``load`` () =
-    let tmp = System.IO.Path.GetTempFileName()
-
-    let newRep () =
-        WriteScheme.Repl.newContext () |> WriteScheme.Repl.rep
-
-    try
-        System.IO.File.WriteAllText(tmp, "(define x 42) (+ x 1)")
-        let rep = newRep ()
-        let result = $"(load \"{tmp}\")" |> rep
-        result |> should haveSubstring "Loaded"
-        "(+ x 1)" |> rep |> should equal "43"
-    finally
-        System.IO.File.Delete tmp
-
-[<Fact>]
-let ``load file not found`` () =
-    let newRep () =
-        WriteScheme.Repl.newContext () |> WriteScheme.Repl.rep
-
-    let tmp = System.IO.Path.GetTempFileName()
-
-    try
-        System.IO.File.Delete tmp
-        let rep = newRep ()
-        let result = $"(load \"{tmp}\")" |> rep
-        result |> should startWith "File not found:"
-    finally
-        ()

@@ -244,6 +244,7 @@ module Builtin =
           "promise?", (SProcedure isPromise, None) |> ref
           "make-promise", (SProcedure sMakePromise, None) |> ref
           "make-parameter", (SProcedure sMakeParameter, None) |> ref
+          "environment", (SSyntax sEnvironment, None) |> ref
           "call-with-port", (SProcedure sCallWithPort, None) |> ref
           "call-with-input-file", (SProcedure sCallWithInputFile, None) |> ref
           "call-with-output-file", (SProcedure sCallWithOutputFile, None) |> ref
@@ -295,7 +296,12 @@ module Builtin =
           "write-u8", (SProcedure sWriteU8, None) |> ref
           "write-bytevector", (SProcedure sWriteBytevector, None) |> ref
           "flush-output-port", (SProcedure sFlushOutputPort, None) |> ref
-          "load", (SProcedure sLoad, None) |> ref ]
+          "load", (SProcedure sLoad, None) |> ref
+          "command-line", (SProcedure sCommandLine, None) |> ref
+          "exit", (SProcedure sExit, None) |> ref
+          "emergency-exit", (SProcedure sEmergencyExit, None) |> ref
+          "get-environment-variable", (SProcedure sGetEnvironmentVariable, None) |> ref
+          "get-environment-variables", (SProcedure sGetEnvironmentVariables, None) |> ref ]
 
     let builtinContext =
         let schemeBaseName =
@@ -314,5 +320,45 @@ module Builtin =
         |> Seq.map (fun k -> k, k)
         |> Map.ofSeq
         |> Context.registerLibrary builtinCtx schemeBaseName builtinCtx.environments.Head
+
+        let schemeEvalName =
+            SPair
+                { car = SSymbol "scheme", None
+                  cdr =
+                    SPair
+                        { car = SSymbol "eval", None
+                          cdr = SEmpty, None },
+                    None },
+            None
+
+        let evalExports =
+            [ "environment" ]
+            |> List.filter (fun k -> builtinCtx.environments.Head.Value.ContainsKey k)
+            |> List.map (fun k -> k, k)
+            |> Map.ofSeq
+
+        Context.registerLibrary builtinCtx schemeEvalName builtinCtx.environments.Head evalExports
+
+        let schemeProcessContextName =
+            SPair
+                { car = SSymbol "scheme", None
+                  cdr =
+                    SPair
+                        { car = SSymbol "process-context", None
+                          cdr = SEmpty, None },
+                    None },
+            None
+
+        let processContextExports =
+            [ "command-line"
+              "exit"
+              "emergency-exit"
+              "get-environment-variable"
+              "get-environment-variables" ]
+            |> List.filter (fun k -> builtinCtx.environments.Head.Value.ContainsKey k)
+            |> List.map (fun k -> k, k)
+            |> Map.ofSeq
+
+        Context.registerLibrary builtinCtx schemeProcessContextName builtinCtx.environments.Head processContextExports
 
         builtinCtx

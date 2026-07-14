@@ -35,6 +35,8 @@
     <Compile Include="Builtin/Vector.fs" />
     <Compile Include="Builtin/ByteVector.fs" />
     <Compile Include="Builtin/Procedure.fs" />
+    <Compile Include="Builtin/Environment.fs" />
+    <Compile Include="Builtin/SystemInterface.fs" />
     <Compile Include="Builtin.fs" />
     <Compile Include="Repl.fs" />
     <Compile Include="Program.fs" />

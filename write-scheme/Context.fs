@@ -50,7 +50,8 @@ module Context =
           ports = defaultPorts
           winders = ref []
           nextWinderId = ref 0
-          handlers = ref initialHandlers }
+          handlers = ref initialHandlers
+          commandLineArgs = [] }
 
     let reset context =
         context.winders.Value <- []

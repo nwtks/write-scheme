@@ -141,6 +141,7 @@ module Print =
         | SSyntax _, _ -> "#<syntax>"
         | SProcedure _, _ -> "#<procedure>"
         | SContinuation _, _ -> "#<continuation>"
+        | SEnvironment _, _ -> "#<environment>"
         | _ -> failwith "unreachable."
 
     let getWrapperPrefixAndInner =
@@ -176,7 +177,8 @@ module Print =
         | SPort _
         | SSyntax _
         | SProcedure _
-        | SContinuation _ -> true
+        | SContinuation _
+        | SEnvironment _ -> true
         | _ -> false
 
     let isQuoteLikeKind =
