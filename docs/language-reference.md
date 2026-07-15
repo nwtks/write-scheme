@@ -607,6 +607,8 @@ Local macro bindings.
 | `(error-object? obj)` | Is `obj` an error object? |
 | `(error-object-message err)` | Get error message |
 | `(error-object-irritants err)` | Get error irritants |
+| `(read-error? obj)` | Is `obj` a read error (raised by `read` on parse failure)? |
+| `(file-error? obj)` | Is `obj` a file error (raised by file I/O operations)? |
 
 ### 4.13 Lazy Evaluation
 
@@ -726,6 +728,13 @@ Local macro bindings.
 | `(with-input-from-file filename thunk)` | Set current input port to file, call thunk, restore |
 | `(with-output-to-file filename thunk)` | Set current output port to file, call thunk, restore |
 
+#### File System Operations
+
+| Procedure | Description |
+|-----------|-------------|
+| `(file-exists? filename)` | Returns `#t` if the file exists |
+| `(delete-file filename)` | Delete a file; raises `file-error` if not found |
+
 #### Special Values
 
 | Procedure | Description |
@@ -734,9 +743,17 @@ Local macro bindings.
 | `(eof-object? x)` | Returns `#t` if x is the EOF object |
 | `#!eof` | Literal EOF object syntax |
 
+### 4.16 Load and System Interface
+
 | Procedure | Description |
 |-----------|-------------|
 | `(load filename)` | Load and evaluate a file |
+| `(load filename environment)` | Load and evaluate a file in the given environment |
+| `(command-line)` | Returns the command-line arguments as a list of strings |
+| `(exit obj ...)` | Run dynamic-wind `after` thunks, then exit |
+| `(emergency-exit obj ...)` | Exit immediately without running winders |
+| `(get-environment-variable name)` | Returns the value of an environment variable, or `#f` |
+| `(get-environment-variables)` | Returns an alist of all environment variables |
 
 ---
 
@@ -797,6 +814,18 @@ R7RS library system with `define-library` and `import`.
 (import (prefix (scheme base) 'base:))         ; prefix all names
 (import (rename (scheme base) (car first)))    ; rename on import
 ```
+
+### 6.3 Built-in Libraries
+
+The interpreter registers three libraries in `Builtin.builtinContext`:
+
+| Library | Exports |
+|---------|---------|
+| `(scheme base)` | All bindings in `builtinBindings` (the full R7RS `(scheme base)` surface) |
+| `(scheme eval)` | `environment` |
+| `(scheme process-context)` | `command-line`, `exit`, `emergency-exit`, `get-environment-variable`, `get-environment-variables` |
+
+Other R7RS standard libraries (`(scheme file)`, `(scheme read)`, `(scheme write)`, `(scheme inexact)`, `(scheme cxr)`, `(scheme char)`, `(scheme r5rs)`, etc.) are not yet provided as separate libraries — their bindings are available through `(scheme base)` because every binding lives in a single global environment, and library separation is achieved purely through export filtering at registration time.
 
 ---
 

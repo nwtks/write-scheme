@@ -27,6 +27,7 @@ This document records design decisions, trade-offs, and their rationale.
 - [19. CPS Incompatibility with Ref Cells for Accumulation](#19-cps-incompatibility-with-ref-cells-for-accumulation)
 - [20. Option List Accumulator vs Plain List in `loopListInfo`](#20-option-list-accumulator-vs-plain-list-in-looplistinfo)
 - [21. StringReader/StringWriter Ports vs Class Hierarchy](#21-stringreaderstringwriter-ports-vs-class-hierarchy)
+- [22. ErrorType Discriminator in SError](#22-errortype-discriminator-in-serror)
 
 ---
 

@@ -21,7 +21,7 @@ This document records common mistakes, subtle pitfalls, and non-obvious behavior
 - [13. `collectDatum` Does Not Descend into `SSymbol`, `SString`, etc.](#13-collectdatum-does-not-descend-into-ssymbol-sstring-etc)
 - [14. `Context.reset` After Errors Clears Winders and Handlers](#14-contextreset-after-errors-clears-winders-and-handlers)
 - [15. `SchemeRaise` Bypasses Normal Continuation Chain](#15-schemeraise-bypasses-normal-continuation-chain)
-- [16. Error Message Testing Must Use `should startWith`](#16-error-message-testing-must-use-should-startwith)
+- [16. Error Message Testing: `should startWith` for `EvalError`, `should haveSubstring` for `SchemeRaise(SError ...)`](#16-error-message-testing-should-startwith-for-evalerror-should-havesubstring-for-schemeraiseserror-)
 - [17. `failwith "unreachable."` Guarded by Invariants Only](#17-failwith-unreachable-guarded-by-invariants-only)
 - [18. Macro Pattern Matching Overloads `matchOne` with Many Cases](#18-macro-pattern-matching-overloads-matchone-with-many-cases)
 - [19. Macro Ellipsis Matching: `EllipsisB` Groups Pattern Variables](#19-macro-ellipsis-matching-ellipsisb-groups-pattern-variables)
@@ -396,21 +396,21 @@ The `| _ -> failwith "unreachable."` branch is hit only if there's a bug in `rai
 
 ---
 
-## 16. Error Message Testing Must Use `should startWith` (or `should haveSubstring` for SError-based errors)
+## 16. Error Message Testing: `should startWith` for `EvalError`, `should haveSubstring` for `SchemeRaise(SError ...)`
 
 ### Symptom
 
 ```fsharp
-// ❌ This fails:
+// ❌ Fails — position suffix appended by REPL:
 "(bad)" |> rep |> should equal "'()' invalid bad parameter"
 
-// ✅ This works:
+// ✅ EvalError-based messages — position is appended at the end:
 "(bad)" |> rep |> should startWith "'()' invalid bad parameter"
 ```
 
 ### Root Cause
 
-The REPL appends source position information at the end of error messages via `formatPosition`:
+The REPL appends source position information at the end of `EvalError` messages via `formatPosition`:
 
 ```fsharp
 let formatPosition =
@@ -419,33 +419,24 @@ let formatPosition =
     | None -> ""
 ```
 
-### Caveat: `SError`-based errors (read-error?, file-error?)
+So the actual output is `"'()' invalid bad parameter (at line 1, column 4)"`.
 
-Errors raised via `SchemeRaise` with an `SError` object (e.g., `read-error?` and `file-error?` predicates) print as formatted objects rather than plain error messages. The REPL output looks like:
+### `SchemeRaise(SError ...)` Errors
 
-```
-#<error "message" irritant1 irritant2> (at line 1, column 5)
-```
-
-For these errors, use `should haveSubstring` to match a portion of the message:
+Errors raised via `SchemeRaise` with an `SError` object (`read-error?`, `file-error?`, `delete-file` file-not-found, etc.) print as `#<error "message" irritant ...>` rather than plain text. The position is still appended. Use `should haveSubstring` for these:
 
 ```fsharp
 "(read (open-input-string \")\"))" |> rep |> should haveSubstring "Error in Ln"
 "(open-input-file \"/nonexistent\")" |> rep |> should haveSubstring "Could not find file"
+"(delete-file \"/nonexistent\")" |> rep |> should haveSubstring "delete-file: file not found"
 ```
 
-### Decision rule
+### Decision Rule
 
-| Error source | Assertion pattern | Example prefix |
-|-------------|-------------------|----------------|
-| `EvalError` (most builtins) | `should startWith` | `"'()' invalid"` |
-| `SchemeRaise(SError(...))` (file/read errors) | `should haveSubstring` | `"#<error"` or `"Could not find"` |
-
-So the actual output is `"'()' invalid bad parameter (at line 1, column 4)"`.
-
-### Prevention
-
-Always use `should startWith` when asserting error messages. Never use `should equal` on error messages unless you also include the position suffix.
+| Error source | Assertion | Example |
+|-------------|-------------------|---------|
+| `EvalError` | `should startWith` | `"'()' invalid"` |
+| `SchemeRaise(SError ...)` | `should haveSubstring` | `"#<error"` or `"file not found"` |
 
 ---
 
@@ -578,12 +569,13 @@ This also means `dynamic-wind` has overhead even when no winders are active, bec
 
 ### Symptom
 
-`Repl.newContext()` creates a fresh REPL context but shares the library registry:
+`Repl.newContext argv` creates a fresh REPL context but shares the library registry:
 
 ```fsharp
-let newContext () =
+let newContext argv =
     let context = Builtin.builtinContext
     { context with
+        commandLineArgs = argv
         environments = (Map.empty |> ref) :: context.environments
         ... }
 ```
@@ -592,7 +584,7 @@ The `libraries` field is a `Map<string, Library> ref` and is **not** replaced �
 
 ### Pitfall
 
-`define-library` registers libraries into the shared `context.libraries` ref cell. Since `newContext` does not reset or copy it, libraries accumulate across REPL sessions if the same process runs multiple `newContext()` calls. This is usually fine, but a test that calls `newContext()` multiple times may see libraries from previous sessions.
+`define-library` registers libraries into the shared `context.libraries` ref cell. Since `newContext` does not reset or copy it, libraries accumulate across REPL sessions if the same process runs multiple `newContext` calls. This is usually fine, but a test that calls `newContext()` multiple times may see libraries from previous sessions.
 
 ---
 

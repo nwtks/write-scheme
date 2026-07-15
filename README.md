@@ -11,10 +11,13 @@ A R7RS (Small) Scheme interpreter written in F#. Features a Continuation-Passing
 - **Numeric tower**: exact integers and rationals (`bigint`-based), inexact reals (IEEE 754 double), complex numbers
 - **Library system**: R7RS `define-library` / `import` with set operations (`only`, `except`, `prefix`, `rename`)
 - **Record types**: R7RS `define-record-type`
-- **Exception system**: `raise`, `raise-continuable`, `with-exception-handler`, `guard`, `error`
+- **Exception system**: `raise`, `raise-continuable`, `with-exception-handler`, `guard`, `error`, `error-object?` / `error-object-message` / `error-object-irritants`, `read-error?`, `file-error?`
 - **Lazy evaluation**: `delay`, `delay-force`, `force`, `make-promise`
 - **Datum labels**: `#N=` / `#N#` for cyclic and shared structure
 - **I/O ports**: string ports, bytevector ports, file ports; R7RS I/O primitives
+- **File system**: `file-exists?`, `delete-file`
+- **System interface**: `load`, `command-line`, `exit`, `emergency-exit`, `get-environment-variable(s)`
+- **Standard libraries**: `(scheme base)`, `(scheme eval)`, `(scheme process-context)`
 
 ## Requirements
 

@@ -45,7 +45,7 @@ write-scheme/                     # Interpreter core (F# executable)
 │   ├── Macro.fs                  # syntax-rules hygienic macro engine
 │   ├── Record.fs                 # define-record-type implementation
 │   ├── Library.fs                # define-library / import set operations
-│   ├── Core.fs                   # eqv?, equal?, load
+│   ├── Core.fs                   # eqv?, equal?
 │   ├── Port.fs                   # String / bytevector / file ports; read/write/display I/O
 │   ├── Number.fs                 # SNumber type (NRational|NReal|NComplex) and unified arithmetic
 │   ├── Math.fs                   # Numeric tower operations
@@ -56,7 +56,9 @@ write-scheme/                     # Interpreter core (F# executable)
 │   ├── Str.fs                    # String operations
 │   ├── Vector.fs                 # Vector operations
 │   ├── ByteVector.fs             # Bytevector operations
-│   └── Procedure.fs              # apply, map, for-each, call/cc, dynamic-wind
+│   ├── Procedure.fs              # apply, map, for-each, call/cc, dynamic-wind
+│   ├── Environment.fs            # `environment` special form (R7RS `(scheme eval)`)
+│   └── SystemInterface.fs        # load, file-exists?, delete-file, command-line, exit, emergency-exit, get-environment-variable(s)
 ├── Builtin.fs                    # builtinBindings registry + builtinContext
 ├── Repl.fs                       # rep function + REPL loop
 ├── Program.fs                    # Entry point
@@ -76,7 +78,8 @@ Type.fs → Print.fs → Read.fs → DatumLabel.fs → Context.fs → Eval.fs
 → Builtin/Record.fs → Builtin/Library.fs → Builtin/Core.fs → Builtin/Port.fs
 → Builtin/Number.fs → Builtin/Math.fs → Builtin/Bool.fs → Builtin/List.fs
 → Builtin/Symbol.fs → Builtin/Char.fs → Builtin/Str.fs → Builtin/Vector.fs
-→ Builtin/ByteVector.fs → Builtin/Procedure.fs → Builtin.fs → Repl.fs → Program.fs
+→ Builtin/ByteVector.fs → Builtin/Procedure.fs → Builtin/Environment.fs
+→ Builtin/SystemInterface.fs → Builtin.fs → Repl.fs → Program.fs
 ```
 
 ---
@@ -167,7 +170,7 @@ The `Position option` carries source location information for error messages.
 | `SByteVector of byte array` | Bytevector | mutable byte array |
 | `SValues of SExpression list` | Multiple values | value list |
 | `SRecord of int * string * SExpression ref array` | Record type | typeId, typeName, fields |
-| `SError of SStringData * SExpression list` | Error object | message, irritants |
+| `SError of ErrorType * SStringData * SExpression list` | Error object | error category (`GenericError` / `ReadError` / `FileError`), message, irritants |
 | `SQuote of SExpression` | Quotation (reader syntax) | quoted expression |
 | `SQuasiquote of SExpression` | Quasiquotation | template |
 | `SUnquote of SExpression` | Unquote | expression |
@@ -180,6 +183,7 @@ The `Position option` carries source location information for error messages.
 | `SSyntax of SProcedureKind` | Special form | procedure |
 | `SProcedure of SProcedureKind` | Procedure | procedure |
 | `SContinuation of SContinuation` | First-class continuation | continuation function |
+| `SEnvironment of Environment` | First-class environment | used by `(scheme eval)` `environment` |
 
 ### 3.3 Context
 
@@ -194,7 +198,8 @@ type Context =
       mutable ports: PortSet                // current input/output/error ports
       winders: Winder list ref              // dynamic-wind stack
       nextWinderId: int ref                 // counter for winder IDs
-      handlers: SExpression list ref }      // exception handler stack
+      handlers: SExpression list ref      // exception handler stack
+      commandLineArgs: string list }      // command-line arguments (`(command-line)` procedure)
 ```
 
 `PortSet` groups three ports (`input`, `output`, `error`), each an `SPortData` record (`direction`, `isTextual`, mutable `isOpen`, optional `inputReader: TextReader`/`outputWriter: TextWriter`/`fileStream: Stream`/`filePath`). String ports back onto `System.IO.StringReader`/`StringWriter`, bytevector ports onto `MemoryStream`, and file ports onto `FileStream`. See [`docs/trade-off.md`](docs/trade-off.md) for the record-vs-class-hierarchy trade-off.
@@ -507,11 +512,13 @@ The largest file containing the implementation of all special forms:
 | `define-record-type` | `sDefineRecordType` (Record.fs) | Record type definition (R7RS) |
 | `define-library` | `sDefineLibrary` (Library.fs) | Library definition (R7RS) |
 | `import` | `sImport` (Library.fs) | Library import with set operations |
+| `environment` | `sEnvironment` (Environment.fs) | R7RS `(scheme eval)` environment constructor |
+
 ### 9.3 Procedure Categories
 
 | Category | File | Examples |
 |---|---|---|
-| Equivalence | `Core.fs`, `Helper.fs` | `eqv?`, `equal?` (Core); `invalid`, `mapResult` (Helper) |
+| Equivalence | `Core.fs`, `Helper.fs` | `eqv?`, `equal?` (Core); `invalid`, `invalidParameter`, `mapResult`, `wrapUnary`, `eqv`, `doWind` (Helper) |
 | Numeric | `Number.fs`, `Math.fs` | `SNumber` type and unified arithmetic in `Number.fs`; `+`, `-`, `*`, `/`, `sin`, `cos`, `gcd`, `quotient` in `Math.fs` |
 | Boolean | `Bool.fs` | `not`, `boolean?`, `boolean=?` |
 | List/Pair | `List.fs` | `cons`, `car`, `cdr`, `map`, `append`, `assoc` |
@@ -521,10 +528,12 @@ The largest file containing the implementation of all special forms:
 | Vector | `Vector.fs` | `vector?`, `vector-ref`, `vector->list` |
 | Bytevector | `ByteVector.fs` | `bytevector?`, `bytevector-u8-ref` |
 | Higher-order | `Procedure.fs` | `apply`, `map`, `for-each`, `call/cc`, `dynamic-wind` |
-| Exception | `Exception.fs` | `with-exception-handler`, `raise`, `error` |
+| Exception | `Exception.fs` | `with-exception-handler`, `raise`, `error`, `error-object?`, `error-object-message`, `error-object-irritants`, `read-error?`, `file-error?` |
 | Lazy evaluation | `Lazy.fs` | `force`, `promise?`, `make-promise` |
 | Dynamic binding | `DynamicBinding.fs` | `make-parameter`, `parameterize` |
 | I/O ports | `Port.fs` | `read`, `write`, `display`, `open-input-string`, `open-input-file`, `current-input-port`, `eof-object` |
+| Environment | `Environment.fs` | `environment` (R7RS `(scheme eval)`) |
+| System interface | `SystemInterface.fs` | `load`, `file-exists?`, `delete-file`, `command-line`, `exit`, `emergency-exit`, `get-environment-variable`, `get-environment-variables` |
 
 ### 9.4 Implementation Pattern
 
@@ -645,7 +654,9 @@ Cycle detection covers pairs, vectors, values, and error irritants (see [`docs/g
 
 ```fsharp
 // Program.fs — entry point
-"Welcome" |> repl (Repl.newContext ())
+let main argv =
+    "Welcome" |> repl (newContext (argv |> Array.toList))
+    0
 
 // Repl.fs — recursive REPL loop
 let rec repl context output =
@@ -670,19 +681,20 @@ let rep context =
 
 ### 12.2 Context Freshness
 
-`newContext()` creates a fresh context for each REPL session:
+`newContext argv` creates a fresh context for each REPL session:
 
 ```fsharp
-let newContext () =
+let newContext argv =
     let context = Builtin.builtinContext
     { context with
+        commandLineArgs = argv
         environments = (Map.empty |> ref) :: context.environments
         winders = ref []
         handlers = ref Context.initialHandlers
         nextWinderId = ref 0 }
 ```
 
-This starts with a fresh user environment on top of the built-in bindings. Note that `libraries` is **not** copied — it is inherited from `builtinContext` (which already has `(scheme base)` registered) and shared via the same `ref` cell.
+This starts with a fresh user environment on top of the built-in bindings, and forwards `argv` to the `(command-line)` procedure. Note that `libraries` is **not** copied — it is inherited from `builtinContext` (which has `(scheme base)`, `(scheme eval)`, and `(scheme process-context)` registered) and shared via the same `ref` cell.
 
 ### 12.3 Error Recovery
 
