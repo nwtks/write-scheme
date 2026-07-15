@@ -14,10 +14,22 @@ let ``environment`` () =
     |> rep
     |> should equal "#<environment>"
 
-    "(begin (import (scheme eval)) (environment))"
-    |> rep
-    |> should equal "#<environment>"
+[<Fact>]
+let ``eval basic expression`` () =
+    "(eval '(+ 1 2) (environment (scheme base)))" |> rep |> should equal "3"
+    "(eval 'car (environment (scheme base)))" |> rep |> should equal "#<procedure>"
+    "(eval ''(1 2 3) (environment (scheme base)))" |> rep |> should equal "(1 2 3)"
 
-    "(environment (nonexistent library))"
+    "(eval '((lambda (x) (* x x)) 5) (environment (scheme base)))"
     |> rep
-    |> should startWith "Library '(nonexistent library)' not found."
+    |> should equal "25"
+
+    "(eval '(+ 1 2) (environment))" |> rep |> should startWith "No binding for '+"
+
+    "(eval '(+ 1 2))"
+    |> rep
+    |> should startWith "eval: missing environment argument."
+
+    "(eval '(+ 1 2) 'not-an-environment)"
+    |> rep
+    |> should startWith "eval: second argument must be an environment object"

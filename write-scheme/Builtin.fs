@@ -247,6 +247,7 @@ module Builtin =
           "make-promise", (SProcedure sMakePromise, None) |> ref
           "make-parameter", (SProcedure sMakeParameter, None) |> ref
           "environment", (SSyntax sEnvironment, None) |> ref
+          "eval", (SProcedure sEval, None) |> ref
           "call-with-port", (SProcedure sCallWithPort, None) |> ref
           "call-with-input-file", (SProcedure sCallWithInputFile, None) |> ref
           "call-with-output-file", (SProcedure sCallWithOutputFile, None) |> ref
@@ -336,7 +337,7 @@ module Builtin =
             None
 
         let evalExports =
-            [ "environment" ]
+            [ "environment"; "eval" ]
             |> List.filter (fun k -> builtinCtx.environments.Head.Value.ContainsKey k)
             |> List.map (fun k -> k, k)
             |> Map.ofSeq
@@ -364,5 +365,151 @@ module Builtin =
             |> Map.ofSeq
 
         Context.registerLibrary builtinCtx schemeProcessContextName builtinCtx.environments.Head processContextExports
+
+        let schemeFileName =
+            SPair
+                { car = SSymbol "scheme", None
+                  cdr =
+                    SPair
+                        { car = SSymbol "file", None
+                          cdr = SEmpty, None },
+                    None },
+            None
+
+        let fileExports =
+            [ "call-with-input-file"
+              "call-with-output-file"
+              "with-input-from-file"
+              "with-output-to-file"
+              "open-input-file"
+              "open-output-file"
+              "open-binary-input-file"
+              "open-binary-output-file"
+              "close-port"
+              "close-input-port"
+              "close-output-port"
+              "file-exists?"
+              "delete-file" ]
+            |> List.filter (fun k -> builtinCtx.environments.Head.Value.ContainsKey k)
+            |> List.map (fun k -> k, k)
+            |> Map.ofSeq
+
+        Context.registerLibrary builtinCtx schemeFileName builtinCtx.environments.Head fileExports
+
+        let schemeCharName =
+            SPair
+                { car = SSymbol "scheme", None
+                  cdr =
+                    SPair
+                        { car = SSymbol "char", None
+                          cdr = SEmpty, None },
+                    None },
+            None
+
+        let charExports =
+            [ "char?"
+              "char=?"
+              "char<?"
+              "char>?"
+              "char<=?"
+              "char>=?"
+              "char-ci=?"
+              "char-ci<?"
+              "char-ci>?"
+              "char-ci<=?"
+              "char-ci>=?"
+              "char-alphabetic?"
+              "char-numeric?"
+              "char-whitespace?"
+              "char-upper-case?"
+              "char-lower-case?"
+              "digit-value"
+              "char->integer"
+              "integer->char"
+              "char-upcase"
+              "char-downcase"
+              "char-foldcase" ]
+            |> List.filter (fun k -> builtinCtx.environments.Head.Value.ContainsKey k)
+            |> List.map (fun k -> k, k)
+            |> Map.ofSeq
+
+        Context.registerLibrary builtinCtx schemeCharName builtinCtx.environments.Head charExports
+
+        let schemeComplexName =
+            SPair
+                { car = SSymbol "scheme", None
+                  cdr =
+                    SPair
+                        { car = SSymbol "complex", None
+                          cdr = SEmpty, None },
+                    None },
+            None
+
+        let complexExports =
+            [ "make-rectangular"
+              "make-polar"
+              "real-part"
+              "imag-part"
+              "magnitude"
+              "angle" ]
+            |> List.filter (fun k -> builtinCtx.environments.Head.Value.ContainsKey k)
+            |> List.map (fun k -> k, k)
+            |> Map.ofSeq
+
+        Context.registerLibrary builtinCtx schemeComplexName builtinCtx.environments.Head complexExports
+
+        let schemeInexactName =
+            SPair
+                { car = SSymbol "scheme", None
+                  cdr =
+                    SPair
+                        { car = SSymbol "inexact", None
+                          cdr = SEmpty, None },
+                    None },
+            None
+
+        let inexactExports =
+            [ "finite?"; "infinite?"; "nan?" ]
+            |> List.filter (fun k -> builtinCtx.environments.Head.Value.ContainsKey k)
+            |> List.map (fun k -> k, k)
+            |> Map.ofSeq
+
+        Context.registerLibrary builtinCtx schemeInexactName builtinCtx.environments.Head inexactExports
+
+        let schemeLazyName =
+            SPair
+                { car = SSymbol "scheme", None
+                  cdr =
+                    SPair
+                        { car = SSymbol "lazy", None
+                          cdr = SEmpty, None },
+                    None },
+            None
+
+        let lazyExports =
+            [ "delay"; "delay-force"; "force"; "promise?"; "make-promise" ]
+            |> List.filter (fun k -> builtinCtx.environments.Head.Value.ContainsKey k)
+            |> List.map (fun k -> k, k)
+            |> Map.ofSeq
+
+        Context.registerLibrary builtinCtx schemeLazyName builtinCtx.environments.Head lazyExports
+
+        let schemeLoadName =
+            SPair
+                { car = SSymbol "scheme", None
+                  cdr =
+                    SPair
+                        { car = SSymbol "load", None
+                          cdr = SEmpty, None },
+                    None },
+            None
+
+        let loadExports =
+            [ "load" ]
+            |> List.filter (fun k -> builtinCtx.environments.Head.Value.ContainsKey k)
+            |> List.map (fun k -> k, k)
+            |> Map.ofSeq
+
+        Context.registerLibrary builtinCtx schemeLoadName builtinCtx.environments.Head loadExports
 
         builtinCtx
