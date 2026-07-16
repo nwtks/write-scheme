@@ -142,3 +142,39 @@ module SystemInterface =
             x
             |> invalidParameter pos "'%s' invalid get-environment-variables parameter."
             |> cont
+
+    let sCurrentSecond context pos cont =
+        function
+        | [] ->
+            let seconds =
+                (System.DateTimeOffset.UtcNow - System.DateTimeOffset.UnixEpoch).TotalSeconds
+
+            (SReal seconds, pos) |> Ok |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid current-second parameter." |> cont
+
+    let sCurrentJiffy context pos cont =
+        function
+        | [] ->
+            (System.Diagnostics.Stopwatch.GetTimestamp() |> bigint |> newInteger, pos)
+            |> Ok
+            |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid current-jiffy parameter." |> cont
+
+    let sJiffiesPerSecond context pos cont =
+        function
+        | [] ->
+            (System.Diagnostics.Stopwatch.Frequency |> bigint |> newInteger, pos)
+            |> Ok
+            |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid jiffies-per-second parameter." |> cont
+
+    let sFeatures context pos cont =
+        function
+        | [] ->
+            supportedFeatures ()
+            |> Set.toList
+            |> List.map (fun s -> SSymbol s, pos)
+            |> toSPair
+            |> Ok
+            |> cont
+        | x -> x |> invalidParameter pos "'%s' invalid features parameter." |> cont

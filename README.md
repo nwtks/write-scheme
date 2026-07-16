@@ -16,8 +16,8 @@ A R7RS (Small) Scheme interpreter written in F#. Features a Continuation-Passing
 - **Datum labels**: `#N=` / `#N#` for cyclic and shared structure
 - **I/O ports**: string ports, bytevector ports, file ports; R7RS I/O primitives
 - **File system**: `file-exists?`, `delete-file`
-- **System interface**: `load`, `command-line`, `exit`, `emergency-exit`, `get-environment-variable(s)`
-- **Standard libraries**: `(scheme base)`, `(scheme eval)`, `(scheme process-context)`
+- **System interface**: `load`, `command-line`, `exit`, `emergency-exit`, `get-environment-variable(s)`, `current-second`, `current-jiffy`, `jiffies-per-second`, `features`
+- **Standard libraries**: `(scheme base)`, `(scheme case-lambda)`, `(scheme char)`, `(scheme complex)`, `(scheme eval)`, `(scheme file)`, `(scheme inexact)`, `(scheme lazy)`, `(scheme load)`, `(scheme process-context)`, `(scheme read)`, `(scheme time)`, `(scheme write)`
 
 ## Requirements
 

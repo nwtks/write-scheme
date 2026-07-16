@@ -58,7 +58,7 @@ write-scheme/                     # Interpreter core (F# executable)
 │   ├── ByteVector.fs             # Bytevector operations
 │   ├── Procedure.fs              # apply, map, for-each, call/cc, dynamic-wind
 │   ├── Environment.fs            # `environment` special form (R7RS `(scheme eval)`)
-│   └── SystemInterface.fs        # load, file-exists?, delete-file, command-line, exit, emergency-exit, get-environment-variable(s)
+│   └── SystemInterface.fs        # load, file-exists?, delete-file, command-line, exit, emergency-exit, get-environment-variable(s), current-second, current-jiffy, jiffies-per-second, features
 ├── Builtin.fs                    # builtinBindings registry + builtinContext
 ├── Repl.fs                       # rep function + REPL loop
 ├── Program.fs                    # Entry point
@@ -533,7 +533,7 @@ The largest file containing the implementation of all special forms:
 | Dynamic binding | `DynamicBinding.fs` | `make-parameter`, `parameterize` |
 | I/O ports | `Port.fs` | `read`, `write`, `display`, `open-input-string`, `open-input-file`, `current-input-port`, `eof-object` |
 | Environment | `Environment.fs` | `environment` (R7RS `(scheme eval)`) |
-| System interface | `SystemInterface.fs` | `load`, `file-exists?`, `delete-file`, `command-line`, `exit`, `emergency-exit`, `get-environment-variable`, `get-environment-variables` |
+| System interface | `SystemInterface.fs` | `load`, `file-exists?`, `delete-file`, `command-line`, `exit`, `emergency-exit`, `get-environment-variable`, `get-environment-variables`, `current-second`, `current-jiffy`, `jiffies-per-second`, `features` |
 
 ### 9.4 Implementation Pattern
 

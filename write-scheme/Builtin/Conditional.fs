@@ -148,19 +148,35 @@ module Conditional =
                 | x -> x |> cont)
         | x -> x |> invalidParameter pos "'%s' invalid unless parameter." |> cont
 
-    let supportedFeatures =
-        Set.ofList
-            [ "r7rs"
-              "exact-closed"
-              "exact-rational"
-              "ieee-float"
-              "full-unicode"
-              "ratios" ]
+    let supportedFeatures () =
+        [ "r7rs"
+          "exact-closed"
+          "exact-rational"
+          "ieee-float"
+          "full-unicode"
+          "ratios"
+          if System.OperatingSystem.IsWindows() then
+              "windows"
+          if System.OperatingSystem.IsLinux() then
+              "linux"
+              "unix"
+              "posix"
+          if System.BitConverter.IsLittleEndian then
+              "little-endian"
+          else
+              "big-endian"
+          let arch = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture
+
+          if arch = System.Runtime.InteropServices.Architecture.X64 then
+              "x86-64"
+          elif arch = System.Runtime.InteropServices.Architecture.Arm64 then
+              "arm64" ]
+        |> Set.ofList
 
     [<TailCall>]
     let rec checkFeatureRequirement context pos negated =
         function
-        | SSymbol feature, _ -> supportedFeatures |> Set.contains feature <> negated
+        | SSymbol feature, _ -> supportedFeatures () |> Set.contains feature <> negated
         | SPair { car = SSymbol("and" | "or" as kind), _
                   cdr = args },
           _ ->

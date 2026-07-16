@@ -185,3 +185,66 @@ let ``get-environment-variables`` () =
     "(get-environment-variables \"extra\")"
     |> rep
     |> should startWith "'(\"extra\")' invalid get-environment-variables parameter."
+
+[<Fact>]
+let ``current-second`` () =
+    "(current-second)"
+    |> rep
+    |> float
+    |> should be (inRange 1_700_000_000.0 2_000_000_000.0)
+
+    "(begin (import (scheme time)) (current-second))"
+    |> rep
+    |> float
+    |> should be (greaterThan 1_700_000_000.0)
+
+    "(current-second \"extra\")"
+    |> rep
+    |> should startWith "'(\"extra\")' invalid current-second parameter."
+
+[<Fact>]
+let ``current-jiffy`` () =
+    let intVal = "(current-jiffy)" |> rep |> bigint.Parse
+    intVal |> should be (greaterThan 0I)
+
+    "(current-jiffy)"
+    |> rep
+    |> bigint.Parse
+    |> should be (greaterThanOrEqualTo intVal)
+
+    "(begin (import (scheme time)) (current-jiffy))"
+    |> rep
+    |> bigint.Parse
+    |> should be (greaterThan 0I)
+
+    "(current-jiffy \"extra\")"
+    |> rep
+    |> should startWith "'(\"extra\")' invalid current-jiffy parameter."
+
+[<Fact>]
+let ``jiffies-per-second`` () =
+    "(jiffies-per-second)" |> rep |> bigint.Parse |> should be (greaterThan 0I)
+
+    "(begin (import (scheme time)) (jiffies-per-second))"
+    |> rep
+    |> bigint.Parse
+    |> should be (greaterThan 0I)
+
+    "(jiffies-per-second \"extra\")"
+    |> rep
+    |> should startWith "'(\"extra\")' invalid jiffies-per-second parameter."
+
+[<Fact>]
+let ``features`` () =
+    let result = "(features)" |> rep
+    result |> should startWith "("
+    result |> should haveSubstring "r7rs"
+    result |> should haveSubstring "exact-closed"
+    result |> should haveSubstring "exact-rational"
+    result |> should haveSubstring "ieee-float"
+    result |> should haveSubstring "full-unicode"
+    result |> should haveSubstring "ratios"
+
+    "(features \"extra\")"
+    |> rep
+    |> should startWith "'(\"extra\")' invalid features parameter."

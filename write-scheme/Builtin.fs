@@ -306,210 +306,219 @@ module Builtin =
           "exit", (SProcedure sExit, None) |> ref
           "emergency-exit", (SProcedure sEmergencyExit, None) |> ref
           "get-environment-variable", (SProcedure sGetEnvironmentVariable, None) |> ref
-          "get-environment-variables", (SProcedure sGetEnvironmentVariables, None) |> ref ]
+          "get-environment-variables", (SProcedure sGetEnvironmentVariables, None) |> ref
+          "current-second", (SProcedure sCurrentSecond, None) |> ref
+          "current-jiffy", (SProcedure sCurrentJiffy, None) |> ref
+          "jiffies-per-second", (SProcedure sJiffiesPerSecond, None) |> ref
+          "features", (SProcedure sFeatures, None) |> ref ]
 
     let builtinContext =
-        let schemeBaseName =
-            SPair
-                { car = SSymbol "scheme", None
-                  cdr =
-                    SPair
-                        { car = SSymbol "base", None
-                          cdr = SEmpty, None },
-                    None },
-            None
-
         let builtinCtx = builtinBindings |> Context.extendEnvironments Context.empty
 
-        builtinCtx.environments.Head.Value.Keys
-        |> Seq.map (fun k -> k, k)
-        |> Map.ofSeq
-        |> Context.registerLibrary builtinCtx schemeBaseName builtinCtx.environments.Head
+        let registerSchemeLibrary name exports =
+            let libName =
+                SPair
+                    { car = SSymbol "scheme", None
+                      cdr =
+                        SPair
+                            { car = SSymbol name, None
+                              cdr = SEmpty, None },
+                        None },
+                None
 
-        let schemeEvalName =
-            SPair
-                { car = SSymbol "scheme", None
-                  cdr =
-                    SPair
-                        { car = SSymbol "eval", None
-                          cdr = SEmpty, None },
-                    None },
-            None
+            let exportsMap =
+                match exports with
+                | Some names ->
+                    names
+                    |> List.filter (fun k -> builtinCtx.environments.Head.Value.ContainsKey k)
+                    |> List.map (fun k -> k, k)
+                    |> Map.ofSeq
+                | None -> builtinCtx.environments.Head.Value.Keys |> Seq.map (fun k -> k, k) |> Map.ofSeq
 
-        let evalExports =
-            [ "environment"; "eval" ]
-            |> List.filter (fun k -> builtinCtx.environments.Head.Value.ContainsKey k)
-            |> List.map (fun k -> k, k)
-            |> Map.ofSeq
+            Context.registerLibrary builtinCtx libName builtinCtx.environments.Head exportsMap
 
-        Context.registerLibrary builtinCtx schemeEvalName builtinCtx.environments.Head evalExports
+        let nonBaseExports =
+            Set.ofList
+                [ // (scheme case-lambda)
+                  "case-lambda"
+                  // (scheme char)
+                  "char-alphabetic?"
+                  "char-ci=?"
+                  "char-ci<?"
+                  "char-ci>?"
+                  "char-ci<=?"
+                  "char-ci>=?"
+                  "char-downcase"
+                  "char-foldcase"
+                  "char-lower-case?"
+                  "char-numeric?"
+                  "char-upcase"
+                  "char-upper-case?"
+                  "char-whitespace?"
+                  "digit-value"
+                  "string-ci=?"
+                  "string-ci<?"
+                  "string-ci>?"
+                  "string-ci<=?"
+                  "string-ci>=?"
+                  "string-downcase"
+                  "string-foldcase"
+                  "string-upcase"
+                  // (scheme complex)
+                  "make-rectangular"
+                  "make-polar"
+                  "real-part"
+                  "imag-part"
+                  "magnitude"
+                  "angle"
+                  // (scheme eval)
+                  "environment"
+                  "eval"
+                  // (scheme file)
+                  "call-with-input-file"
+                  "call-with-output-file"
+                  "with-input-from-file"
+                  "with-output-to-file"
+                  "open-input-file"
+                  "open-output-file"
+                  "open-binary-input-file"
+                  "open-binary-output-file"
+                  "file-exists?"
+                  "delete-file"
+                  // (scheme inexact)
+                  "finite?"
+                  "infinite?"
+                  "nan?"
+                  "exp"
+                  "log"
+                  "sin"
+                  "cos"
+                  "tan"
+                  "asin"
+                  "acos"
+                  "atan"
+                  "sqrt"
+                  // (scheme lazy)
+                  "delay"
+                  "delay-force"
+                  "force"
+                  "promise?"
+                  "make-promise"
+                  // (scheme load)
+                  "load"
+                  // (scheme process-context)
+                  "command-line"
+                  "exit"
+                  "emergency-exit"
+                  "get-environment-variable"
+                  "get-environment-variables"
+                  // (scheme read)
+                  "read"
+                  // (scheme time)
+                  "current-second"
+                  "current-jiffy"
+                  "jiffies-per-second"
+                  // (scheme write)
+                  "write"
+                  "write-shared"
+                  "write-simple"
+                  "display"
+                  // Not exported by any library (library system internals)
+                  "import"
+                  "define-library" ]
 
-        let schemeProcessContextName =
-            SPair
-                { car = SSymbol "scheme", None
-                  cdr =
-                    SPair
-                        { car = SSymbol "process-context", None
-                          cdr = SEmpty, None },
-                    None },
-            None
+        registerSchemeLibrary
+            "base"
+            (Some(
+                builtinCtx.environments.Head.Value.Keys
+                |> Seq.filter (fun k -> not (Set.contains k nonBaseExports))
+                |> List.ofSeq
+            ))
 
-        let processContextExports =
-            [ "command-line"
-              "exit"
-              "emergency-exit"
-              "get-environment-variable"
-              "get-environment-variables" ]
-            |> List.filter (fun k -> builtinCtx.environments.Head.Value.ContainsKey k)
-            |> List.map (fun k -> k, k)
-            |> Map.ofSeq
+        registerSchemeLibrary "case-lambda" (Some [ "case-lambda" ])
 
-        Context.registerLibrary builtinCtx schemeProcessContextName builtinCtx.environments.Head processContextExports
+        registerSchemeLibrary
+            "char"
+            (Some
+                [ "char-ci=?"
+                  "char-ci<?"
+                  "char-ci>?"
+                  "char-ci<=?"
+                  "char-ci>=?"
+                  "char-alphabetic?"
+                  "char-numeric?"
+                  "char-whitespace?"
+                  "char-upper-case?"
+                  "char-lower-case?"
+                  "digit-value"
+                  "char-upcase"
+                  "char-downcase"
+                  "char-foldcase"
+                  "string-ci=?"
+                  "string-ci<?"
+                  "string-ci>?"
+                  "string-ci<=?"
+                  "string-ci>=?"
+                  "string-upcase"
+                  "string-downcase"
+                  "string-foldcase" ])
 
-        let schemeFileName =
-            SPair
-                { car = SSymbol "scheme", None
-                  cdr =
-                    SPair
-                        { car = SSymbol "file", None
-                          cdr = SEmpty, None },
-                    None },
-            None
+        registerSchemeLibrary
+            "complex"
+            (Some
+                [ "make-rectangular"
+                  "make-polar"
+                  "real-part"
+                  "imag-part"
+                  "magnitude"
+                  "angle" ])
 
-        let fileExports =
-            [ "call-with-input-file"
-              "call-with-output-file"
-              "with-input-from-file"
-              "with-output-to-file"
-              "open-input-file"
-              "open-output-file"
-              "open-binary-input-file"
-              "open-binary-output-file"
-              "close-port"
-              "close-input-port"
-              "close-output-port"
-              "file-exists?"
-              "delete-file" ]
-            |> List.filter (fun k -> builtinCtx.environments.Head.Value.ContainsKey k)
-            |> List.map (fun k -> k, k)
-            |> Map.ofSeq
+        registerSchemeLibrary "eval" (Some [ "environment"; "eval" ])
 
-        Context.registerLibrary builtinCtx schemeFileName builtinCtx.environments.Head fileExports
+        registerSchemeLibrary
+            "file"
+            (Some
+                [ "call-with-input-file"
+                  "call-with-output-file"
+                  "with-input-from-file"
+                  "with-output-to-file"
+                  "open-input-file"
+                  "open-output-file"
+                  "open-binary-input-file"
+                  "open-binary-output-file"
+                  "file-exists?"
+                  "delete-file" ])
 
-        let schemeCharName =
-            SPair
-                { car = SSymbol "scheme", None
-                  cdr =
-                    SPair
-                        { car = SSymbol "char", None
-                          cdr = SEmpty, None },
-                    None },
-            None
+        registerSchemeLibrary
+            "inexact"
+            (Some
+                [ "finite?"
+                  "infinite?"
+                  "nan?"
+                  "exp"
+                  "log"
+                  "sin"
+                  "cos"
+                  "tan"
+                  "asin"
+                  "acos"
+                  "atan"
+                  "sqrt" ])
 
-        let charExports =
-            [ "char?"
-              "char=?"
-              "char<?"
-              "char>?"
-              "char<=?"
-              "char>=?"
-              "char-ci=?"
-              "char-ci<?"
-              "char-ci>?"
-              "char-ci<=?"
-              "char-ci>=?"
-              "char-alphabetic?"
-              "char-numeric?"
-              "char-whitespace?"
-              "char-upper-case?"
-              "char-lower-case?"
-              "digit-value"
-              "char->integer"
-              "integer->char"
-              "char-upcase"
-              "char-downcase"
-              "char-foldcase" ]
-            |> List.filter (fun k -> builtinCtx.environments.Head.Value.ContainsKey k)
-            |> List.map (fun k -> k, k)
-            |> Map.ofSeq
+        registerSchemeLibrary "lazy" (Some [ "delay"; "delay-force"; "force"; "promise?"; "make-promise" ])
+        registerSchemeLibrary "load" (Some [ "load" ])
 
-        Context.registerLibrary builtinCtx schemeCharName builtinCtx.environments.Head charExports
+        registerSchemeLibrary
+            "process-context"
+            (Some
+                [ "command-line"
+                  "exit"
+                  "emergency-exit"
+                  "get-environment-variable"
+                  "get-environment-variables" ])
 
-        let schemeComplexName =
-            SPair
-                { car = SSymbol "scheme", None
-                  cdr =
-                    SPair
-                        { car = SSymbol "complex", None
-                          cdr = SEmpty, None },
-                    None },
-            None
-
-        let complexExports =
-            [ "make-rectangular"
-              "make-polar"
-              "real-part"
-              "imag-part"
-              "magnitude"
-              "angle" ]
-            |> List.filter (fun k -> builtinCtx.environments.Head.Value.ContainsKey k)
-            |> List.map (fun k -> k, k)
-            |> Map.ofSeq
-
-        Context.registerLibrary builtinCtx schemeComplexName builtinCtx.environments.Head complexExports
-
-        let schemeInexactName =
-            SPair
-                { car = SSymbol "scheme", None
-                  cdr =
-                    SPair
-                        { car = SSymbol "inexact", None
-                          cdr = SEmpty, None },
-                    None },
-            None
-
-        let inexactExports =
-            [ "finite?"; "infinite?"; "nan?" ]
-            |> List.filter (fun k -> builtinCtx.environments.Head.Value.ContainsKey k)
-            |> List.map (fun k -> k, k)
-            |> Map.ofSeq
-
-        Context.registerLibrary builtinCtx schemeInexactName builtinCtx.environments.Head inexactExports
-
-        let schemeLazyName =
-            SPair
-                { car = SSymbol "scheme", None
-                  cdr =
-                    SPair
-                        { car = SSymbol "lazy", None
-                          cdr = SEmpty, None },
-                    None },
-            None
-
-        let lazyExports =
-            [ "delay"; "delay-force"; "force"; "promise?"; "make-promise" ]
-            |> List.filter (fun k -> builtinCtx.environments.Head.Value.ContainsKey k)
-            |> List.map (fun k -> k, k)
-            |> Map.ofSeq
-
-        Context.registerLibrary builtinCtx schemeLazyName builtinCtx.environments.Head lazyExports
-
-        let schemeLoadName =
-            SPair
-                { car = SSymbol "scheme", None
-                  cdr =
-                    SPair
-                        { car = SSymbol "load", None
-                          cdr = SEmpty, None },
-                    None },
-            None
-
-        let loadExports =
-            [ "load" ]
-            |> List.filter (fun k -> builtinCtx.environments.Head.Value.ContainsKey k)
-            |> List.map (fun k -> k, k)
-            |> Map.ofSeq
-
-        Context.registerLibrary builtinCtx schemeLoadName builtinCtx.environments.Head loadExports
+        registerSchemeLibrary "read" (Some [ "read" ])
+        registerSchemeLibrary "time" (Some [ "current-second"; "current-jiffy"; "jiffies-per-second" ])
+        registerSchemeLibrary "write" (Some [ "write"; "write-shared"; "write-simple"; "display" ])
 
         builtinCtx

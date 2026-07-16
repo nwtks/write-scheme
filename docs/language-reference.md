@@ -754,6 +754,10 @@ Local macro bindings.
 | `(emergency-exit obj ...)` | Exit immediately without running winders |
 | `(get-environment-variable name)` | Returns the value of an environment variable, or `#f` |
 | `(get-environment-variables)` | Returns an alist of all environment variables |
+| `(current-second)` | Returns the current time in seconds since the Unix epoch (inexact real) |
+| `(current-jiffy)` | Returns the current time in jiffies (exact integer; high-resolution monotonic counter) |
+| `(jiffies-per-second)` | Returns the number of jiffies per second (exact integer) |
+| `(features)` | Returns a list of symbols naming the supported feature identifiers |
 
 ---
 
@@ -817,15 +821,44 @@ R7RS library system with `define-library` and `import`.
 
 ### 6.3 Built-in Libraries
 
-The interpreter registers three libraries in `Builtin.builtinContext`:
+The interpreter registers the following libraries in `Builtin.builtinContext` (bindings still live in a single global environment; library separation is achieved through export filtering at registration time):
 
 | Library | Exports |
 |---------|---------|
-| `(scheme base)` | All bindings in `builtinBindings` (the full R7RS `(scheme base)` surface) |
-| `(scheme eval)` | `environment` |
+| `(scheme base)` | Core R7RS procedures: arithmetic, pairs, strings, vectors, bytevectors, symbols, characters, I/O primitives, control, exceptions, ports (excluding procedures delegated to other libraries below) |
+| `(scheme case-lambda)` | `case-lambda` |
+| `(scheme char)` | `char-alphabetic?`, `char-ci=?`, `char-ci<?`, `char-ci>?`, `char-ci<=?`, `char-ci>=?`, `char-downcase`, `char-foldcase`, `char-lower-case?`, `char-numeric?`, `char-upcase`, `char-upper-case?`, `char-whitespace?`, `digit-value`, `string-ci=?`, `string-ci<?`, `string-ci>?`, `string-ci<=?`, `string-ci>=?`, `string-downcase`, `string-foldcase`, `string-upcase` |
+| `(scheme complex)` | `make-rectangular`, `make-polar`, `real-part`, `imag-part`, `magnitude`, `angle` |
+| `(scheme eval)` | `environment`, `eval` |
+| `(scheme file)` | `call-with-input-file`, `call-with-output-file`, `with-input-from-file`, `with-output-to-file`, `open-input-file`, `open-output-file`, `open-binary-input-file`, `open-binary-output-file`, `file-exists?`, `delete-file` |
+| `(scheme inexact)` | `finite?`, `infinite?`, `nan?`, `exp`, `log`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `sqrt` |
+| `(scheme lazy)` | `delay`, `delay-force`, `force`, `promise?`, `make-promise` |
+| `(scheme load)` | `load` |
 | `(scheme process-context)` | `command-line`, `exit`, `emergency-exit`, `get-environment-variable`, `get-environment-variables` |
+| `(scheme read)` | `read` |
+| `(scheme time)` | `current-second`, `current-jiffy`, `jiffies-per-second` |
+| `(scheme write)` | `write`, `write-shared`, `write-simple`, `display` |
 
-Other R7RS standard libraries (`(scheme file)`, `(scheme read)`, `(scheme write)`, `(scheme inexact)`, `(scheme cxr)`, `(scheme char)`, `(scheme r5rs)`, etc.) are not yet provided as separate libraries — their bindings are available through `(scheme base)` because every binding lives in a single global environment, and library separation is achieved purely through export filtering at registration time.
+### 6.4 Feature Identifiers
+
+The `features` procedure and `cond-expand` recognize the following feature identifiers (the static identifiers below are always reported; the dynamic ones are determined at runtime from the host platform):
+
+| Id | Always / Dynamic | Meaning |
+|----|-----------|---------|
+| `r7rs` | Always | Conformance to R7RS |
+| `exact-closed` | Always | Exact arithmetic is closed under basic operations |
+| `exact-rational` | Always | Exact rational arithmetic is supported |
+| `ieee-float` | Always | IEEE 754 floating-point |
+| `full-unicode` | Always | Full Unicode scalar value support |
+| `ratios` | Always | Native ratio (rational) type |
+| `windows` | Dynamic | Running on Windows (`OperatingSystem.IsWindows()`) |
+| `linux` | Dynamic | Running on Linux (`OperatingSystem.IsLinux()`) |
+| `unix` | Dynamic | POSIX-family OS (reported together with `linux`) |
+| `posix` | Dynamic | POSIX-family OS (reported together with `linux`) |
+| `little-endian` | Dynamic | Host byte order is little-endian (`BitConverter.IsLittleEndian`) |
+| `big-endian` | Dynamic | Host byte order is big-endian |
+| `x86-64` | Dynamic | `RuntimeInformation.ProcessArchitecture = X64` |
+| `arm64` | Dynamic | `RuntimeInformation.ProcessArchitecture = Arm64` |
 
 ---
 
