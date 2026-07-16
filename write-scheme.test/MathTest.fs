@@ -710,6 +710,18 @@ let exact () =
     "(exact \"a\")" |> rep |> should startWith "'\"a\"' invalid exact parameter"
 
 [<Fact>]
+let ``exact->inexact`` () =
+    "(exact->inexact 5)" |> rep |> should equal "5"
+    "(exact->inexact 0)" |> rep |> should equal "0"
+    "(exact->inexact 0.5)" |> rep |> should equal "0.5"
+
+[<Fact>]
+let ``inexact->exact`` () =
+    "(inexact->exact 5.0)" |> rep |> should equal "5"
+    "(inexact->exact 0.0)" |> rep |> should equal "0"
+    "(inexact->exact 0)" |> rep |> should equal "0"
+
+[<Fact>]
 let ``number->string`` () =
     "(number->string 42)" |> rep |> should equal "\"42\""
     "(number->string 3.14)" |> rep |> should equal "\"3.14\""

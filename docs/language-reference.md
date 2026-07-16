@@ -494,7 +494,7 @@ Local macro bindings.
 
 #### Conversion
 
-`inexact`, `exact`, `number->string`, `string->number`
+`inexact`, `exact`, `exact->inexact`, `inexact->exact`, `number->string`, `string->number`
 
 ### 4.3 Booleans
 
@@ -505,6 +505,11 @@ Local macro bindings.
 #### Constructors / Selectors
 
 `cons`, `car`, `cdr`, `caar`, `cadr`, `cdar`, `cddr`
+
+The following 24 car/cdr compositions (3-level and 4-level) are available from the `(scheme cxr)` library:
+`caaar`, `caadr`, `cadar`, `caddr`, `cdaar`, `cdadr`, `cddar`, `cdddr`,
+`caaaar`, `caaadr`, `caadar`, `caaddr`, `cadaar`, `cadadr`, `caddar`, `cadddr`,
+`cdaaar`, `cdaadr`, `cdadar`, `cdaddr`, `cddaar`, `cddadr`, `cdddar`, `cddddr`
 
 #### Mutators
 
@@ -759,6 +764,16 @@ Local macro bindings.
 | `(jiffies-per-second)` | Returns the number of jiffies per second (exact integer) |
 | `(features)` | Returns a list of symbols naming the supported feature identifiers |
 
+#### Environment and Evaluation
+
+| Procedure | Description |
+|-----------|-------------|
+| `(environment import-spec ...)` | Creates a new environment populated with the specified library imports |
+| `(eval expr env)` | Evaluates `expr` in the given `env` |
+| `(interaction-environment)` | Returns the REPL's current environment (all bindings) |
+| `(null-environment version)` | Returns an empty environment (only version 5 is supported) |
+| `(scheme-report-environment version)` | Returns the `(scheme r5rs)` library environment (only version 5 is supported) |
+
 ---
 
 ## 5. Macros
@@ -837,6 +852,8 @@ The interpreter registers the following libraries in `Builtin.builtinContext` (b
 | `(scheme load)` | `load` |
 | `(scheme process-context)` | `command-line`, `exit`, `emergency-exit`, `get-environment-variable`, `get-environment-variables` |
 | `(scheme read)` | `read` |
+| `(scheme repl)` | `interaction-environment` |
+| `(scheme r5rs)` | All `(scheme base)` exports plus `exact->inexact`, `inexact->exact`, `null-environment`, `scheme-report-environment` |
 | `(scheme time)` | `current-second`, `current-jiffy`, `jiffies-per-second` |
 | `(scheme write)` | `write`, `write-shared`, `write-simple`, `display` |
 

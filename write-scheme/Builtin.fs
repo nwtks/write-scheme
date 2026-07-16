@@ -111,6 +111,8 @@ module Builtin =
           "angle", (SProcedure sAngle, None) |> ref
           "inexact", (SProcedure sInexact, None) |> ref
           "exact", (SProcedure sExact, None) |> ref
+          "exact->inexact", (SProcedure sInexact, None) |> ref
+          "inexact->exact", (SProcedure sExact, None) |> ref
           "number->string", (SProcedure sNumberToString, None) |> ref
           "string->number", (SProcedure sStringToNumber, None) |> ref
           "not", (SProcedure sNot, None) |> ref
@@ -271,6 +273,8 @@ module Builtin =
           "make-promise", (SProcedure sMakePromise, None) |> ref
           "make-parameter", (SProcedure sMakeParameter, None) |> ref
           "environment", (SSyntax sEnvironment, None) |> ref
+          "scheme-report-environment", (SProcedure sSchemeReportEnvironment, None) |> ref
+          "null-environment", (SProcedure sNullEnvironment, None) |> ref
           "interaction-environment", (SProcedure sInteractionEnvironment, None) |> ref
           "eval", (SProcedure sEval, None) |> ref
           "call-with-port", (SProcedure sCallWithPort, None) |> ref
@@ -470,6 +474,11 @@ module Builtin =
                   "jiffies-per-second"
                   // (scheme repl)
                   "interaction-environment"
+                  // (scheme r5rs)
+                  "exact->inexact"
+                  "inexact->exact"
+                  "scheme-report-environment"
+                  "null-environment"
                   // (scheme write)
                   "write"
                   "write-shared"
@@ -601,5 +610,17 @@ module Builtin =
         registerSchemeLibrary "repl" (Some [ "interaction-environment" ])
         registerSchemeLibrary "time" (Some [ "current-second"; "current-jiffy"; "jiffies-per-second" ])
         registerSchemeLibrary "write" (Some [ "write"; "write-shared"; "write-simple"; "display" ])
+
+        registerSchemeLibrary
+            "r5rs"
+            (Some(
+                (builtinCtx.environments.Head.Value.Keys
+                 |> Seq.filter (fun k -> not (Set.contains k nonBaseExports))
+                 |> List.ofSeq)
+                @ [ "exact->inexact"
+                    "inexact->exact"
+                    "scheme-report-environment"
+                    "null-environment" ]
+            ))
 
         builtinCtx

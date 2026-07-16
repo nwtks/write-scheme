@@ -23,6 +23,56 @@ module Environment =
         let freshEnv = ref Map.empty
         specs |> loopEnvironment context pos cont freshEnv
 
+    let sSchemeReportEnvironment context pos cont =
+        function
+        | [ SRational(n, d), _ ] when d = 1I ->
+            if n = 5I then
+                match context.libraries.Value |> Map.tryFind "(scheme r5rs)" with
+                | Some lib -> Ok(SEnvironment lib.environment, pos) |> cont
+                | None ->
+                    EvalError("scheme-report-environment: library (scheme r5rs) not found.", pos)
+                    |> Error
+                    |> cont
+            else
+                EvalError($"scheme-report-environment: only version 5 is supported, got {n}.", pos)
+                |> Error
+                |> cont
+        | [ other, _ ] ->
+            EvalError(
+                $"scheme-report-environment: argument must be an exact integer, got {Print.print (other, pos)}.",
+                pos
+            )
+            |> Error
+            |> cont
+        | x ->
+            let msg =
+                match x with
+                | [] -> "scheme-report-environment: missing argument."
+                | _ -> $"scheme-report-environment: expected 1 argument, got {List.length x}."
+
+            EvalError(msg, pos) |> Error |> cont
+
+    let sNullEnvironment context pos cont =
+        function
+        | [ SRational(n, d), _ ] when d = 1I ->
+            if n = 5I then
+                Ok(SEnvironment(ref Map.empty), pos) |> cont
+            else
+                EvalError($"null-environment: only version 5 is supported, got {n}.", pos)
+                |> Error
+                |> cont
+        | [ other, _ ] ->
+            EvalError($"null-environment: argument must be an exact integer, got {Print.print (other, pos)}.", pos)
+            |> Error
+            |> cont
+        | x ->
+            let msg =
+                match x with
+                | [] -> "null-environment: missing argument."
+                | _ -> $"null-environment: expected 1 argument, got {List.length x}."
+
+            EvalError(msg, pos) |> Error |> cont
+
     let sInteractionEnvironment context pos cont =
         function
         | [] ->

@@ -15,6 +15,47 @@ let ``environment`` () =
     |> should equal "#<environment>"
 
 [<Fact>]
+let ``scheme-report-environment`` () =
+    "(scheme-report-environment 5)" |> rep |> should equal "#<environment>"
+    "(eval '(+ 1 2) (scheme-report-environment 5))" |> rep |> should equal "3"
+
+    "(eval 'car (scheme-report-environment 5))"
+    |> rep
+    |> should equal "#<procedure>"
+
+    "(scheme-report-environment)"
+    |> rep
+    |> should startWith "scheme-report-environment: missing argument."
+
+    "(scheme-report-environment 0)"
+    |> rep
+    |> should startWith "scheme-report-environment: only version 5 is supported"
+
+    "(scheme-report-environment 'a)"
+    |> rep
+    |> should startWith "scheme-report-environment: argument must be an exact integer"
+
+[<Fact>]
+let ``null-environment`` () =
+    "(null-environment 5)" |> rep |> should equal "#<environment>"
+
+    "(eval '(+ 1 2) (null-environment 5))"
+    |> rep
+    |> should startWith "No binding for '+'"
+
+    "(null-environment)"
+    |> rep
+    |> should startWith "null-environment: missing argument."
+
+    "(null-environment 0)"
+    |> rep
+    |> should startWith "null-environment: only version 5 is supported"
+
+    "(null-environment 'a)"
+    |> rep
+    |> should startWith "null-environment: argument must be an exact integer"
+
+[<Fact>]
 let ``interaction-environment`` () =
     "(interaction-environment)" |> rep |> should equal "#<environment>"
     "(eval '(+ 1 2) (interaction-environment))" |> rep |> should equal "3"
