@@ -15,6 +15,15 @@ let ``environment`` () =
     |> should equal "#<environment>"
 
 [<Fact>]
+let ``interaction-environment`` () =
+    "(interaction-environment)" |> rep |> should equal "#<environment>"
+    "(eval '(+ 1 2) (interaction-environment))" |> rep |> should equal "3"
+
+    "(interaction-environment 1)"
+    |> rep
+    |> should startWith "'(1)' invalid interaction-environment parameter"
+
+[<Fact>]
 let ``eval basic expression`` () =
     "(eval '(+ 1 2) (environment (scheme base)))" |> rep |> should equal "3"
     "(eval 'car (environment (scheme base)))" |> rep |> should equal "#<procedure>"

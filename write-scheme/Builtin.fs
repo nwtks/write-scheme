@@ -271,6 +271,7 @@ module Builtin =
           "make-promise", (SProcedure sMakePromise, None) |> ref
           "make-parameter", (SProcedure sMakeParameter, None) |> ref
           "environment", (SSyntax sEnvironment, None) |> ref
+          "interaction-environment", (SProcedure sInteractionEnvironment, None) |> ref
           "eval", (SProcedure sEval, None) |> ref
           "call-with-port", (SProcedure sCallWithPort, None) |> ref
           "call-with-input-file", (SProcedure sCallWithInputFile, None) |> ref
@@ -467,6 +468,8 @@ module Builtin =
                   "current-second"
                   "current-jiffy"
                   "jiffies-per-second"
+                  // (scheme repl)
+                  "interaction-environment"
                   // (scheme write)
                   "write"
                   "write-shared"
@@ -595,6 +598,7 @@ module Builtin =
                   "get-environment-variables" ])
 
         registerSchemeLibrary "read" (Some [ "read" ])
+        registerSchemeLibrary "repl" (Some [ "interaction-environment" ])
         registerSchemeLibrary "time" (Some [ "current-second"; "current-jiffy"; "jiffies-per-second" ])
         registerSchemeLibrary "write" (Some [ "write"; "write-shared"; "write-simple"; "display" ])
 
