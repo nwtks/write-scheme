@@ -126,6 +126,30 @@ module Builtin =
           "cadr", (SProcedure sCadr, None) |> ref
           "cdar", (SProcedure sCdar, None) |> ref
           "cddr", (SProcedure sCddr, None) |> ref
+          "caaar", (SProcedure sCaaar, None) |> ref
+          "caadr", (SProcedure sCaadr, None) |> ref
+          "cadar", (SProcedure sCadar, None) |> ref
+          "caddr", (SProcedure sCaddr, None) |> ref
+          "cdaar", (SProcedure sCdaar, None) |> ref
+          "cdadr", (SProcedure sCdadr, None) |> ref
+          "cddar", (SProcedure sCddar, None) |> ref
+          "cdddr", (SProcedure sCdddr, None) |> ref
+          "caaaar", (SProcedure sCaaaar, None) |> ref
+          "caaadr", (SProcedure sCaaadr, None) |> ref
+          "caadar", (SProcedure sCaadar, None) |> ref
+          "caaddr", (SProcedure sCaaddr, None) |> ref
+          "cadaar", (SProcedure sCadaar, None) |> ref
+          "cadadr", (SProcedure sCadadr, None) |> ref
+          "caddar", (SProcedure sCaddar, None) |> ref
+          "cadddr", (SProcedure sCadddr, None) |> ref
+          "cdaaar", (SProcedure sCdaaar, None) |> ref
+          "cdaadr", (SProcedure sCdaadr, None) |> ref
+          "cdadar", (SProcedure sCdadar, None) |> ref
+          "cdaddr", (SProcedure sCdaddr, None) |> ref
+          "cddaar", (SProcedure sCddaar, None) |> ref
+          "cddadr", (SProcedure sCddadr, None) |> ref
+          "cdddar", (SProcedure sCdddar, None) |> ref
+          "cddddr", (SProcedure sCddddr, None) |> ref
           "null?", (SProcedure isNull, None) |> ref
           "list?", (SProcedure isList, None) |> ref
           "make-list", (SProcedure sMakeList, None) |> ref
@@ -341,6 +365,31 @@ module Builtin =
             Set.ofList
                 [ // (scheme case-lambda)
                   "case-lambda"
+                  // (scheme cxr)
+                  "caaar"
+                  "caadr"
+                  "cadar"
+                  "caddr"
+                  "cdaar"
+                  "cdadr"
+                  "cddar"
+                  "cdddr"
+                  "caaaar"
+                  "caaadr"
+                  "caadar"
+                  "caaddr"
+                  "cadaar"
+                  "cadadr"
+                  "caddar"
+                  "cadddr"
+                  "cdaaar"
+                  "cdaadr"
+                  "cdadar"
+                  "cdaddr"
+                  "cddaar"
+                  "cddadr"
+                  "cdddar"
+                  "cddddr"
                   // (scheme char)
                   "char-alphabetic?"
                   "char-ci=?"
@@ -436,6 +485,34 @@ module Builtin =
             ))
 
         registerSchemeLibrary "case-lambda" (Some [ "case-lambda" ])
+
+        registerSchemeLibrary
+            "cxr"
+            (Some
+                [ "caaar"
+                  "caadr"
+                  "cadar"
+                  "caddr"
+                  "cdaar"
+                  "cdadr"
+                  "cddar"
+                  "cdddr"
+                  "caaaar"
+                  "caaadr"
+                  "caadar"
+                  "caaddr"
+                  "cadaar"
+                  "cadadr"
+                  "caddar"
+                  "cadddr"
+                  "cdaaar"
+                  "cdaadr"
+                  "cdadar"
+                  "cdaddr"
+                  "cddaar"
+                  "cddadr"
+                  "cdddar"
+                  "cddddr" ])
 
         registerSchemeLibrary
             "char"

@@ -827,6 +827,7 @@ The interpreter registers the following libraries in `Builtin.builtinContext` (b
 |---------|---------|
 | `(scheme base)` | Core R7RS procedures: arithmetic, pairs, strings, vectors, bytevectors, symbols, characters, I/O primitives, control, exceptions, ports (excluding procedures delegated to other libraries below) |
 | `(scheme case-lambda)` | `case-lambda` |
+| `(scheme cxr)` | 24 car/cdr compositions: `caaaar`, `caaadr`, `caaar`, `caadar`, `caaddr`, `caadr`, `cadaar`, `cadadr`, `cadar`, `caddar`, `cadddr`, `caddr`, `cdaaar`, `cdaadr`, `cdaar`, `cdadar`, `cdaddr`, `cdadr`, `cddaar`, `cddadr`, `cddar`, `cdddar`, `cddddr`, `cdddr` |
 | `(scheme char)` | `char-alphabetic?`, `char-ci=?`, `char-ci<?`, `char-ci>?`, `char-ci<=?`, `char-ci>=?`, `char-downcase`, `char-foldcase`, `char-lower-case?`, `char-numeric?`, `char-upcase`, `char-upper-case?`, `char-whitespace?`, `digit-value`, `string-ci=?`, `string-ci<?`, `string-ci>?`, `string-ci<=?`, `string-ci>=?`, `string-downcase`, `string-foldcase`, `string-upcase` |
 | `(scheme complex)` | `make-rectangular`, `make-polar`, `real-part`, `imag-part`, `magnitude`, `angle` |
 | `(scheme eval)` | `environment`, `eval` |

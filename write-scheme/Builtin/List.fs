@@ -70,6 +70,86 @@ module List =
         | [ pair ] -> pair |> getCdr |> Result.bind getCdr |> cont
         | x -> x |> invalidParameter pos "'%s' invalid cddr parameter." |> cont
 
+    let makeCxr steps name =
+        let fmt = $"'%%s' invalid {name} parameter."
+
+        fun context pos cont ->
+            function
+            | [ pair ] -> steps |> List.fold (fun acc step -> Result.bind step acc) (Ok pair) |> cont
+            | x -> x |> invalidParameter pos fmt |> cont
+
+    let sCaaar context pos cont =
+        makeCxr [ getCar; getCar; getCar ] "caaar" context pos cont
+
+    let sCaadr context pos cont =
+        makeCxr [ getCdr; getCar; getCar ] "caadr" context pos cont
+
+    let sCadar context pos cont =
+        makeCxr [ getCar; getCdr; getCar ] "cadar" context pos cont
+
+    let sCaddr context pos cont =
+        makeCxr [ getCdr; getCdr; getCar ] "caddr" context pos cont
+
+    let sCdaar context pos cont =
+        makeCxr [ getCar; getCar; getCdr ] "cdaar" context pos cont
+
+    let sCdadr context pos cont =
+        makeCxr [ getCdr; getCar; getCdr ] "cdadr" context pos cont
+
+    let sCddar context pos cont =
+        makeCxr [ getCar; getCdr; getCdr ] "cddar" context pos cont
+
+    let sCdddr context pos cont =
+        makeCxr [ getCdr; getCdr; getCdr ] "cdddr" context pos cont
+
+    let sCaaaar context pos cont =
+        makeCxr [ getCar; getCar; getCar; getCar ] "caaaar" context pos cont
+
+    let sCaaadr context pos cont =
+        makeCxr [ getCdr; getCar; getCar; getCar ] "caaadr" context pos cont
+
+    let sCaadar context pos cont =
+        makeCxr [ getCar; getCdr; getCar; getCar ] "caadar" context pos cont
+
+    let sCaaddr context pos cont =
+        makeCxr [ getCdr; getCdr; getCar; getCar ] "caaddr" context pos cont
+
+    let sCadaar context pos cont =
+        makeCxr [ getCar; getCar; getCdr; getCar ] "cadaar" context pos cont
+
+    let sCadadr context pos cont =
+        makeCxr [ getCdr; getCar; getCdr; getCar ] "cadadr" context pos cont
+
+    let sCaddar context pos cont =
+        makeCxr [ getCar; getCdr; getCdr; getCar ] "caddar" context pos cont
+
+    let sCadddr context pos cont =
+        makeCxr [ getCdr; getCdr; getCdr; getCar ] "cadddr" context pos cont
+
+    let sCdaaar context pos cont =
+        makeCxr [ getCar; getCar; getCar; getCdr ] "cdaaar" context pos cont
+
+    let sCdaadr context pos cont =
+        makeCxr [ getCdr; getCar; getCar; getCdr ] "cdaadr" context pos cont
+
+    let sCdadar context pos cont =
+        makeCxr [ getCar; getCdr; getCar; getCdr ] "cdadar" context pos cont
+
+    let sCdaddr context pos cont =
+        makeCxr [ getCdr; getCdr; getCar; getCdr ] "cdaddr" context pos cont
+
+    let sCddaar context pos cont =
+        makeCxr [ getCar; getCar; getCdr; getCdr ] "cddaar" context pos cont
+
+    let sCddadr context pos cont =
+        makeCxr [ getCdr; getCar; getCdr; getCdr ] "cddadr" context pos cont
+
+    let sCdddar context pos cont =
+        makeCxr [ getCar; getCdr; getCdr; getCdr ] "cdddar" context pos cont
+
+    let sCddddr context pos cont =
+        makeCxr [ getCdr; getCdr; getCdr; getCdr ] "cddddr" context pos cont
+
     let isNull context pos cont =
         function
         | [ SEmpty, _ ] -> Ok(STrue, pos) |> cont

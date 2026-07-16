@@ -89,26 +89,108 @@ let ``set-cdr!`` () =
 [<Fact>]
 let ``c...r`` () =
     "(caar '((1 2) 3))" |> rep |> should equal "1"
-    "(cadr '(1 2 3))" |> rep |> should equal "2"
-    "(cdar '((1 2) 3))" |> rep |> should equal "(2)"
-    "(cddr '(1 2 3))" |> rep |> should equal "(3)"
-
     "(caar)" |> rep |> should startWith "'()' invalid caar parameter"
     "(caar)" |> rep |> should startWith "'()' invalid caar parameter"
     "(caar 1 2)" |> rep |> should startWith "'(1 2)' invalid caar parameter"
     "(caar 1)" |> rep |> should startWith "'1' invalid car parameter"
 
+    "(cadr '(1 2 3))" |> rep |> should equal "2"
     "(cadr)" |> rep |> should startWith "'()' invalid cadr parameter"
     "(cadr 1 2)" |> rep |> should startWith "'(1 2)' invalid cadr parameter"
     "(cadr 1)" |> rep |> should startWith "'1' invalid cdr parameter"
 
+    "(cdar '((1 2) 3))" |> rep |> should equal "(2)"
     "(cdar)" |> rep |> should startWith "'()' invalid cdar parameter"
     "(cdar 1 2)" |> rep |> should startWith "'(1 2)' invalid cdar parameter"
     "(cdar 1)" |> rep |> should startWith "'1' invalid car parameter"
 
+    "(cddr '(1 2 3))" |> rep |> should equal "(3)"
     "(cddr)" |> rep |> should startWith "'()' invalid cddr parameter"
     "(cddr 1 2)" |> rep |> should startWith "'(1 2)' invalid cddr parameter"
     "(cddr 1)" |> rep |> should startWith "'1' invalid cdr parameter"
+
+[<Fact>]
+let ``3-level c...r`` () =
+    "(caaar '(((1) 2) 3))" |> rep |> should equal "1"
+    "(caaar 1)" |> rep |> should startWith "'1' invalid car parameter"
+    "(caaar)" |> rep |> should startWith "'()' invalid caaar parameter"
+    "(caaar 1 2)" |> rep |> should startWith "'(1 2)' invalid caaar parameter"
+
+    "(caadr '(x (1) y))" |> rep |> should equal "1"
+    "(caadr 1)" |> rep |> should startWith "'1' invalid cdr parameter"
+
+    "(cadar '((x 1) y))" |> rep |> should equal "1"
+    "(cadar 1)" |> rep |> should startWith "'1' invalid car parameter"
+
+    "(caddr '(x y 1))" |> rep |> should equal "1"
+    "(caddr 1)" |> rep |> should startWith "'1' invalid cdr parameter"
+    "(caddr)" |> rep |> should startWith "'()' invalid caddr parameter"
+    "(caddr 1 2)" |> rep |> should startWith "'(1 2)' invalid caddr parameter"
+
+    "(cdaar '(((1 2) 3) 4))" |> rep |> should equal "(2)"
+    "(cdaar 1)" |> rep |> should startWith "'1' invalid car parameter"
+
+    "(cdadr '(x (1 2 3) y))" |> rep |> should equal "(2 3)"
+    "(cdadr 1)" |> rep |> should startWith "'1' invalid cdr parameter"
+
+    "(cddar '((1 2) 3))" |> rep |> should equal "()"
+    "(cddar 1)" |> rep |> should startWith "'1' invalid car parameter"
+
+    "(cdddr '(1 2 3 4))" |> rep |> should equal "(4)"
+    "(cdddr 1)" |> rep |> should startWith "'1' invalid cdr parameter"
+
+[<Fact>]
+let ``4-level c...r`` () =
+    "(caaaar '((((1) 2) 3) 4))" |> rep |> should equal "1"
+    "(caaaar)" |> rep |> should startWith "'()' invalid caaaar parameter"
+    "(caaaar 1)" |> rep |> should startWith "'1' invalid car parameter"
+    "(caaaar 1 2)" |> rep |> should startWith "'(1 2)' invalid caaaar parameter"
+
+    "(caaadr '(x ((1) 2) 3))" |> rep |> should equal "1"
+    "(caaadr 1)" |> rep |> should startWith "'1' invalid cdr parameter"
+
+    "(caadar '((x (1) 2) y))" |> rep |> should equal "1"
+    "(caadar 1)" |> rep |> should startWith "'1' invalid car parameter"
+
+    "(caaddr '(a b (1) c))" |> rep |> should equal "1"
+    "(caaddr 1)" |> rep |> should startWith "'1' invalid cdr parameter"
+
+    "(cadaar '((((1) 2) 3) 4))" |> rep |> should equal "2"
+    "(cadaar 1)" |> rep |> should startWith "'1' invalid car parameter"
+
+    "(cadadr '(a (b 1 c) d))" |> rep |> should equal "1"
+    "(cadadr 1)" |> rep |> should startWith "'1' invalid cdr parameter"
+
+    "(caddar '((1 2 3) 4))" |> rep |> should equal "3"
+    "(caddar 1)" |> rep |> should startWith "'1' invalid car parameter"
+
+    "(cadddr '(1 2 3 4 5))" |> rep |> should equal "4"
+    "(cadddr 1)" |> rep |> should startWith "'1' invalid cdr parameter"
+
+    "(cdaaar '((((1 2) 3) 4) 5))" |> rep |> should equal "(2)"
+    "(cdaaar 1)" |> rep |> should startWith "'1' invalid car parameter"
+
+    "(cdaadr '(x ((1 2) 3) y))" |> rep |> should equal "(2)"
+    "(cdaadr 1)" |> rep |> should startWith "'1' invalid cdr parameter"
+
+    "(cdadar '((x (1 2 3) y) z))" |> rep |> should equal "(2 3)"
+    "(cdadar 1)" |> rep |> should startWith "'1' invalid car parameter"
+
+    "(cdaddr '(a b (c 1 2) d))" |> rep |> should equal "(1 2)"
+    "(cdaddr 1)" |> rep |> should startWith "'1' invalid cdr parameter"
+
+    "(cddaar '(((0 1 (3) 4))))" |> rep |> should equal "((3) 4)"
+    "(cddaar 1)" |> rep |> should startWith "'1' invalid car parameter"
+
+    "(cddadr '(x (1 2 3) y))" |> rep |> should equal "(3)"
+    "(cddadr 1)" |> rep |> should startWith "'1' invalid cdr parameter"
+
+    "(cdddar '((1 2 3) 4))" |> rep |> should equal "()"
+    "(cdddar 1)" |> rep |> should startWith "'1' invalid car parameter"
+
+    "(cddddr '(1 2 3 4 5))" |> rep |> should equal "(5)"
+    "(cddddr)" |> rep |> should startWith "'()' invalid cddddr parameter"
+    "(cddddr 1)" |> rep |> should startWith "'1' invalid cdr parameter"
 
 [<Fact>]
 let ``null?`` () =
