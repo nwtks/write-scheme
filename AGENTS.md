@@ -56,8 +56,9 @@ All code — including test code — must work on **both Windows and Linux**.
 
 ### Platform-specific APIs
 
-- **Avoid** `System.Runtime.InteropServices`, P/Invoke, or any Windows-only / Linux-only API.
-- **Process execution** — the interpreter runs single-threaded; do not introduce threading or process APIs.
+- **No P/Invoke** and no Windows-only / Linux-only native APIs.
+- **Managed platform queries are allowed** where R7RS requires them — e.g. `OperatingSystem.IsWindows()` / `IsLinux()`, `BitConverter.IsLittleEndian`, and `RuntimeInformation.ProcessArchitecture` for `features` / `cond-expand`.
+- **Process execution** — the interpreter runs single-threaded; do not introduce threading or process APIs beyond intentional exit (`Environment.Exit` for `exit` / `emergency-exit`).
 - **Console** — use `System.Console.ReadLine()` / `System.Console.Write` only; avoid console color or terminal-specific APIs.
 
 ---

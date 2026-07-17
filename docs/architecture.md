@@ -38,10 +38,10 @@ write-scheme/                     # Interpreter core (F# executable)
 │   ├── SpecialForm.fs            # Special forms: quote, lambda, if, set!, begin, define, include, include-ci
 │   ├── Binding.fs                # let/let*/letrec/let-values binding helpers
 │   ├── Conditional.fs            # cond/case helper functions (isElseClause, normalizeCaseClause)
-│   ├── Lazy.fs                   # delay / delay-force / force / make-promise
+│   ├── Lazy.fs                   # delay / delay-force (syntax); force / promise? / make-promise (procedures)
 │   ├── DynamicBinding.fs         # make-parameter / parameterize
 │   ├── Exception.fs              # with-exception-handler, raise, guard
-│   ├── Quasiquote.fs             # QqKeyword DU and quasiquote expansion helpers
+│   ├── Quasiquote.fs             # quasiquote special form; QqKeyword DU and expansion helpers
 │   ├── Macro.fs                  # syntax-rules hygienic macro engine
 │   ├── Record.fs                 # define-record-type implementation
 │   ├── Library.fs                # define-library / import set operations
@@ -56,9 +56,9 @@ write-scheme/                     # Interpreter core (F# executable)
 │   ├── Str.fs                    # String operations
 │   ├── Vector.fs                 # Vector operations
 │   ├── ByteVector.fs             # Bytevector operations
-│   ├── Procedure.fs              # apply, map, for-each, call/cc, dynamic-wind
-│   ├── Environment.fs            # `environment` special form (R7RS `(scheme eval)`)
-│   └── SystemInterface.fs        # load, file-exists?, delete-file, command-line, exit, emergency-exit, get-environment-variable(s), current-second, current-jiffy, jiffies-per-second, features
+│   ├── Procedure.fs              # apply, map, for-each, call/cc, dynamic-wind, values
+│   ├── Environment.fs            # environment, eval, interaction-environment, null-environment, scheme-report-environment
+│   └── SystemInterface.fs        # load, file-exists?, delete-file, command-line, exit, emergency-exit, get-environment-variable, get-environment-variables, current-second, current-jiffy, jiffies-per-second, features
 ├── Builtin.fs                    # builtinBindings registry + builtinContext
 ├── Repl.fs                       # rep function + REPL loop
 ├── Program.fs                    # Entry point
@@ -202,7 +202,9 @@ type Context =
       commandLineArgs: string list }      // command-line arguments (`(command-line)` procedure)
 ```
 
-`PortSet` groups three ports (`input`, `output`, `error`), each an `SPortData` record (`direction`, `isTextual`, mutable `isOpen`, optional `inputReader: TextReader`/`outputWriter: TextWriter`/`fileStream: Stream`/`filePath`). String ports back onto `System.IO.StringReader`/`StringWriter`, bytevector ports onto `MemoryStream`, and file ports onto `FileStream`. See [`docs/trade-off.md`](docs/trade-off.md) for the record-vs-class-hierarchy trade-off.
+`PortSet` groups three ports (`input`, `output`, `error`), each an `SPortData` record (`direction`, `isTextual`, mutable `isOpen`, optional `inputReader: TextReader`/`outputWriter: TextWriter`/`fileStream: Stream`/`filePath`). String ports back onto `System.IO.StringReader`/`StringWriter`, bytevector ports onto `MemoryStream`, and file ports onto `FileStream`.
+
+Default ports in `Context.defaultPorts` are in-memory (`StringReader("")` / `StringWriter`), not the process console. The REPL reads user input via `Console.ReadLine` and only uses ports for Scheme I/O procedures. See [`docs/trade-off.md`](trade-off.md) for the record-vs-class-hierarchy trade-off.
 
 ### 3.4 Environment
 
@@ -454,7 +456,7 @@ popHandler context            // restore previous handler
 
 ### 8.5 Context Reset
 
-`Context.reset` clears winders (`ref []`), restores `handlers` to `initialHandlers`, and resets `ports` back to `defaultPorts`. This is called after an error in the REPL to ensure a clean state for the next input.
+`Context.reset` clears winders, restores `handlers` to `initialHandlers`, and resets `ports` to `defaultPorts`. It is called only from `Repl.rep` when the pipeline returns `Error` (`ParseError`, `EvalError`, or `SchemeRaise`) — not from `raise` / `error` themselves.
 
 ---
 
@@ -473,21 +475,21 @@ let builtinBindings: (string * SExpression ref) list =
 
 The list maps symbol names to mutable `SExpression ref` cells. Each cell holds an `(SExpressionKind * Position option)` tuple — the `Position` (set to `None` for built-ins) carries source location info, while mutability for `set!` comes from the `ref` cell itself.
 
-### 9.2 Special Forms (`Builtin/SpecialForm.fs`)
+### 9.2 Special Forms
 
-The largest file containing the implementation of all special forms:
+Special forms are registered as `SSyntax` in `builtinBindings`. Implementations are split across Builtin modules (not only `SpecialForm.fs`):
 
 | Special Form | Implementation | Key Behavior |
 |---|---|---|
-| `quote` | `sQuote` | Returns datum as-is |
-| `lambda` | `sLambda` | Captures lexical environment, creates procedure |
-| `if` | `sIf` | Conditional with optional alternate |
-| `set!` | `sSetBang` | Mutates variable reference |
-| `include` | `sInclude` | File inclusion at expansion time |
-| `include-ci` | `sIncludeCi` | Case-insensitive file inclusion |
-| `begin` | `sBegin` | Sequential evaluation |
-| `define` | `sDefine` | Variable/procedure definition |
-| `define-values` | `sDefineValues` | Multi-value definition |
+| `quote` | `sQuote` (SpecialForm.fs) | Returns datum as-is |
+| `lambda` | `sLambda` (SpecialForm.fs) | Captures lexical environment, creates procedure |
+| `if` | `sIf` (SpecialForm.fs) | Conditional with optional alternate |
+| `set!` | `sSetBang` (SpecialForm.fs) | Mutates variable reference |
+| `include` | `sInclude` (SpecialForm.fs) | File inclusion at expansion time |
+| `include-ci` | `sIncludeCi` (SpecialForm.fs) | Case-insensitive file inclusion |
+| `begin` | `sBegin` (SpecialForm.fs) | Sequential evaluation |
+| `define` | `sDefine` (SpecialForm.fs) | Variable/procedure definition |
+| `define-values` | `sDefineValues` (SpecialForm.fs) | Multi-value definition |
 | `cond` | `sCond` (Conditional.fs) | Multi-way conditional with `=>` support |
 | `case` | `sCase` (Conditional.fs) | Pattern matching with keys |
 | `and` | `sAnd` (Conditional.fs) | Short-circuit AND |
@@ -521,18 +523,18 @@ The largest file containing the implementation of all special forms:
 | Equivalence | `Core.fs`, `Helper.fs` | `eqv?`, `equal?` (Core); `invalid`, `invalidParameter`, `mapResult`, `wrapUnary`, `eqv`, `doWind` (Helper) |
 | Numeric | `Number.fs`, `Math.fs` | `SNumber` type and unified arithmetic in `Number.fs`; `+`, `-`, `*`, `/`, `sin`, `cos`, `gcd`, `quotient` in `Math.fs` |
 | Boolean | `Bool.fs` | `not`, `boolean?`, `boolean=?` |
-| List/Pair | `List.fs` | `cons`, `car`, `cdr`, `map`, `append`, `assoc` |
+| List/Pair | `List.fs` | `cons`, `car`, `cdr`, `append`, `member`, `assoc` |
 | Symbol | `Symbol.fs` | `symbol?`, `symbol->string` |
 | Character | `Char.fs` | `char?`, `char=?`, `char-upcase` |
 | String | `Str.fs` | `string?`, `string-length`, `string-append` |
 | Vector | `Vector.fs` | `vector?`, `vector-ref`, `vector->list` |
 | Bytevector | `ByteVector.fs` | `bytevector?`, `bytevector-u8-ref` |
-| Higher-order | `Procedure.fs` | `apply`, `map`, `for-each`, `call/cc`, `dynamic-wind` |
+| Higher-order / control | `Procedure.fs` | `apply`, `map`, `for-each`, `call/cc`, `values`, `call-with-values`, `dynamic-wind` |
 | Exception | `Exception.fs` | `with-exception-handler`, `raise`, `error`, `error-object?`, `error-object-message`, `error-object-irritants`, `read-error?`, `file-error?` |
 | Lazy evaluation | `Lazy.fs` | `force`, `promise?`, `make-promise` |
-| Dynamic binding | `DynamicBinding.fs` | `make-parameter`, `parameterize` |
+| Dynamic binding | `DynamicBinding.fs` | `make-parameter` (`parameterize` is syntax in the same file) |
 | I/O ports | `Port.fs` | `read`, `write`, `display`, `open-input-string`, `open-input-file`, `current-input-port`, `eof-object` |
-| Environment | `Environment.fs` | `environment` (R7RS `(scheme eval)`) |
+| Environment / eval | `Environment.fs` | `environment`, `eval`, `interaction-environment`, `null-environment`, `scheme-report-environment` |
 | System interface | `SystemInterface.fs` | `load`, `file-exists?`, `delete-file`, `command-line`, `exit`, `emergency-exit`, `get-environment-variable`, `get-environment-variables`, `current-second`, `current-jiffy`, `jiffies-per-second`, `features` |
 
 ### 9.4 Implementation Pattern
@@ -644,6 +646,8 @@ Cycle detection covers pairs, vectors, values, and error irritants (see [`docs/g
 | Procedure | `#<procedure>` |
 | Syntax | `#<syntax>` |
 | Continuation | `#<continuation>` |
+| Environment | `#<environment>` |
+| Error | `#<error "message" irritant ...>` |
 | EOF | `#!eof` |
 
 ---
@@ -694,11 +698,11 @@ let newContext argv =
         nextWinderId = ref 0 }
 ```
 
-This starts with a fresh user environment on top of the built-in bindings, and forwards `argv` to the `(command-line)` procedure. Note that `libraries` is **not** copied — it is inherited from `builtinContext` (which has `(scheme base)`, `(scheme eval)`, and `(scheme process-context)` registered) and shared via the same `ref` cell.
+This starts with a fresh user environment on top of the built-in bindings, and forwards `argv` to the `(command-line)` procedure. Note that `libraries` is **not** copied — it is inherited from `builtinContext` (all standard `(scheme ...)` libraries are registered there) and shared via the same `ref` cell.
 
 ### 12.3 Error Recovery
 
-When an error occurs (`ParseError`, `EvalError`, or `SchemeRaise`), `Context.reset` is called to clear winders, restore the default exception handlers, and reset `ports` back to the console ports, before formatting the error message (with source position appended) and continuing the REPL.
+When an error occurs (`ParseError`, `EvalError`, or `SchemeRaise`), `Context.reset` is called to clear winders, restore the default exception handlers, and reset `ports` to `defaultPorts` (in-memory string ports), before formatting the error message (with source position appended) and continuing the REPL.
 
 ---
 
@@ -758,6 +762,4 @@ Cyclomatic complexity is measured by Coverlet. The current project-wide threshol
 
 The `dotnet test` output includes coverage data — check after every change.
 
-Functions with large `match` expressions on `SExpressionKind` (e.g., `eqv`, `loopEqual`, `replaceQuasiquoteList`) historically exceeded the threshold. These are refactored incrementally by extracting helpers, using or-patterns, or introducing intermediate types.
-
-`SpecialForm.fs` (the largest file, 30+ special forms) is the most complexity-sensitive area. New special forms should be added as separate functions rather than extending existing ones.
+Functions with large `match` expressions on `SExpressionKind` historically exceeded the threshold and are refactored incrementally by extracting helpers, using or-patterns, or introducing intermediate types. Special forms are spread across Builtin modules; prefer adding new ones as separate functions in the appropriate module rather than extending large multi-purpose matchers.

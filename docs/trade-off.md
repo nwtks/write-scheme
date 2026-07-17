@@ -57,7 +57,7 @@ CPS was chosen because the Scheme language requires first-class continuations (`
 
 - Keep individual continuation functions small.
 - Use named continuations (e.g., `cont`) consistently.
-- Document the CPS pattern in AGENTS.md for new contributors.
+- Document the CPS pattern in architecture and gotchas docs for new contributors.
 
 ---
 
@@ -207,6 +207,7 @@ type SExpressionKind =
     | SDatumLabel | SDatumRef
     | SPromise | SParameter | SPort
     | SSyntax | SProcedure | SContinuation
+    | SEnvironment
 ```
 
 rather than having separate types for each category.
@@ -554,6 +555,48 @@ The `Option` was eliminated because the complexity overhead (wrapping/unwrapping
 
 ---
 
+## 21. StringReader/StringWriter Ports vs Class Hierarchy
+
+### Context
+
+Every value of kind `SPort` wraps an `SPortData` record, and ports are grouped in a `PortSet` inside `Context`:
+
+```fsharp
+and [<ReferenceEquality>] SPortData =
+    { direction: PortDirection
+      isTextual: bool
+      mutable isOpen: bool
+      inputReader: System.IO.TextReader option
+      outputWriter: System.IO.TextWriter option
+      fileStream: System.IO.Stream option
+      filePath: string option }
+
+and PortSet =
+    { input: SPortData
+      output: SPortData
+      error: SPortData }
+```
+
+Textual string ports back onto `System.IO.StringReader` / `StringWriter`, binary bytevector ports onto `MemoryStream`, and file ports onto `FileStream` (both under `fileStream: Stream option`). There is no class hierarchy — `SPortData` is a record with optional fields under `SPort`.
+
+### Trade-off
+
+| Aspect | Record with optional fields | Class hierarchy |
+|--------|-----------------------------|-----------------|
+| Extensibility | ❌ Adding new port types requires modifying `SPortData` | ✅ Easy to add new subclasses |
+| Pattern matching | ✅ Simple `match p.inputReader with` | ❌ Requires downcasting or visitor pattern |
+| Port closure | ✅ `isOpen` field, manually set on close | ✅ Could be built into Dispose pattern |
+| Code footprint | ✅ Single record type, simple | ❌ Interface/class boilerplate |
+| State management | ⚠️ `isOpen` mutable flag | ✅ Encapsulation possible |
+
+### Rationale
+
+A single record type with optional fields keeps the implementation simple and avoids inheritance complexity. The interpreter has a finite set of port types (string, bytevector, file), so extensibility is not a concern. Port close is explicit per R7RS.
+
+`char-ready?` / `u8-ready?` always return `#t` (R7RS allows this when readiness cannot be determined); see [Recurring Gotchas](gotchas.md).
+
+---
+
 ## 22. ErrorType Discriminator in SError
 
 ### Problem
@@ -580,7 +623,7 @@ Changed `SError` to a 3-field variant:
 | SError of ErrorType * SStringData * SExpression list
 ```
 
-All existing error sites use `GenericError`. The `read` and file I/O procedures now construct `SError(ReadError, ...)` / `SError(FileError, ...)` and raise them through `SchemeRaise` (instead of `EvalError`/`ParseError`), so that `guard` can catch them as error objects.
+All existing error sites use `GenericError`. The `read` and file I/O procedures construct `SError(ReadError, ...)` / `SError(FileError, ...)` and raise them through `SchemeRaise` (instead of `EvalError`/`ParseError`), so that `guard` can catch them as error objects.
 
 ### Trade-off
 
@@ -593,45 +636,5 @@ All existing error sites use `GenericError`. The `read` and file I/O procedures 
 
 ### See also
 
-- [R7RS § 9.3 (syntax)] Error predicates
-- `docs/gotchas.md` #16 for assertion patterns when testing SError-based errors
-
-## 21. StringReader/StringWriter Ports vs Class Hierarchy
-
-### Context
-
-Every value of kind `SPort` wraps an `SPortData` record, and strings of ports are grouped in a `PortSet` inside `Context`:
-
-```fsharp
-and [<ReferenceEquality>] SPortData =
-    { direction: PortDirection
-      isTextual: bool
-      mutable isOpen: bool
-      inputReader: System.IO.TextReader option
-      outputWriter: System.IO.TextWriter option
-      fileStream: System.IO.Stream option
-      filePath: string option }
-
-and PortSet =
-    { input: SPortData
-      output: SPortData
-      error: SPortData }
-```
-
-Textual string ports back onto `System.IO.StringReader` (a `TextReader`) / `StringWriter` (a `TextWriter`), binary bytevector ports onto `System.IO.MemoryStream`, and file ports onto `System.IO.FileStream` (both stored under the `fileStream` field typed as `Stream`). There is no class hierarchy — `SPortData` is a record with optional fields and is referenced directly from the `SPort` `SExpressionKind` case.
-
-### Trade-off
-
-| Aspect | Record with optional fields | Class hierarchy |
-|--------|-----------------------------|-----------------|
-| Extensibility | ❌ Adding new port types requires modifying `SPortData` | ✅ Easy to add new subclasses |
-| Pattern matching | ✅ Simple `match p.inputReader with` | ❌ Requires downcasting or visitor pattern |
-| Port closure | ✅ `isOpen` field, manually set on close | ✅ Could be built into Dispose pattern |
-| Code footprint | ✅ Single record type, simple | ❌ Interface/class boilerplate |
-| State management | ⚠️ `isOpen` mutable flag | ✅ Encapsulation possible |
-
-### Rationale
-
-A single record type with optional fields keeps the implementation simple and avoids inheritance complexity. The interpreter has a finite set of port types (string, bytevector, file), so extensibility is not a concern. Using `Option` fields cleanly represents that each port type uses only the resources it needs. Port close is explicit per R7RS.
-
-The `#t` / `#f` return values of `char-ready?` and `u8-ready?` are not truly accurate (the implementation always returns `#t`); R7RS permits this fallback, so it is conformant — see [Recurring Gotchas](gotchas.md) for the relevant entry.
+- R7RS error predicates
+- [gotchas.md §16](gotchas.md#16-error-message-testing-should-startwith-for-evalerror-should-havesubstring-for-schemeraiseserror-) for assertion patterns when testing SError-based errors

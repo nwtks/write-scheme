@@ -19,11 +19,11 @@ This document records common mistakes, subtle pitfalls, and non-obvious behavior
 - [11. Printer Cycle Detection Tracks Pairs, Vectors, Values, and Error Irritants](#11-printer-cycle-detection-tracks-pairs-vectors-values-and-error-irritants)
 - [12. `resolveDatumRefPair` Mutates Pair Fields In-Place](#12-resolvedatumrefpair-mutates-pair-fields-in-place)
 - [13. `collectDatum` Does Not Descend into `SSymbol`, `SString`, etc.](#13-collectdatum-does-not-descend-into-ssymbol-sstring-etc)
-- [14. `Context.reset` After Errors Clears Winders and Handlers](#14-contextreset-after-errors-clears-winders-and-handlers)
+- [14. `Context.reset` After Errors Clears Winders, Handlers, and Ports](#14-contextreset-after-errors-clears-winders-handlers-and-ports)
 - [15. `SchemeRaise` Bypasses Normal Continuation Chain](#15-schemeraise-bypasses-normal-continuation-chain)
 - [16. Error Message Testing: `should startWith` for `EvalError`, `should haveSubstring` for `SchemeRaise(SError ...)`](#16-error-message-testing-should-startwith-for-evalerror-should-havesubstring-for-schemeraiseserror-)
 - [17. `failwith "unreachable."` Guarded by Invariants Only](#17-failwith-unreachable-guarded-by-invariants-only)
-- [18. Macro Pattern Matching Overloads `matchOne` with Many Cases](#18-macro-pattern-matching-overloads-matchone-with-many-cases)
+- [18. Macro Pattern Matching in `matchOne` with Many Cases](#18-macro-pattern-matching-in-matchone-with-many-cases)
 - [19. Macro Ellipsis Matching: `EllipsisB` Groups Pattern Variables](#19-macro-ellipsis-matching-ellipsisb-groups-pattern-variables)
 - [20. `decodePair` Splits List into Prefix and Tail](#20-decodepair-splits-list-into-prefix-and-tail)
 - [21. Quasiquote Nested Expansion](#21-quasiquote-nested-expansion)
@@ -232,7 +232,7 @@ let toList =
 
 ### Pitfall
 
-Many list operations (`map`, `append`, `reverse`, `member`, etc.) call `toList` internally. Passing an improper list to these procedures raises an error. In contrast, Scheme's `list?` correctly returns `#f` for improper lists (using the same `loopListInfo` without accumulation).
+Many list operations (`append`, `reverse`, `length`, etc.) call `toList` internally. Passing an improper list to these procedures raises an error. In contrast, Scheme's `list?` correctly returns `#f` for improper lists (using the same `loopListInfo` path and discarding the accumulated elements).
 
 ---
 
@@ -359,15 +359,15 @@ If a datum label definition is embedded inside a `SPromise`, `SParameter`, or ot
 
 ### Symptom
 
-After a Scheme error, `dynamic-wind` guards, exception handlers, and the current ports are reset.
+After a Scheme error reaches the REPL pipeline, `dynamic-wind` guards, exception handlers, and the current ports are reset.
 
 ### Root Cause
 
-`Context.reset` (`Context.fs`) replaces `winders` with `[]`, restores `handlers` to `initialHandlers`, and replaces `ports` with `defaultPorts` (the console input/output/error ports). This is called by built-in procedures that raise errors (e.g., `raise`, `error`) to prevent accumulated state from leaking between evaluations.
+`Context.reset` (`Context.fs`) clears `winders`, restores `handlers` to `initialHandlers`, and replaces `ports` with `defaultPorts` (in-memory `StringReader`/`StringWriter` ports, not the process console). The only call site is `Repl.rep` when the parse/eval pipeline returns `Error` — not `raise` / `error` themselves (those use the Scheme exception handler stack).
 
 ### Pitfall
 
-If you're using the `rep` function programmatically (e.g., in tests), a Scheme error **also** resets the context — including any ports the program installed via `(current-input-port)` / `(current-output-port)` overrides. Subsequent calls to `rep` start with the console ports, not the ports that were active when the error was raised. If your test depends on state surviving an error, it will fail.
+If you're using the `rep` function programmatically (e.g., in tests), a Scheme error that escapes to `rep` **also** resets the context — including any ports overridden via parameters / current-port procedures. Subsequent calls to `rep` start with `defaultPorts`, not the ports that were active when the error was raised. If your test depends on state surviving an error, it will fail.
 
 ---
 
@@ -383,7 +383,7 @@ If you're using the `rep` function programmatically (e.g., in tests), a Scheme e
 
 ### Pitfall
 
-If no handler is installed, the initial handler (set up in `Context.initialHandlers`) catches the raise and converts it to an `EvalError`. The initial handler is:
+If no more user handlers remain, the initial handler in `Context.initialHandlers` re-wraps the object as `SchemeRaise` and returns `Error`, which the REPL formats and prints. The initial handler is:
 
 ```fsharp
 SProcedure(fun _ pos cont ->
@@ -520,11 +520,11 @@ When using `decodePair` elsewhere, always check whether the tail is `SEmpty` bef
 
 ### Symptom
 
-The quasiquote implementation (`Builtin/SpecialForm.fs`) handles nested quasiquotation with a depth counter (`n`). The functions `replaceQuasiquoteDatum`, `replaceQuasiquoteList`, etc. thread this counter through recursive calls.
+The quasiquote implementation (`Builtin/Quasiquote.fs`) handles nested quasiquotation with a depth counter (`n`). `replaceQuasiquote`, `replaceQuasiquoteList`, and `replaceQuasiquoteDatum` thread this counter through recursive CPS calls.
 
 ### Pitfall
 
-The depth tracking is complex and involves mutual recursion between `replaceQuasiquoteDatum`, `replaceQuasiquoteList`, `replaceQuasiquoteListItems`, and several other helpers. A bug in the depth tracking can cause nested quasiquotes (e.g., `` `(,x `(,,x)) ``) to expand incorrectly.
+The depth tracking is complex and involves mutual recursion among those helpers (plus `chainExpand`, `consQq`, and `joinQq`). A bug in the depth tracking can cause nested quasiquotes (e.g., `` `(,x `(,,x)) ``) to expand incorrectly.
 
 If modifying quasiquote expansion, always test with:
 
@@ -534,9 +534,9 @@ If modifying quasiquote expansion, always test with:
 `(,x `(,,x))      ; mixed nesting
 ```
 
-### Refactoring Note
+### Design Note
 
-The quasiquote code was refactored to use a `QqKeyword` DU (`QqUnquote | QqUnquoteSplicing | QqQuasiquote | QqQuote`) that normalizes the various keyword forms (`unquote`, `unquote-splicing`, `quasiquote`, `quote`). The `normalizeQqKeyword` function maps any Scheme keyword form to its `QqKeyword` variant. The helpers `consQq` and `joinQq` construct pair trees with normalized quasiquote keywords, reducing duplication in the expansion logic.
+Keyword matching uses a `QqKeyword` DU (`QqUnquote | QqUnquoteSplicing | QqQuasiquote | QqQuote`). `normalizeQqKeyword` maps both reader forms and symbol forms to the DU; `consQq` / `joinQq` rebuild pair trees during expansion.
 
 ---
 
@@ -544,24 +544,17 @@ The quasiquote code was refactored to use a `QqKeyword` DU (`QqUnquote | QqUnquo
 
 ### Symptom
 
-`dynamic-wind` in `Procedure.fs` uses `doAroundProc`, which wraps the thunk with before/after procedures using `SProcedure` values:
-
-```fsharp
-let doAroundProc context cont before thunk after =
-    // before is called on entry
-    // thunk is executed
-    // after is called on exit
-```
+`dynamic-wind` (`Procedure.fs`) calls `doAroundProc` (`Helper.fs`), which runs `before`, then the thunk, then `after`, while pushing/popping a winder on `Context.winders`.
 
 ### Pitfall
 
-The before/after procedures are themselves evaluated as Scheme procedures via `Eval.apply`. This means:
+`before` / thunk / `after` are applied via `Eval.apply`, so:
 
-1. `before` and `after` run in the evaluator, not as direct F# calls.
+1. They run through the evaluator, not as direct F# calls.
 2. Errors in `before` or `after` propagate through the CPS chain.
-3. The `SProcedure` wrapper means they appear in stack traces as procedure calls.
+3. Invoking a captured continuation uses `doWind` (`Helper.fs`) to leave/enter the differing winders between the saved and current stacks.
 
-This also means `dynamic-wind` has overhead even when no winders are active, because the continuation always checks and potentially runs winder differences via `doWind` in `Procedure.fs`.
+Do not confuse `doAroundProc` (install a winder around one thunk) with `doWind` (reconcile winder stacks when jumping via `call/cc`).
 
 ---
 

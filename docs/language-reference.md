@@ -284,13 +284,14 @@ Evaluates expressions sequentially, returning the last value.
 
 Iteration construct. Variables are bound to `init`, updated with `step` each iteration. Loop terminates when `test` is truthy.
 
-### 3.13 `delay`, `delay-force`, `force`
+### 3.13 `delay`, `delay-force`
 
 ```scheme
 (delay expr)                 ; create a lazy promise
 (delay-force expr)           ; create a lazy promise (expr must return a promise)
-(force promise)              ; evaluate a promise
 ```
+
+`force` is a procedure (see [4.13 Lazy Evaluation](#413-lazy-evaluation)), not a special form.
 
 ### 3.14 `parameterize`
 
